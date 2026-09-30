@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: random-call-server
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: corepack enable && pnpm install --frozen-lockfile
+    startCommand: pnpm --filter @rc/server start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: WEB_ORIGIN
+        # Exact origins or wildcard hosts, comma separated. Update after the first Vercel deploy.
+        value: https://*.vercel.app,http://localhost:3000

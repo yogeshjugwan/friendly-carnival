@@ -8,6 +8,12 @@ import { AuthCard } from '@/components/SiteHeader';
 import { errorText, Field, FormError, Submit } from '@/components/forms/fields';
 import { useAuth } from '@/lib/auth';
 
+/** Only same-site paths, so ?next= can't send people to another website. */
+const safeNext = () => {
+  const next = new URLSearchParams(window.location.search).get('next');
+  return next && next.startsWith('/') && !next.startsWith('//') ? next : null;
+};
+
 export default function SignupPage() {
   const { signup } = useAuth();
   const router = useRouter();
@@ -28,7 +34,7 @@ export default function SignupPage() {
           setError(null);
           try {
             await signup(email, password);
-            router.push('/settings?welcome=1');
+            router.push(safeNext() ?? '/settings?welcome=1');
           } catch (err) {
             setError(errorText(err));
           } finally {

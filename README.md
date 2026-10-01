@@ -156,3 +156,28 @@ To turn on Google ads, set in Vercel and redeploy:
 | `NEXT_PUBLIC_AD_BREAK_MS` | `3000` (0 disables the ad break) |
 
 `/ads.txt` is generated from `NEXT_PUBLIC_ADSENSE_CLIENT`.
+
+## Plus (Stripe)
+
+Plus unlocks the **gender filter** and **country filter**, removes **ads**, and shows a
+**👑 badge** to partners. Filters are enforced by the server in both directions (both
+users' filters must accept each other); users who hide their country never match a
+country filter. Plus needs an account. Checkout and cancellation run on Stripe's hosted
+pages, so card details never reach our servers.
+
+### Set up Stripe (about 15 minutes)
+
+1. Create a Stripe account (https://dashboard.stripe.com) and stay in **Test mode** first.
+2. **Product catalog → Add product** "randomCall Plus" with three recurring prices:
+   weekly ($7.99), monthly ($19.99), every 6 months ($89.99). Copy each `price_…` id.
+3. **Developers → API keys:** copy the secret key (`sk_test_…`).
+4. **Developers → Webhooks → Add endpoint:** `https://<your-render-server>/billing/webhook`,
+   events `checkout.session.completed`, `customer.subscription.created`,
+   `customer.subscription.updated`, `customer.subscription.deleted`. Copy the signing secret (`whsec_…`).
+5. **Settings → Billing → Customer portal:** turn on cancel and payment-method updates.
+6. In Render set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_WEEK`,
+   `STRIPE_PRICE_MONTH`, `STRIPE_PRICE_HALFYEAR`. `/health` then shows `billingConfigured: true`.
+7. Test with card `4242 4242 4242 4242`, then switch to live keys and live prices.
+
+Complimentary Plus (testers, support): `POST /admin/plus` with `{ "email", "days" }`
+(admin token); `days: 0` removes it.

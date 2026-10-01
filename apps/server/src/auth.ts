@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, type PublicUser } from '@rc/shared';
-import { hashPassword, verifyPassword, type AccountStore, type User } from './accounts.ts';
+import { hashPassword, publicPlus, verifyPassword, type AccountStore, type User } from './accounts.ts';
 import { bearer, cors, RateLimiter, readJson, sendJson } from './http.ts';
 import { linkEmail, type Mailer } from './mailer.ts';
 import { parseSettings } from './validate.ts';
@@ -25,6 +25,7 @@ export const publicUser = (u: User): PublicUser => ({
   emailVerified: u.emailVerified,
   createdAt: u.createdAt,
   settings: u.settings,
+  plus: publicPlus(u.plus),
 });
 
 const passwordProblem = (p: unknown): string | null => {

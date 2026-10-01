@@ -1,17 +1,19 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type {
-  BackUnavailableReason,
-  BanInfo,
-  ChatMessage,
-  ChatMode,
-  JoinPayload,
-  MatchFound,
-  PartnerInfo,
-  PartnerLeftReason,
-  ReportReason,
-  SignalMessage,
+import {
+  hasFilters,
+  type BackUnavailableReason,
+  type BanInfo,
+  type ChatMessage,
+  type ChatMode,
+  type JoinPayload,
+  type MatchFilters,
+  type MatchFound,
+  type PartnerInfo,
+  type PartnerLeftReason,
+  type ReportReason,
+  type SignalMessage,
 } from '@rc/shared';
 import { AD_BREAK_MS } from './ads';
 import { explicitScore, snapshot } from './nsfw';
@@ -51,6 +53,11 @@ const SCREEN_EVERY_MS = 3_000;
 const SCREEN_THRESHOLD = 0.85;
 /** Consecutive flagged frames before acting, to avoid one-frame false positives. */
 const SCREEN_HITS = 2;
+/** With filters on, offer to widen the search after this long. */
+const FILTER_PATIENCE_MS = 15_000;
+
+const sameFilters = (a: MatchFilters | undefined, b: MatchFilters | undefined) =>
+  (a?.gender ?? 'any') === (b?.gender ?? 'any') && (a?.country ?? 'any') === (b?.country ?? 'any');
 
 const BACK_TEXT: Record<BackUnavailableReason, string> = {
   'no-previous': 'There is no previous partner to go back to.',
@@ -94,6 +101,12 @@ export function useRandomCall() {
   const [adBreak, setAdBreak] = useState(false);
   /** Changes on every ad break so ad slots load a fresh ad. */
   const [adKey, setAdKey] = useState(0);
+  /** The server ignored our filters because we don't have Plus. */
+  const [plusRequired, setPlusRequired] = useState(false);
+  /** Searching with filters has taken a while. */
+  const [searchingLong, setSearchingLong] = useState(false);
+  /** Whether the current search uses filters (restarts the patience timer when it changes). */
+  const [filtering, setFiltering] = useState(false);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localRef = useRef<MediaStream | null>(null);
@@ -101,7 +114,17 @@ export function useRandomCall() {
   const pendingIce = useRef<RTCIceCandidateInit[]>([]);
   const activeRef = useRef(false);
   const matchRef = useRef<{ id: string; startedAt: number; reported: boolean } | null>(null);
-  const timers = useRef<{ connect?: number; disconnect?: number; blur?: number; typing?: number; notice?: number; ad?: number }>({});
+  const timers = useRef<{
+    connect?: number;
+    disconnect?: number;
+    blur?: number;
+    typing?: number;
+    notice?: number;
+    ad?: number;
+    patience?: number;
+  }>({});
+  /** Plus members see no ads. */
+  const adFreeRef = useRef(false);
   const lineId = useRef(0);
   const typingSent = useRef(false);
   const partnerVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -129,7 +152,7 @@ export function useRandomCall() {
    * running underneath, so the next stranger is usually ready when it ends.
    */
   const startAdBreak = useCallback(() => {
-    if (AD_BREAK_MS <= 0) return;
+    if (AD_BREAK_MS <= 0 || adFreeRef.current) return;
     setAdKey((k) => k + 1);
     setAdBreak(true);
     window.clearTimeout(timers.current.ad);
@@ -336,6 +359,7 @@ export function useRandomCall() {
             : 'The report could not be sent.',
       );
     const onBlocked = () => flash('Blocked. You will not be matched with them again.');
+    const onPlusRequired = () => setPlusRequired(true);
 
     socket.on('stats', onStats);
     socket.on('match:found', onMatch);
@@ -350,6 +374,7 @@ export function useRandomCall() {
     socket.on('report:received', onReported);
     socket.on('report:rejected', onReportRejected);
     socket.on('user:blocked', onBlocked);
+    socket.on('plus:required', onPlusRequired);
     return () => {
       socket.off('stats', onStats);
       socket.off('match:found', onMatch);
@@ -364,6 +389,7 @@ export function useRandomCall() {
       socket.off('report:received', onReported);
       socket.off('report:rejected', onReportRejected);
       socket.off('user:blocked', onBlocked);
+      socket.off('plus:required', onPlusRequired);
     };
   }, [startPeer, handleSignal, closePeer, requeue, addLine, flash, startAdBreak]);
 
@@ -403,7 +429,9 @@ export function useRandomCall() {
 
   const start = useCallback(
     async (join: Omit<JoinPayload, 'mode' | 'hideCountry'>, chatMode: ChatMode = 'video') => {
-      const payload: JoinPayload = { ...join, mode: chatMode, hideCountry: loadSettings().hideCountry };
+      const saved = loadSettings();
+      const payload: JoinPayload = { ...join, mode: chatMode, hideCountry: saved.hideCountry, filters: saved.filters };
+      setFiltering(hasFilters(saved.filters));
       joinRef.current = payload;
       setMode(chatMode);
       setLastLeftReason(null);
@@ -547,6 +575,39 @@ export function useRandomCall() {
     setMicOn(track.enabled);
   }, []);
 
+  // Filters changed (in this tab or another): apply them to the next match, and
+  // right away if we are waiting in the queue.
+  useEffect(
+    () =>
+      onSettingsChange(() => {
+        const join = joinRef.current;
+        const filters = loadSettings().filters;
+        if (!join || sameFilters(join.filters, filters)) return;
+        joinRef.current = { ...join, filters };
+        setFiltering(hasFilters(filters));
+        setPlusRequired(false);
+        if (activeRef.current && !pcRef.current && !matchRef.current) getSocket().emit('queue:join', joinRef.current);
+      }),
+    [],
+  );
+
+  // Offer "connect to anyone" when filtered searching takes a while.
+  useEffect(() => {
+    window.clearTimeout(timers.current.patience);
+    setSearchingLong(false);
+    if (status !== 'searching' || !filtering) return;
+    timers.current.patience = window.setTimeout(() => setSearchingLong(true), FILTER_PATIENCE_MS);
+    return () => window.clearTimeout(timers.current.patience);
+  }, [status, filtering]);
+
+  const setAdFree = useCallback((adFree: boolean) => {
+    adFreeRef.current = adFree;
+    if (adFree) {
+      window.clearTimeout(timers.current.ad);
+      setAdBreak(false);
+    }
+  }, []);
+
   // Screen the partner's incoming video on this device. The receiver runs the
   // check, so the sender cannot switch it off. Also keeps a recent snapshot.
   useEffect(() => {
@@ -641,6 +702,10 @@ export function useRandomCall() {
     appeal,
     adBreak,
     adKey,
+    plusRequired,
+    searchingLong,
+    setAdFree,
+    dismissPlusRequired: () => setPlusRequired(false),
   };
 }
 

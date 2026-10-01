@@ -27,14 +27,28 @@ export function SiteHeader({ online }: { online?: number | null }) {
       )}
       {!loading &&
         (user ? (
-          <Link href="/settings" className="rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-medium hover:bg-slate-600">
-            {user.email.split('@')[0]} · Settings
-          </Link>
+          <>
+            {user.plus.active ? (
+              <Link href="/plus" className="text-sm font-semibold text-amber-300" title="Plus member">
+                👑 Plus
+              </Link>
+            ) : (
+              <Link href="/plus" className="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-600">
+                👑 Upgrade
+              </Link>
+            )}
+            <Link href="/settings" className="rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-medium hover:bg-slate-600">
+              {user.email.split('@')[0]} · Settings
+            </Link>
+          </>
         ) : (
           <>
             <span className="rounded-full border border-slate-600 px-2.5 py-0.5 text-xs text-slate-300" title="You are chatting as a guest">
               👤 Guest
             </span>
+            <Link href="/plus" className="text-sm font-semibold text-amber-300 hover:text-amber-200">
+              👑 Plus
+            </Link>
             <Link href="/settings" className="text-sm text-slate-300 hover:text-white">
               Settings
             </Link>

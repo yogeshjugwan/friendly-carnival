@@ -4,12 +4,24 @@ export type Gender = 'male' | 'female' | 'couple';
 /** Video users only meet video users; text-only users only meet text-only users. */
 export type ChatMode = 'video' | 'text';
 
+/** Plus-only match filters. 'any' means no filter. */
+export interface MatchFilters {
+  gender: Gender | 'any';
+  /** ISO 3166-1 alpha-2 country code, or 'any'. */
+  country: string | 'any';
+}
+
+export const NO_FILTERS: MatchFilters = { gender: 'any', country: 'any' };
+export const hasFilters = (f: MatchFilters | undefined | null) => !!f && (f.gender !== 'any' || f.country !== 'any');
+
 export interface JoinPayload {
   gender: Gender;
   interests: string[];
   mode: ChatMode;
   /** Don't show my country to partners. */
   hideCountry?: boolean;
+  /** Ignored by the server unless the user has Plus. */
+  filters?: MatchFilters;
 }
 
 export interface PartnerInfo {
@@ -18,6 +30,8 @@ export interface PartnerInfo {
   country: string | null;
   /** The partner chose to hide their country. */
   locationHidden?: boolean;
+  /** The partner has Plus. */
+  plus?: boolean;
   sharedInterests: string[];
 }
 
@@ -124,6 +138,8 @@ export interface ServerToClientEvents {
   'user:blocked': () => void;
   banned: (ban: BanInfo) => void;
   'ban:appealed': () => void;
+  /** Filters were sent without an active Plus subscription and were ignored. */
+  'plus:required': () => void;
   signal: (msg: SignalMessage) => void;
   stats: (stats: Stats) => void;
   'error:message': (message: string) => void;
@@ -153,6 +169,31 @@ export interface UserSettings {
   interests: string[];
   allowReconnect: boolean;
   hideCountry: boolean;
+  /** Plus match filters (kept for everyone, applied only with Plus). */
+  filters: MatchFilters;
+}
+
+export type PlusPlan = 'week' | 'month' | 'halfyear';
+export const PLUS_PLANS: PlusPlan[] = ['week', 'month', 'halfyear'];
+
+export interface PlusStatus {
+  active: boolean;
+  plan: PlusPlan | null;
+  /** End of the paid period (ms since epoch). */
+  until: number | null;
+  /** Stripe status, or 'admin' for complimentary Plus. */
+  status: string | null;
+  /** Subscription ends at `until` instead of renewing. */
+  cancelAtPeriodEnd: boolean;
+}
+
+export interface PlanPrice {
+  plan: PlusPlan;
+  /** Smallest currency unit (cents, paise). */
+  amount: number;
+  currency: string;
+  interval: 'week' | 'month';
+  intervalCount: number;
 }
 
 /** What the API returns about the logged-in user. */
@@ -162,6 +203,7 @@ export interface PublicUser {
   emailVerified: boolean;
   createdAt: number;
   settings: UserSettings;
+  plus: PlusStatus;
 }
 
 export const MIN_PASSWORD_LENGTH = 8;

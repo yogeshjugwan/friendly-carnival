@@ -41,7 +41,7 @@ for (const [name, make] of stores) {
       assert.equal(await s.createUser('me@example.COM', 'h'), 'exists');
       const id = (u as Exclude<typeof u, 'exists'>).id;
       assert.equal((await s.userByEmail('ME@example.com'))?.id, id);
-      await s.updateSettings(id, { gender: 'female', interests: ['music'], allowReconnect: false, hideCountry: true });
+      await s.updateSettings(id, { gender: 'female', interests: ['music'], allowReconnect: false, hideCountry: true, filters: { gender: 'any', country: 'any' } });
       assert.deepEqual((await s.userById(id))?.settings.interests, ['music']);
       await s.markVerified(id);
       assert.equal((await s.userById(id))?.emailVerified, true);
@@ -129,7 +129,13 @@ describe('auth HTTP API and sockets', () => {
 
     const settings = { gender: 'female', interests: ['Music', ' chess '], allowReconnect: false, hideCountry: true };
     const saved = await (await post('/auth/settings', { settings }, session2)).json();
-    assert.deepEqual(saved.settings, { gender: 'female', interests: ['music', 'chess'], allowReconnect: false, hideCountry: true });
+    assert.deepEqual(saved.settings, {
+      gender: 'female',
+      interests: ['music', 'chess'],
+      allowReconnect: false,
+      hideCountry: true,
+      filters: { gender: 'any', country: 'any' },
+    });
     assert.equal((await post('/auth/settings', { settings: { gender: 'robot' } }, session2)).status, 400);
 
     assert.equal((await post('/auth/password', { current: 'wrong', next: 'second password' }, session2)).status, 400);

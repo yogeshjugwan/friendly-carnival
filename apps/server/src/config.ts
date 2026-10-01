@@ -20,6 +20,15 @@ export const config = {
   /** https://resend.com API key; without it emails are printed to the log. */
   resendApiKey: env.RESEND_API_KEY || undefined,
   mailFrom: env.MAIL_FROM || 'randomCall <onboarding@resend.dev>',
+  /** Stripe for Plus; billing is disabled unless the key, webhook secret and all 3 prices are set. */
+  stripe:
+    env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET && env.STRIPE_PRICE_WEEK && env.STRIPE_PRICE_MONTH && env.STRIPE_PRICE_HALFYEAR
+      ? {
+          secretKey: env.STRIPE_SECRET_KEY,
+          webhookSecret: env.STRIPE_WEBHOOK_SECRET,
+          prices: { week: env.STRIPE_PRICE_WEEK, month: env.STRIPE_PRICE_MONTH, halfyear: env.STRIPE_PRICE_HALFYEAR },
+        }
+      : undefined,
 };
 
 /** `https://*.vercel.app` matches any subdomain; other entries must match exactly. */

@@ -1,12 +1,12 @@
 'use client';
 
-import type { UserSettings } from '@rc/shared';
+import { NO_FILTERS, type UserSettings } from '@rc/shared';
 
 const KEY = 'rc.settings';
 const LEGACY_RECONNECT_KEY = 'rc.allowReconnect';
 const EVENT = 'rc:settings';
 
-export const DEFAULT_SETTINGS: UserSettings = { gender: null, interests: [], allowReconnect: true, hideCountry: false };
+export const DEFAULT_SETTINGS: UserSettings = { gender: null, interests: [], allowReconnect: true, hideCountry: false, filters: { ...NO_FILTERS } };
 
 /**
  * The browser copy of the user's settings. Guests only have this; for logged-in

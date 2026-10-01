@@ -7,6 +7,7 @@ import {
   type Gender,
   type JoinPayload,
   type SignalMessage,
+  type MatchFilters,
   type UserSettings,
 } from '@rc/shared';
 
@@ -32,7 +33,8 @@ export function parseJoin(input: unknown): JoinPayload | null {
   const chatMode = mode === undefined ? 'video' : MODES.includes(mode as ChatMode) ? (mode as ChatMode) : null;
   if (!chatMode) return null;
   const hideCountry = (input as Record<string, unknown>).hideCountry === true;
-  return { gender: gender as Gender, interests: cleaned, mode: chatMode, hideCountry };
+  const filters = parseFilters((input as Record<string, unknown>).filters) ?? undefined;
+  return { gender: gender as Gender, interests: cleaned, mode: chatMode, hideCountry, filters };
 }
 
 export function parseSignal(input: unknown): SignalMessage | null {
@@ -86,5 +88,16 @@ export function parseSettings(input: unknown): UserSettings | null {
     interests: join.interests,
     allowReconnect: s.allowReconnect,
     hideCountry: s.hideCountry,
+    filters: parseFilters(s.filters) ?? { gender: 'any', country: 'any' },
   };
+}
+
+/** Match filters, or null when malformed. Country is an ISO alpha-2 code. */
+export function parseFilters(input: unknown): MatchFilters | null {
+  if (!input || typeof input !== 'object') return null;
+  const f = input as Record<string, unknown>;
+  const gender = f.gender === 'any' || GENDERS.includes(f.gender as Gender) ? (f.gender as MatchFilters['gender']) : null;
+  const country =
+    f.country === 'any' ? 'any' : typeof f.country === 'string' && /^[A-Za-z]{2}$/.test(f.country) ? f.country.toUpperCase() : null;
+  return gender && country ? { gender, country } : null;
 }

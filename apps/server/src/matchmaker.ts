@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { BackUnavailableReason, ChatMode, Gender } from '@rc/shared';
+import { NO_FILTERS, type BackUnavailableReason, type ChatMode, type Gender, type MatchFilters } from '@rc/shared';
 
 export interface Session {
   id: string;
@@ -11,6 +11,10 @@ export interface Session {
   hideCountry: boolean;
   /** Logged-in account, if any. */
   userId: string | null;
+  /** Active Plus subscription. */
+  plus: boolean;
+  /** Plus match filters (always NO_FILTERS without Plus). */
+  filters: MatchFilters;
   /** Persistent browser id (from the handshake); falls back to the socket id. */
   deviceId: string;
   ipHash: string | null;
@@ -58,7 +62,7 @@ export class Matchmaker {
   connect(
     id: string,
     country: string | null,
-    identity: { deviceId?: string; ipHash?: string | null; userId?: string | null; blocked?: Set<string> } = {},
+    identity: { deviceId?: string; ipHash?: string | null; userId?: string | null; plus?: boolean; blocked?: Set<string> } = {},
   ): Session {
     const deviceId = identity.deviceId ?? id;
     const ipHash = identity.ipHash ?? null;
@@ -75,6 +79,8 @@ export class Matchmaker {
       country,
       hideCountry: false,
       userId,
+      plus: identity.plus ?? false,
+      filters: { ...NO_FILTERS },
       deviceId,
       ipHash,
       blocked: identity.blocked ?? new Set(),
@@ -108,6 +114,15 @@ export class Matchmaker {
     return s.partnerId ? s.recent[1] : s.recent[0];
   }
 
+  /** Update Plus on every live session of an account (after a payment or cancellation). */
+  setPlus(userId: string, plus: boolean): void {
+    for (const s of this.sessions.values()) {
+      if (s.userId !== userId) continue;
+      s.plus = plus;
+      if (!plus) s.filters = { ...NO_FILTERS };
+    }
+  }
+
   /** Record a block in every live session of both devices. */
   block(deviceA: string, deviceB: string): void {
     for (const s of this.sessions.values()) {
@@ -133,13 +148,22 @@ export class Matchmaker {
   }
 
   /** Queue a session; returns a pairing if a partner was available right away. */
-  join(id: string, gender: Gender, interests: string[], mode: ChatMode, hideCountry = false): Pairing | null {
+  join(
+    id: string,
+    gender: Gender,
+    interests: string[],
+    mode: ChatMode,
+    hideCountry = false,
+    filters: MatchFilters = NO_FILTERS,
+  ): Pairing | null {
     const session = this.sessions.get(id);
     if (!session || session.partnerId) return null;
     session.gender = gender;
     session.interests = interests;
     session.mode = mode;
     session.hideCountry = hideCountry;
+    // Filters are a Plus feature; the server never trusts the client on this.
+    session.filters = session.plus ? { ...filters } : { ...NO_FILTERS };
     return this.requeue(session);
   }
 
@@ -217,6 +241,7 @@ export class Matchmaker {
       if (!other || other.partnerId || other.mode !== session.mode) continue;
       if (session.recent.includes(otherId) || other.recent.includes(session.id)) continue;
       if (isBlocked(session, other)) continue;
+      if (!wants(session, other) || !wants(other, session)) continue;
       const score = sharedInterests(session.interests, other.interests).length;
       // Queue is oldest-first, so strict ">" keeps the longest waiter on ties.
       if (score > bestScore) {
@@ -247,6 +272,11 @@ export class Matchmaker {
     if (index !== -1) this.queue.splice(index, 1);
   }
 }
+
+/** Does `a`'s filter accept `b`? Hidden-country users never match a country filter. */
+const wants = (a: Session, b: Session) =>
+  (a.filters.gender === 'any' || a.filters.gender === b.gender) &&
+  (a.filters.country === 'any' || (!b.hideCountry && b.country === a.filters.country));
 
 const isBlocked = (a: Session, b: Session) => a.blocked.has(b.deviceId) || b.blocked.has(a.deviceId);
 

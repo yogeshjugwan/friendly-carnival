@@ -40,3 +40,14 @@ services:
       # Sender, e.g. "randomCall <hello@yourdomain.com>" once your domain is verified in Resend.
       - key: MAIL_FROM
         sync: false
+      # Plus (Stripe). Billing stays off until all five are set.
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_WEEK
+        sync: false
+      - key: STRIPE_PRICE_MONTH
+        sync: false
+      - key: STRIPE_PRICE_HALFYEAR
+        sync: false

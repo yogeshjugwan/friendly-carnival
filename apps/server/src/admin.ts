@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { NO_PLUS, type AccountStore } from './accounts.ts';
 import { cors, readJson } from './http.ts';
 import type { Safety } from './safety.ts';
 import type { SafetyStore } from './store.ts';
@@ -12,6 +13,8 @@ export interface AdminDeps {
   token: string | undefined;
   origins: (string | RegExp)[];
   online: () => number;
+  accounts?: AccountStore;
+  onPlusChanged?: (userId: string) => void;
 }
 
 const sameToken = (given: string, expected: string) => {
@@ -85,6 +88,24 @@ export async function handleAdmin(req: IncomingMessage, res: ServerResponse, dep
         return send(200, ban), true;
       }
       return send(400, { error: 'action must be "ban" or "dismiss"' }), true;
+    }
+
+    // Complimentary Plus (support, testers, giveaways): { email, days }; days 0 removes it.
+    if (req.method === 'POST' && resource === 'plus' && deps.accounts) {
+      const body = await readJson(req);
+      const days = body.days;
+      if (typeof body.email !== 'string' || typeof days !== 'number' || days < 0 || days > 3650) {
+        return send(400, { error: 'email and days (0–3650) are required' }), true;
+      }
+      const user = await deps.accounts.userByEmail(body.email);
+      if (!user) return send(404, { error: 'No account with that email' }), true;
+      if (user.plus.status && user.plus.status !== 'admin' && user.plus.status !== 'canceled' && days > 0) {
+        return send(409, { error: 'This user already has a paid subscription' }), true;
+      }
+      const plus = days === 0 ? { ...NO_PLUS } : { ...NO_PLUS, status: 'admin', until: Date.now() + days * 24 * HOUR };
+      await deps.accounts.setPlus(user.id, plus);
+      deps.onPlusChanged?.(user.id);
+      return send(200, { email: user.email, plus }), true;
     }
 
     if (req.method === 'GET' && resource === 'bans') {

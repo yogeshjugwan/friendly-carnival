@@ -1,8 +1,15 @@
 'use client';
 
-import type { RandomCall } from '@/lib/useRandomCall';
+import Link from 'next/link';
+import { useEffect } from 'react';
+import { NO_FILTERS } from '@rc/shared';
+import { useAuth } from '@/lib/auth';
 import { countryName, flagEmoji, GENDER_ICON, GENDER_LABEL } from '@/lib/format';
+import { loadSettings } from '@/lib/settings';
+import type { RandomCall } from '@/lib/useRandomCall';
 import { AdSlot } from './AdSlot';
+import { FilterBar } from './FilterBar';
+import { PlusUpsell } from './PlusUpsell';
 import { ChatPanel } from './ChatPanel';
 import { SafetyMenu } from './SafetyMenu';
 import { SettingsMenu } from './SettingsMenu';
@@ -21,6 +28,11 @@ function PartnerBadge({ call }: { call: RandomCall }) {
       <span title={GENDER_LABEL[partner.gender]}>{GENDER_ICON[partner.gender]}</span>
       <span>{partner.locationHidden ? '📍' : flagEmoji(partner.country)}</span>
       <span className="truncate">{partner.locationHidden ? 'Hidden' : countryName(partner.country)}</span>
+      {partner.plus && (
+        <span title="Plus member" aria-label="Plus member">
+          👑
+        </span>
+      )}
       {partner.sharedInterests.length > 0 && (
         <span className="hidden truncate text-slate-300 md:inline">· likes {partner.sharedInterests.join(', ')}</span>
       )}
@@ -38,6 +50,23 @@ function Searching({ call }: { call: RandomCall }) {
       {call.status === 'searching' && call.lastLeftReason && (
         <p className="text-sm text-slate-500">Your partner left. Finding someone new.</p>
       )}
+      {call.searchingLong && <WidenSearch />}
+    </div>
+  );
+}
+
+/** Shown when filtered searching takes a while. */
+function WidenSearch() {
+  const { saveSettings } = useAuth();
+  return (
+    <div className="pointer-events-auto text-sm text-slate-300">
+      It may take longer to find someone with your filters.{' '}
+      <button
+        className="font-medium text-white underline"
+        onClick={() => void saveSettings({ ...loadSettings(), filters: { ...NO_FILTERS } })}
+      >
+        Connect to anyone instead
+      </button>
     </div>
   );
 }
@@ -45,6 +74,11 @@ function Searching({ call }: { call: RandomCall }) {
 export function ChatScreen({ call }: { call: RandomCall }) {
   const matched = call.status === 'in-call' || call.status === 'connecting';
   const isText = call.mode === 'text';
+  const { user } = useAuth();
+  const isPlus = !!user?.plus.active;
+  const { setAdFree } = call;
+
+  useEffect(() => setAdFree(isPlus), [isPlus, setAdFree]);
 
   return (
     <main className="flex h-full flex-col gap-3 p-3 sm:p-4">
@@ -69,7 +103,20 @@ export function ChatScreen({ call }: { call: RandomCall }) {
           Stop
         </button>
         <SettingsMenu call={call} />
+        {!isPlus && (
+          <Link href="/plus" className="rounded-lg bg-amber-500 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-600">
+            👑 Upgrade
+          </Link>
+        )}
       </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <FilterBar compact />
+        {isPlus && <span className="text-xs text-amber-300">👑 Plus · no ads</span>}
+      </div>
+      {call.plusRequired && (
+        <PlusUpsell onClose={call.dismissPlusRequired} reason="Filters are a Plus feature" />
+      )}
 
       {call.notice && (
         <p role="status" className="rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900">
@@ -83,7 +130,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
             <PartnerBadge call={call} />
             <SafetyMenu call={call} />
           </div>
-          <AdSlot placement="sidebar" refreshKey={call.adKey} className="h-36 shrink-0" />
+          {!isPlus && <AdSlot placement="sidebar" refreshKey={call.adKey} className="h-36 shrink-0" />}
           <div className="relative min-h-0 flex-1">
             <ChatPanel
               className="h-full"
@@ -120,7 +167,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                   </button>
                 </div>
               )}
-              {call.adBreak ? (
+              {call.adBreak && !isPlus ? (
                 <div className="absolute inset-0 z-10">
                   <AdSlot placement="break" refreshKey={call.adKey} className="h-full rounded-none" />
                   <p className="absolute bottom-2 left-0 right-0 text-center text-xs text-white/80">Finding your next stranger…</p>
@@ -161,7 +208,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
           </div>
 
           <div className="flex min-h-0 flex-col gap-3">
-            <AdSlot placement="sidebar" refreshKey={call.adKey} className="h-36 shrink-0 lg:h-[250px]" />
+            {!isPlus && <AdSlot placement="sidebar" refreshKey={call.adKey} className="h-36 shrink-0 lg:h-[250px]" />}
             <ChatPanel
               className="h-72 lg:h-auto lg:min-h-0 lg:flex-1"
               messages={call.messages}

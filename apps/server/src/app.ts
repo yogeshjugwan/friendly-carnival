@@ -5,6 +5,7 @@ import {
   CHAT_WINDOW_MS,
   MAX_APPEAL_LENGTH,
   MAX_SNAPSHOT_BYTES,
+  hasFilters,
   type BanInfo,
   type ClientToServerEvents,
   type HandshakeAuth,
@@ -12,7 +13,9 @@ import {
   type ServerToClientEvents,
 } from '@rc/shared';
 import type { AccountStore } from './accounts.ts';
-import { MemoryAccountStore } from './accounts.ts';
+import { isPlusActive, MemoryAccountStore } from './accounts.ts';
+import type { BillingProvider } from './billing.ts';
+import { createBillingHandler } from './billing-http.ts';
 import { handleAdmin } from './admin.ts';
 import { createAuthHandler } from './auth.ts';
 import { ConsoleMailer, type Mailer } from './mailer.ts';
@@ -26,6 +29,8 @@ interface SocketData {
   deviceId: string;
   /** Logged-in account, from the handshake token. */
   userId: string | null;
+  /** Active Plus subscription at handshake time (updated live by webhooks). */
+  plus: boolean;
   ipHash: string | null;
   /** Set while the device or IP is banned; the socket stays connected so it can appeal. */
   ban: BanInfo | null;
@@ -58,6 +63,8 @@ export interface AppOptions {
   adminToken?: string;
   ipSalt?: string;
   webUrl?: string;
+  /** Stripe (or a fake in tests); Plus checkout is disabled without it. */
+  billing?: BillingProvider | null;
 }
 
 export interface App {
@@ -105,10 +112,42 @@ export function createApp(opts: AppOptions = {}): App {
     clientKey: (req) => hashIp(clientIp(req.headers, req.socket.remoteAddress), ipSalt) ?? 'unknown',
   });
 
+  // A payment, renewal or cancellation landed: refresh Plus on the user's live sessions.
+  const onPlusChanged = (userId: string) => {
+    void accounts
+      .userById(userId)
+      .then((u) => {
+        const active = !!u && isPlusActive(u.plus);
+        matchmaker.setPlus(userId, active);
+        for (const s of io.sockets.sockets.values()) if (s.data.userId === userId) s.data.plus = active;
+      })
+      .catch((e) => console.error('[plus]', e));
+  };
+
+  const handleBilling = createBillingHandler({
+    billing: opts.billing ?? null,
+    accounts,
+    webUrl: opts.webUrl ?? config.webUrl,
+    origins,
+    onPlusChanged,
+  });
+
   const http = createServer((req, res) => {
     void (async () => {
+      if (await handleBilling(req, res)) return;
       if (await handleAuth(req, res)) return;
-      if (await handleAdmin(req, res, { store, safety, token: opts.adminToken ?? config.adminToken, origins, online: () => matchmaker.onlineCount })) return;
+      if (
+        await handleAdmin(req, res, {
+          store,
+          safety,
+          token: opts.adminToken ?? config.adminToken,
+          origins,
+          online: () => matchmaker.onlineCount,
+          accounts,
+          onPlusChanged,
+        })
+      )
+        return;
       if (req.url === '/health') {
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(
@@ -123,6 +162,7 @@ export function createApp(opts: AppOptions = {}): App {
             },
             turnConfigured: config.iceServers.some((s) => s.username),
             persistentStore: opts.persistent ?? !(store instanceof MemoryStore),
+            billingConfigured: !!opts.billing,
           }),
         );
         return;
@@ -150,6 +190,7 @@ export function createApp(opts: AppOptions = {}): App {
     sessionUser
       .then((user) => {
         socket.data.userId = user?.id ?? null;
+        socket.data.plus = !!user && isPlusActive(user.plus);
         return Promise.all([
           safety.checkBan({ deviceId: socket.data.deviceId, ipHash: socket.data.ipHash, userId: socket.data.userId }),
           store.blocksFor(socket.data.deviceId),
@@ -164,6 +205,7 @@ export function createApp(opts: AppOptions = {}): App {
         // Fail open: a storage hiccup should not lock everyone out.
         console.error('[handshake]', e);
         socket.data.userId ??= null;
+        socket.data.plus ??= false;
         socket.data.ban = null;
         socket.data.blocked = new Set();
         next();
@@ -178,6 +220,7 @@ export function createApp(opts: AppOptions = {}): App {
       gender: s.gender,
       country: s.hideCountry ? null : s.country,
       locationHidden: s.hideCountry,
+      plus: s.plus,
       sharedInterests,
     });
     io.to(a.id).emit('match:found', { ...base, initiator: false, partner: info(b) });
@@ -185,8 +228,8 @@ export function createApp(opts: AppOptions = {}): App {
   };
 
   io.on('connection', (socket) => {
-    const { deviceId, ipHash, blocked, userId } = socket.data;
-    matchmaker.connect(socket.id, countryFromHeaders(socket.handshake.headers), { deviceId, ipHash, userId, blocked });
+    const { deviceId, ipHash, blocked, userId, plus } = socket.data;
+    matchmaker.connect(socket.id, countryFromHeaders(socket.handshake.headers), { deviceId, ipHash, userId, plus, blocked });
     socket.emit('stats', { online: matchmaker.onlineCount });
     if (socket.data.ban) socket.emit('banned', socket.data.ban);
     const sentAt: number[] = [];
@@ -204,7 +247,8 @@ export function createApp(opts: AppOptions = {}): App {
       const join = parseJoin(payload);
       if (!join) return void socket.emit('error:message', 'Invalid join request');
       if (matchmaker.get(socket.id)?.partnerId) return;
-      const pairing = matchmaker.join(socket.id, join.gender, join.interests, join.mode, join.hideCountry);
+      if (hasFilters(join.filters) && !socket.data.plus) socket.emit('plus:required');
+      const pairing = matchmaker.join(socket.id, join.gender, join.interests, join.mode, join.hideCountry, join.filters);
       if (pairing) announce(pairing);
       else socket.emit('queue:waiting');
     });

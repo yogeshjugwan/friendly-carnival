@@ -1,11 +1,14 @@
 import { config } from './config.ts';
 import { createApp } from './app.ts';
+import { StripeBilling } from './billing.ts';
 import { ConsoleMailer, ResendMailer } from './mailer.ts';
 import { createStores } from './store-factory.ts';
 
 const stores = await createStores(config.databaseUrl);
 const mailer = config.resendApiKey ? new ResendMailer(config.resendApiKey, config.mailFrom) : new ConsoleMailer();
-const app = createApp({ store: stores.safety, accounts: stores.accounts, mailer, persistent: stores.persistent });
+const billing = config.stripe ? new StripeBilling(config.stripe.secretKey, config.stripe.webhookSecret, config.stripe.prices) : null;
+const app = createApp({ store: stores.safety, accounts: stores.accounts, mailer, persistent: stores.persistent, billing });
+if (!billing) console.warn('[rc-server] Stripe not configured: Plus checkout is disabled');
 
 if (!config.adminToken) console.warn('[rc-server] ADMIN_TOKEN not set: the admin dashboard API is disabled');
 if (!config.resendApiKey) console.warn('[rc-server] RESEND_API_KEY not set: account emails are printed to this log');

@@ -159,6 +159,24 @@ export default function SettingsPage() {
               Log out
             </button>
           </Section>
+          <Section title="Plus">
+            {user.plus.active ? (
+              <p className="mt-3 text-sm">
+                👑 Active{user.plus.until ? ` until ${new Date(user.plus.until).toLocaleDateString()}` : ''}
+                {user.plus.cancelAtPeriodEnd ? ' (will not renew)' : ''}.{' '}
+                <Link href="/plus" className="font-medium text-brand">
+                  Manage
+                </Link>
+              </p>
+            ) : (
+              <p className="mt-3 text-sm text-slate-600">
+                Unlock gender and country filters and remove ads.{' '}
+                <Link href="/plus" className="font-medium text-brand">
+                  See Plus plans
+                </Link>
+              </p>
+            )}
+          </Section>
           <ChangePassword token={token} />
           <DeleteAccount
             token={token}

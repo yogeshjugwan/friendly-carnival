@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import type { Pool } from 'pg';
-import type { UserSettings } from '@rc/shared';
+import { NO_FILTERS, type PlusPlan, type PlusStatus, type UserSettings } from '@rc/shared';
 
 const scrypt = promisify(scryptCb) as (password: string, salt: Buffer, keylen: number, opts: object) => Promise<Buffer>;
 const SCRYPT = { N: 16_384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
@@ -15,7 +15,38 @@ export const TOKEN_TTL: Record<TokenKind, number> = {
   reset: 3_600_000,
 };
 
-export const DEFAULT_SETTINGS: UserSettings = { gender: null, interests: [], allowReconnect: true, hideCountry: false };
+export const DEFAULT_SETTINGS: UserSettings = {
+  gender: null,
+  interests: [],
+  allowReconnect: true,
+  hideCountry: false,
+  filters: { ...NO_FILTERS },
+};
+
+/** Subscription state as stored (Stripe ids stay server-side). */
+export interface StoredPlus {
+  status: string | null;
+  plan: PlusPlan | null;
+  until: number | null;
+  cancelAtPeriodEnd: boolean;
+  subscriptionId: string | null;
+}
+
+export const NO_PLUS: StoredPlus = { status: null, plan: null, until: null, cancelAtPeriodEnd: false, subscriptionId: null };
+
+/** Statuses that keep Plus on until the paid period ends ('past_due' = Stripe retrying a failed payment). */
+const ACTIVE_STATUSES = new Set(['active', 'trialing', 'past_due', 'admin']);
+
+export const isPlusActive = (plus: StoredPlus, now = Date.now()) =>
+  !!plus.status && ACTIVE_STATUSES.has(plus.status) && plus.until !== null && plus.until > now;
+
+export const publicPlus = (plus: StoredPlus): PlusStatus => ({
+  active: isPlusActive(plus),
+  plan: plus.plan,
+  until: plus.until,
+  status: plus.status,
+  cancelAtPeriodEnd: plus.cancelAtPeriodEnd,
+});
 
 export interface User {
   id: string;
@@ -24,6 +55,8 @@ export interface User {
   emailVerified: boolean;
   createdAt: number;
   settings: UserSettings;
+  stripeCustomerId: string | null;
+  plus: StoredPlus;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -61,6 +94,9 @@ export interface AccountStore {
   useToken(raw: string, kind: TokenKind): Promise<User | null>;
   deleteToken(raw: string): Promise<void>;
   deleteTokensFor(userId: string, kind?: TokenKind): Promise<void>;
+  setStripeCustomer(userId: string, customerId: string): Promise<void>;
+  userByStripeCustomer(customerId: string): Promise<User | null>;
+  setPlus(userId: string, plus: StoredPlus): Promise<void>;
 }
 
 interface TokenRow {
@@ -85,6 +121,8 @@ export class MemoryAccountStore implements AccountStore {
       emailVerified: false,
       createdAt: Date.now(),
       settings: { ...DEFAULT_SETTINGS },
+      stripeCustomerId: null,
+      plus: { ...NO_PLUS },
     };
     this.users.set(user.id, user);
     return user;
@@ -141,6 +179,20 @@ export class MemoryAccountStore implements AccountStore {
   async deleteTokensFor(userId: string, kind?: TokenKind) {
     for (const [key, row] of this.tokens) if (row.userId === userId && (!kind || row.kind === kind)) this.tokens.delete(key);
   }
+
+  async setStripeCustomer(userId: string, customerId: string) {
+    const u = this.users.get(userId);
+    if (u) u.stripeCustomerId = customerId;
+  }
+
+  async userByStripeCustomer(customerId: string) {
+    return [...this.users.values()].find((u) => u.stripeCustomerId === customerId) ?? null;
+  }
+
+  async setPlus(userId: string, plus: StoredPlus) {
+    const u = this.users.get(userId);
+    if (u) u.plus = { ...plus };
+  }
 }
 
 const ACCOUNT_SCHEMA = `
@@ -160,6 +212,9 @@ CREATE TABLE IF NOT EXISTS auth_tokens (
   created_at BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS auth_tokens_user_idx ON auth_tokens (user_id);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS plus TEXT;
+CREATE INDEX IF NOT EXISTS users_stripe_customer_idx ON users (stripe_customer_id);
 `;
 
 const toUser = (r: Record<string, unknown>): User => ({
@@ -169,6 +224,8 @@ const toUser = (r: Record<string, unknown>): User => ({
   emailVerified: !!r.email_verified,
   createdAt: Number(r.created_at),
   settings: { ...DEFAULT_SETTINGS, ...(JSON.parse((r.settings as string) || '{}') as Partial<UserSettings>) },
+  stripeCustomerId: (r.stripe_customer_id as string | null) ?? null,
+  plus: { ...NO_PLUS, ...(JSON.parse((r.plus as string) || '{}') as Partial<StoredPlus>) },
 });
 
 export class PostgresAccountStore implements AccountStore {
@@ -251,5 +308,18 @@ export class PostgresAccountStore implements AccountStore {
   async deleteTokensFor(userId: string, kind?: TokenKind) {
     if (kind) await this.pool.query('DELETE FROM auth_tokens WHERE user_id = $1 AND kind = $2', [userId, kind]);
     else await this.pool.query('DELETE FROM auth_tokens WHERE user_id = $1', [userId]);
+  }
+
+  async setStripeCustomer(userId: string, customerId: string) {
+    await this.pool.query('UPDATE users SET stripe_customer_id = $2 WHERE id = $1', [userId, customerId]);
+  }
+
+  async userByStripeCustomer(customerId: string) {
+    const { rows } = await this.pool.query('SELECT * FROM users WHERE stripe_customer_id = $1', [customerId]);
+    return rows[0] ? toUser(rows[0]) : null;
+  }
+
+  async setPlus(userId: string, plus: StoredPlus) {
+    await this.pool.query('UPDATE users SET plus = $2 WHERE id = $1', [userId, JSON.stringify(plus)]);
   }
 }

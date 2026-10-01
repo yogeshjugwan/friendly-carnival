@@ -138,3 +138,21 @@ pnpm --filter @rc/server loadtest -- --url https://your-server.example   # a ser
 Each simulated user joins, stays 3–8 s, presses Next and repeats. Phase 4 gate: median
 time-to-match under 5 s at 200 users. Local result (M-series Mac): 200 users → p50 0.00 s,
 p99 0.96 s, 71 MB; 1,000 users → p99 0.15 s, 104 MB.
+
+## Ads
+
+The call screen has three boxes: partner video, your video, and an ad box above the chat.
+Each time someone presses Next (or starts), the partner tile shows an ad for
+`NEXT_PUBLIC_AD_BREAK_MS` (default 3000 ms) while the next match connects underneath.
+
+Until AdSense is configured, ad slots show house promos (sign up, hide location, guidelines).
+To turn on Google ads, set in Vercel and redeploy:
+
+| Variable | Example |
+| --- | --- |
+| `NEXT_PUBLIC_ADSENSE_CLIENT` | `ca-pub-1234567890123456` |
+| `NEXT_PUBLIC_ADSENSE_SLOT_SIDEBAR` | display ad unit id |
+| `NEXT_PUBLIC_ADSENSE_SLOT_BREAK` | display ad unit id |
+| `NEXT_PUBLIC_AD_BREAK_MS` | `3000` (0 disables the ad break) |
+
+`/ads.txt` is generated from `NEXT_PUBLIC_ADSENSE_CLIENT`.

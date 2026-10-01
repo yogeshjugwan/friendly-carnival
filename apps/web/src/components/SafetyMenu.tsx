@@ -44,9 +44,9 @@ export function SafetyMenu({ call }: { call: RandomCall }) {
         onClick={() => setStep(step === 'closed' ? 'menu' : 'closed')}
         aria-label="Safety options"
         aria-expanded={step !== 'closed'}
-        className="rounded-full bg-black/55 px-3 py-1.5 text-sm font-medium text-white hover:bg-black/70"
+        className="rounded-full bg-black/55 px-2.5 py-1 text-sm font-medium text-white hover:bg-black/70 sm:px-3 sm:py-1.5"
       >
-        🛡 Safety
+        🛡<span className="hidden sm:inline"> Safety</span>
       </button>
 
       {step === 'menu' && (

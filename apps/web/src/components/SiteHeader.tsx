@@ -32,6 +32,9 @@ export function SiteHeader({ online }: { online?: number | null }) {
           </Link>
         ) : (
           <>
+            <span className="rounded-full border border-slate-600 px-2.5 py-0.5 text-xs text-slate-300" title="You are chatting as a guest">
+              👤 Guest
+            </span>
             <Link href="/settings" className="text-sm text-slate-300 hover:text-white">
               Settings
             </Link>

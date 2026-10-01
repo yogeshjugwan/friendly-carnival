@@ -70,6 +70,12 @@ export default function SignupPage() {
           Log in
         </Link>
       </p>
+      <p className="mt-4 border-t border-slate-200 pt-4 text-center text-sm">
+        <Link href="/" className="font-medium text-slate-600 hover:text-ink">
+          Continue as guest →
+        </Link>
+        <span className="block text-xs text-slate-400">No account needed to chat.</span>
+      </p>
     </AuthCard>
   );
 }

@@ -2,6 +2,7 @@
 
 import type { RandomCall } from '@/lib/useRandomCall';
 import { countryName, flagEmoji, GENDER_ICON, GENDER_LABEL } from '@/lib/format';
+import { AdSlot } from './AdSlot';
 import { ChatPanel } from './ChatPanel';
 import { SafetyMenu } from './SafetyMenu';
 import { SettingsMenu } from './SettingsMenu';
@@ -16,12 +17,12 @@ function PartnerBadge({ call }: { call: RandomCall }) {
   const { partner } = call;
   if (!partner) return null;
   return (
-    <div className="flex items-center gap-2 rounded-full bg-black/55 px-3 py-1 text-sm text-white">
+    <div className="flex max-w-[70vw] items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-xs text-white sm:max-w-none sm:gap-2 sm:px-3 sm:text-sm">
       <span title={GENDER_LABEL[partner.gender]}>{GENDER_ICON[partner.gender]}</span>
       <span>{partner.locationHidden ? '📍' : flagEmoji(partner.country)}</span>
-      <span>{partner.locationHidden ? 'Location hidden' : countryName(partner.country)}</span>
+      <span className="truncate">{partner.locationHidden ? 'Hidden' : countryName(partner.country)}</span>
       {partner.sharedInterests.length > 0 && (
-        <span className="text-slate-300">· likes {partner.sharedInterests.join(', ')}</span>
+        <span className="hidden truncate text-slate-300 md:inline">· likes {partner.sharedInterests.join(', ')}</span>
       )}
     </div>
   );
@@ -82,6 +83,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
             <PartnerBadge call={call} />
             <SafetyMenu call={call} />
           </div>
+          <AdSlot placement="sidebar" refreshKey={call.adKey} className="h-36 shrink-0" />
           <div className="relative min-h-0 flex-1">
             <ChatPanel
               className="h-full"
@@ -118,12 +120,21 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                   </button>
                 </div>
               )}
-              <div className="absolute left-2 top-2">
-                <PartnerBadge call={call} />
-              </div>
-              <div className="absolute right-2 top-2">
-                <SafetyMenu call={call} />
-              </div>
+              {call.adBreak ? (
+                <div className="absolute inset-0 z-10">
+                  <AdSlot placement="break" refreshKey={call.adKey} className="h-full rounded-none" />
+                  <p className="absolute bottom-2 left-0 right-0 text-center text-xs text-white/80">Finding your next stranger…</p>
+                </div>
+              ) : (
+                <>
+                  <div className="absolute left-2 top-2">
+                    <PartnerBadge call={call} />
+                  </div>
+                  <div className="absolute right-2 top-2">
+                    <SafetyMenu call={call} />
+                  </div>
+                </>
+              )}
             </VideoTile>
 
             <VideoTile stream={call.localStream} muted mirrored className="aspect-[3/4] sm:aspect-video lg:aspect-auto">
@@ -149,14 +160,17 @@ export function ChatScreen({ call }: { call: RandomCall }) {
             </VideoTile>
           </div>
 
-          <ChatPanel
-            className="h-72 lg:h-auto"
-            messages={call.messages}
-            partnerTyping={call.partnerTyping}
-            enabled={matched}
-            onSend={call.sendMessage}
-            onTyping={call.notifyTyping}
-          />
+          <div className="flex min-h-0 flex-col gap-3">
+            <AdSlot placement="sidebar" refreshKey={call.adKey} className="h-36 shrink-0 lg:h-[250px]" />
+            <ChatPanel
+              className="h-72 lg:h-auto lg:min-h-0 lg:flex-1"
+              messages={call.messages}
+              partnerTyping={call.partnerTyping}
+              enabled={matched}
+              onSend={call.sendMessage}
+              onTyping={call.notifyTyping}
+            />
+          </div>
         </div>
       )}
     </main>

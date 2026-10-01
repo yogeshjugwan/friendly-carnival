@@ -13,6 +13,7 @@ import type {
   ReportReason,
   SignalMessage,
 } from '@rc/shared';
+import { AD_BREAK_MS } from './ads';
 import { explicitScore, snapshot } from './nsfw';
 import { loadSettings, onSettingsChange } from './settings';
 import { getSocket } from './socket';
@@ -89,6 +90,10 @@ export function useRandomCall() {
   const [partnerHidden, setPartnerHidden] = useState(false);
   /** Screening flagged the partner's video; it stays blurred for this match. */
   const [aiHidden, setAiHidden] = useState(false);
+  /** An ad is covering the partner tile between strangers. */
+  const [adBreak, setAdBreak] = useState(false);
+  /** Changes on every ad break so ad slots load a fresh ad. */
+  const [adKey, setAdKey] = useState(0);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localRef = useRef<MediaStream | null>(null);
@@ -96,7 +101,7 @@ export function useRandomCall() {
   const pendingIce = useRef<RTCIceCandidateInit[]>([]);
   const activeRef = useRef(false);
   const matchRef = useRef<{ id: string; startedAt: number; reported: boolean } | null>(null);
-  const timers = useRef<{ connect?: number; disconnect?: number; blur?: number; typing?: number; notice?: number }>({});
+  const timers = useRef<{ connect?: number; disconnect?: number; blur?: number; typing?: number; notice?: number; ad?: number }>({});
   const lineId = useRef(0);
   const typingSent = useRef(false);
   const partnerVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -117,6 +122,18 @@ export function useRandomCall() {
     setNotice(text);
     window.clearTimeout(timers.current.notice);
     timers.current.notice = window.setTimeout(() => setNotice(null), 4_000);
+  }, []);
+
+  /**
+   * Show an ad in the partner tile for AD_BREAK_MS. Matching and connecting keep
+   * running underneath, so the next stranger is usually ready when it ends.
+   */
+  const startAdBreak = useCallback(() => {
+    if (AD_BREAK_MS <= 0) return;
+    setAdKey((k) => k + 1);
+    setAdBreak(true);
+    window.clearTimeout(timers.current.ad);
+    timers.current.ad = window.setTimeout(() => setAdBreak(false), AD_BREAK_MS);
   }, []);
 
   const reportResult = useCallback((connected: boolean) => {
@@ -164,8 +181,9 @@ export function useRandomCall() {
     setLastLeftReason(null);
     setMessages([]);
     setStatus('searching');
+    startAdBreak();
     getSocket().emit('call:next');
-  }, [closePeer]);
+  }, [closePeer, startAdBreak]);
 
   const back = useCallback(() => {
     if (!activeRef.current) return;
@@ -289,6 +307,7 @@ export function useRandomCall() {
       closePeer();
       setLastLeftReason(reason);
       addLine('system', LEFT_TEXT[reason]);
+      startAdBreak();
       requeue();
     };
     const onBackUnavailable = (reason: BackUnavailableReason) => flash(BACK_TEXT[reason]);
@@ -346,7 +365,7 @@ export function useRandomCall() {
       socket.off('report:rejected', onReportRejected);
       socket.off('user:blocked', onBlocked);
     };
-  }, [startPeer, handleSignal, closePeer, requeue, addLine, flash]);
+  }, [startPeer, handleSignal, closePeer, requeue, addLine, flash, startAdBreak]);
 
   // Keep the server in sync with the "allow reconnect" setting (and on every reconnect).
   useEffect(() => {
@@ -410,13 +429,16 @@ export function useRandomCall() {
 
       activeRef.current = true;
       setStatus('searching');
+      startAdBreak();
       getSocket().emit('queue:join', payload);
     },
-    [adoptStream, refreshDevices],
+    [adoptStream, refreshDevices, startAdBreak],
   );
 
   const stop = useCallback(() => {
     activeRef.current = false;
+    window.clearTimeout(timers.current.ad);
+    setAdBreak(false);
     closePeer();
     setMessages([]);
     setHasPrevious(false);
@@ -491,10 +513,13 @@ export function useRandomCall() {
       setHasPrevious(true);
       closePeer();
       setMessages([]);
-      if (activeRef.current) setStatus('searching');
+      if (activeRef.current) {
+        setStatus('searching');
+        startAdBreak();
+      }
     }
     getSocket().emit('user:block', target);
-  }, [closePeer]);
+  }, [closePeer, startAdBreak]);
 
   /** Hide the partner's video, or show it again (also undoes an AI blur). */
   const togglePartnerHidden = useCallback(() => {
@@ -614,6 +639,8 @@ export function useRandomCall() {
     block,
     togglePartnerHidden,
     appeal,
+    adBreak,
+    adKey,
   };
 }
 

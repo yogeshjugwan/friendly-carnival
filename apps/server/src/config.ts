@@ -15,6 +15,11 @@ export const config = {
   ipSalt: env.IP_SALT || 'dev-only-salt',
   /** Postgres for reports, bans, blocks and appeals; in-memory when unset. */
   databaseUrl: env.DATABASE_URL || undefined,
+  /** Public URL of the web app, used in email links. */
+  webUrl: (env.WEB_URL || 'http://localhost:3000').replace(/\/$/, ''),
+  /** https://resend.com API key; without it emails are printed to the log. */
+  resendApiKey: env.RESEND_API_KEY || undefined,
+  mailFrom: env.MAIL_FROM || 'randomCall <onboarding@resend.dev>',
 };
 
 /** `https://*.vercel.app` matches any subdomain; other entries must match exactly. */

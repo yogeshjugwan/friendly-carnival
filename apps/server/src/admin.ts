@@ -1,10 +1,10 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { cors, readJson } from './http.ts';
 import type { Safety } from './safety.ts';
 import type { SafetyStore } from './store.ts';
 
 const HOUR = 3_600_000;
-const MAX_BODY = 16 * 1024;
 
 export interface AdminDeps {
   store: SafetyStore;
@@ -14,44 +14,18 @@ export interface AdminDeps {
   online: () => number;
 }
 
-const allowed = (origin: string | undefined, origins: (string | RegExp)[]) =>
-  !!origin && origins.some((o) => (typeof o === 'string' ? o === origin : o.test(origin)));
-
 const sameToken = (given: string, expected: string) => {
   const a = Buffer.from(given);
   const b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
 };
 
-async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
-  let size = 0;
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) {
-    size += (chunk as Buffer).length;
-    if (size > MAX_BODY) throw new Error('body too large');
-    chunks.push(chunk as Buffer);
-  }
-  if (!chunks.length) return {};
-  const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-  return parsed && typeof parsed === 'object' ? parsed : {};
-}
-
 /** Handles /admin/* requests. Returns false when the URL is not an admin route. */
 export async function handleAdmin(req: IncomingMessage, res: ServerResponse, deps: AdminDeps): Promise<boolean> {
   const url = new URL(req.url ?? '/', 'http://local');
   if (!url.pathname.startsWith('/admin/')) return false;
 
-  const origin = req.headers.origin;
-  if (allowed(origin, deps.origins)) {
-    res.setHeader('access-control-allow-origin', origin!);
-    res.setHeader('vary', 'origin');
-    res.setHeader('access-control-allow-headers', 'authorization, content-type');
-    res.setHeader('access-control-allow-methods', 'GET, POST, OPTIONS');
-  }
-  if (req.method === 'OPTIONS') {
-    res.writeHead(204).end();
-    return true;
-  }
+  if (cors(req, res, deps.origins)) return true;
 
   const send = (status: number, body: unknown) => {
     res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
@@ -103,7 +77,8 @@ export async function handleAdmin(req: IncomingMessage, res: ServerResponse, dep
         if (Number.isNaN(durationMs)) return send(400, { error: 'durationHours must be a positive number or null' }), true;
         const reason = typeof body.reason === 'string' && body.reason.trim() ? body.reason.trim().slice(0, 200) : `Violation: ${report.reason}`;
         const includeIp = body.includeIp === true;
-        const ban = await safety.ban({ deviceId: report.targetDevice, ipHash: report.targetIpHash }, durationMs, reason, 'admin', {
+        const target = { deviceId: report.targetDevice, ipHash: report.targetIpHash, userId: report.targetUserId };
+        const ban = await safety.ban(target, durationMs, reason, 'admin', {
           includeIp,
         });
         await store.resolveReport(id, 'actioned', `banned ${hours === null ? 'permanently' : `${hours} h`}${includeIp ? ' + IP' : ''}`);

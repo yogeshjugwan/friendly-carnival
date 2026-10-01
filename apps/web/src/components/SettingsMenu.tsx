@@ -1,10 +1,14 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
+import { useAuth } from '@/lib/auth';
+import { loadSettings } from '@/lib/settings';
 import type { RandomCall } from '@/lib/useRandomCall';
 
 export function SettingsMenu({ call }: { call: RandomCall }) {
   const [open, setOpen] = useState(false);
+  const { saveSettings } = useAuth();
 
   return (
     <div className="relative">
@@ -53,7 +57,7 @@ export function SettingsMenu({ call }: { call: RandomCall }) {
             <input
               type="checkbox"
               checked={call.allowReconnect}
-              onChange={(e) => call.setAllowReconnect(e.target.checked)}
+              onChange={(e) => void saveSettings({ ...loadSettings(), allowReconnect: e.target.checked })}
               className="mt-0.5 h-4 w-4"
             />
             <span>
@@ -61,6 +65,9 @@ export function SettingsMenu({ call }: { call: RandomCall }) {
               <span className="block text-slate-500">People you skip can press Back to reach you again.</span>
             </span>
           </label>
+          <Link href="/settings" className="block text-sm font-medium text-brand hover:underline">
+            All settings →
+          </Link>
         </div>
       )}
     </div>

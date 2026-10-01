@@ -8,12 +8,16 @@ export interface JoinPayload {
   gender: Gender;
   interests: string[];
   mode: ChatMode;
+  /** Don't show my country to partners. */
+  hideCountry?: boolean;
 }
 
 export interface PartnerInfo {
   gender: Gender;
-  /** ISO 3166-1 alpha-2, or null when unknown. */
+  /** ISO 3166-1 alpha-2, or null when unknown or hidden. */
   country: string | null;
+  /** The partner chose to hide their country. */
+  locationHidden?: boolean;
   sharedInterests: string[];
 }
 
@@ -139,4 +143,26 @@ export const MAX_APPEAL_LENGTH = 1_000;
 export interface HandshakeAuth {
   /** Random per-browser id (UUID v4) kept in localStorage. */
   deviceId?: string;
+  /** Session token of a logged-in account. */
+  token?: string;
 }
+
+/** Preferences saved to an account (or the browser, for guests). */
+export interface UserSettings {
+  gender: Gender | null;
+  interests: string[];
+  allowReconnect: boolean;
+  hideCountry: boolean;
+}
+
+/** What the API returns about the logged-in user. */
+export interface PublicUser {
+  id: string;
+  email: string;
+  emailVerified: boolean;
+  createdAt: number;
+  settings: UserSettings;
+}
+
+export const MIN_PASSWORD_LENGTH = 8;
+export const MAX_PASSWORD_LENGTH = 200;

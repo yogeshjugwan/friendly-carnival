@@ -7,6 +7,7 @@ import {
   type Gender,
   type JoinPayload,
   type SignalMessage,
+  type UserSettings,
 } from '@rc/shared';
 
 const GENDERS: Gender[] = ['male', 'female', 'couple'];
@@ -30,7 +31,8 @@ export function parseJoin(input: unknown): JoinPayload | null {
   // Older clients send no mode; treat them as video users.
   const chatMode = mode === undefined ? 'video' : MODES.includes(mode as ChatMode) ? (mode as ChatMode) : null;
   if (!chatMode) return null;
-  return { gender: gender as Gender, interests: cleaned, mode: chatMode };
+  const hideCountry = (input as Record<string, unknown>).hideCountry === true;
+  return { gender: gender as Gender, interests: cleaned, mode: chatMode, hideCountry };
 }
 
 export function parseSignal(input: unknown): SignalMessage | null {
@@ -69,4 +71,20 @@ export function parseCallResult(input: unknown): CallResult | null {
   if (typeof matchId !== 'string' || typeof connected !== 'boolean' || typeof ms !== 'number') return null;
   if (!Number.isFinite(ms) || ms < 0 || ms > 120_000) return null;
   return { matchId, connected, ms: Math.round(ms) };
+}
+
+/** Validates settings sent by a client; unknown fields are ignored. */
+export function parseSettings(input: unknown): UserSettings | null {
+  if (!input || typeof input !== 'object') return null;
+  const s = input as Record<string, unknown>;
+  if (s.gender !== null && !GENDERS.includes(s.gender as Gender)) return null;
+  if (typeof s.allowReconnect !== 'boolean' || typeof s.hideCountry !== 'boolean') return null;
+  const join = parseJoin({ gender: s.gender ?? 'male', interests: s.interests, mode: 'video' });
+  if (!join) return null;
+  return {
+    gender: (s.gender as Gender | null) ?? null,
+    interests: join.interests,
+    allowReconnect: s.allowReconnect,
+    hideCountry: s.hideCountry,
+  };
 }

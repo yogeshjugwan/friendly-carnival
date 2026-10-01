@@ -10,6 +10,10 @@ Web-only, one-on-one random video chat.
 - **Phase 3 (safety):** report (current or previous partner, 6 reasons, snapshot),
   block, hide partner video, device bans (IP opt-in) with appeals, automatic bans on
   repeated reports, on-device AI nudity screening (nsfwjs), and an admin dashboard at `/admin`.
+- **Phase 4 (beta & launch):** optional email accounts (signup, email confirmation, login,
+  forgot/reset/change password, delete account), `/settings` (gender, interests, reconnect,
+  hide country) synced to the account, bans that follow accounts, Terms / Privacy /
+  Community Guidelines pages, and a load-test script.
 
 ```
 apps/web      Next.js 15 (App Router) + Tailwind 4 — landing + call UI, WebRTC in the browser
@@ -47,7 +51,10 @@ pnpm build
 | `TURN_URLS`, `TURN_USERNAME`, `TURN_CREDENTIAL` | server | unset | TURN relay (needed in production) |
 | `ADMIN_TOKEN` | server | unset | Bearer token for `/admin/*`; the dashboard is disabled without it |
 | `IP_SALT` | server | dev salt | Salt for hashing IPs before storage |
-| `DATABASE_URL` | server | unset | Postgres for safety data; in-memory (lost on restart) when unset |
+| `DATABASE_URL` | server | unset | Postgres for accounts and safety data; in-memory (lost on restart) when unset |
+| `WEB_URL` | server | `http://localhost:3000` | Web app URL used in email links |
+| `RESEND_API_KEY`, `MAIL_FROM` | server | unset | Email via Resend; without a key, emails are printed to the log |
+| `NEXT_PUBLIC_CONTACT_EMAIL` | web | `support@example.com` | Contact address shown on the legal pages |
 
 ## Socket protocol
 
@@ -112,3 +119,22 @@ falling back to the longest waiter; the last 5 partners are never re-matched.
   purged after 30 days.
 - Dashboard: open `/admin` on the web app and sign in with the server's `ADMIN_TOKEN`.
   The "Oldest open" card turns red when a report waits more than 24 h (the Phase 3 gate).
+
+## Accounts
+
+Accounts are optional; guests keep chatting without one. Passwords are hashed with
+scrypt; session, email-confirmation and reset tokens are random and stored only as
+SHA-256 hashes. Credential endpoints are limited to 20 attempts per 10 minutes per IP.
+The web app keeps the session token in localStorage and sends it as a bearer token
+(the web and server are on different domains, so cookies are not used).
+
+## Load test
+
+```bash
+pnpm --filter @rc/server loadtest -- --users 200 --duration 60          # local server
+pnpm --filter @rc/server loadtest -- --url https://your-server.example   # a server you own
+```
+
+Each simulated user joins, stays 3–8 s, presses Next and repeats. Phase 4 gate: median
+time-to-match under 5 s at 200 users. Local result (M-series Mac): 200 users → p50 0.00 s,
+p99 0.96 s, 71 MB; 1,000 users → p99 0.15 s, 104 MB.

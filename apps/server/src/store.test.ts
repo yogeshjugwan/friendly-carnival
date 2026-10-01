@@ -8,6 +8,7 @@ const report = (reporter: string, target: string, extra: Partial<Parameters<Safe
   reporterDevice: reporter,
   targetDevice: target,
   targetIpHash: 'ip-' + target,
+  targetUserId: null,
   reason: 'harassment' as const,
   source: 'user' as const,
   note: null,
@@ -52,9 +53,9 @@ for (const [name, make] of stores) {
     test('bans: match by device or IP, longest wins, expiry and lifting', async () => {
       const s = await make();
       const now = Date.now();
-      await s.addBan({ deviceId: 'd1', ipHash: 'ip1', reason: 'short', source: 'auto', expiresAt: now + 1_000 });
-      const perm = await s.addBan({ deviceId: 'd1', ipHash: null, reason: 'perm', source: 'admin', expiresAt: null });
-      await s.addBan({ deviceId: 'd2', ipHash: 'ip2', reason: 'old', source: 'auto', expiresAt: now - 1 });
+      await s.addBan({ deviceId: 'd1', ipHash: 'ip1', userId: null, reason: 'short', source: 'auto', expiresAt: now + 1_000 });
+      const perm = await s.addBan({ deviceId: 'd1', ipHash: null, userId: null, reason: 'perm', source: 'admin', expiresAt: null });
+      await s.addBan({ deviceId: 'd2', ipHash: 'ip2', userId: null, reason: 'old', source: 'auto', expiresAt: now - 1 });
 
       assert.equal((await s.activeBan('d1', null))?.id, perm.id);
       assert.equal((await s.activeBan('other', 'ip1'))?.reason, 'short');
@@ -65,6 +66,10 @@ for (const [name, make] of stores) {
 
       await s.liftBan(perm.id);
       assert.equal((await s.activeBan('d1', null))?.reason, 'short');
+
+      await s.addBan({ deviceId: 'd9', ipHash: null, userId: 'user-1', reason: 'account', source: 'admin', expiresAt: null });
+      assert.equal((await s.activeBan('new-device', null, 'user-1'))?.reason, 'account', 'bans follow the account');
+      assert.equal(await s.activeBan('new-device', null, 'user-2'), null);
     });
 
     test('blocks are symmetric and idempotent', async () => {
@@ -78,7 +83,7 @@ for (const [name, make] of stores) {
 
     test('appeals: one open per ban, resolve', async () => {
       const s = await make();
-      const ban = await s.addBan({ deviceId: 'd', ipHash: null, reason: 'r', source: 'admin', expiresAt: null });
+      const ban = await s.addBan({ deviceId: 'd', ipHash: null, userId: null, reason: 'r', source: 'admin', expiresAt: null });
       assert.equal(await s.hasOpenAppeal(ban.id), false);
       const appeal = await s.addAppeal(ban.id, 'd', 'It was a mistake');
       assert.equal(await s.hasOpenAppeal(ban.id), true);

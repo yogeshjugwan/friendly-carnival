@@ -43,6 +43,10 @@ CREATE TABLE IF NOT EXISTS blocks (
 );
 CREATE INDEX IF NOT EXISTS blocks_blocked_idx ON blocks (blocked);
 
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS target_user_id TEXT;
+ALTER TABLE bans ADD COLUMN IF NOT EXISTS user_id TEXT;
+CREATE INDEX IF NOT EXISTS bans_user_idx ON bans (user_id);
+
 CREATE TABLE IF NOT EXISTS appeals (
   id TEXT PRIMARY KEY,
   ban_id TEXT NOT NULL,
@@ -61,6 +65,7 @@ const toReport = (r: Record<string, unknown>): Report => ({
   reporterDevice: r.reporter_device as string,
   targetDevice: r.target_device as string,
   targetIpHash: (r.target_ip_hash as string | null) ?? null,
+  targetUserId: (r.target_user_id as string | null) ?? null,
   reason: r.reason as Report['reason'],
   source: r.source as Report['source'],
   note: (r.note as string | null) ?? null,
@@ -76,6 +81,7 @@ const toBan = (r: Record<string, unknown>): Ban => ({
   id: r.id as string,
   deviceId: r.device_id as string,
   ipHash: (r.ip_hash as string | null) ?? null,
+  userId: (r.user_id as string | null) ?? null,
   reason: r.reason as string,
   source: r.source as Ban['source'],
   expiresAt: num(r.expires_at),
@@ -102,8 +108,8 @@ export class PostgresStore implements SafetyStore {
 
   async addReport(input: NewReport): Promise<Report> {
     const { rows } = await this.pool.query(
-      `INSERT INTO reports (id, reporter_device, target_device, target_ip_hash, reason, source, note, snapshot, ai_score, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      `INSERT INTO reports (id, reporter_device, target_device, target_ip_hash, reason, source, note, snapshot, ai_score, created_at, target_user_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
       [
         randomUUID(),
         input.reporterDevice,
@@ -115,6 +121,7 @@ export class PostgresStore implements SafetyStore {
         input.snapshot,
         input.aiScore,
         Date.now(),
+        input.targetUserId,
       ],
     );
     return toReport(rows[0]);
@@ -163,19 +170,19 @@ export class PostgresStore implements SafetyStore {
 
   async addBan(input: NewBan): Promise<Ban> {
     const { rows } = await this.pool.query(
-      `INSERT INTO bans (id, device_id, ip_hash, reason, source, expires_at, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [randomUUID(), input.deviceId, input.ipHash, input.reason, input.source, input.expiresAt, Date.now()],
+      `INSERT INTO bans (id, device_id, ip_hash, reason, source, expires_at, created_at, user_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [randomUUID(), input.deviceId, input.ipHash, input.reason, input.source, input.expiresAt, Date.now(), input.userId],
     );
     return toBan(rows[0]);
   }
 
-  async activeBan(deviceId: string, ipHash: string | null, now = Date.now()) {
+  async activeBan(deviceId: string, ipHash: string | null, userId: string | null = null, now = Date.now()) {
     const { rows } = await this.pool.query(
       `SELECT * FROM bans
        WHERE lifted_at IS NULL AND (expires_at IS NULL OR expires_at > $3)
-         AND (device_id = $1 OR ($2::text IS NOT NULL AND ip_hash = $2))`,
-      [deviceId, ipHash, now],
+         AND (device_id = $1 OR ($2::text IS NOT NULL AND ip_hash = $2) OR ($4::text IS NOT NULL AND user_id = $4))`,
+      [deviceId, ipHash, now, userId],
     );
     return longestBan(rows.map(toBan));
   }

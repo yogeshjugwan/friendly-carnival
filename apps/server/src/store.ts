@@ -6,6 +6,8 @@ export interface Report {
   reporterDevice: string;
   targetDevice: string;
   targetIpHash: string | null;
+  /** Account of the reported user, when they were logged in. */
+  targetUserId: string | null;
   reason: ReportReason;
   source: ReportSource;
   note: string | null;
@@ -22,6 +24,8 @@ export interface Ban {
   id: string;
   deviceId: string;
   ipHash: string | null;
+  /** Account to ban as well, when the user was logged in. */
+  userId: string | null;
   reason: string;
   source: 'auto' | 'admin';
   /** null = permanent. */
@@ -60,8 +64,8 @@ export interface SafetyStore {
   oldestOpenReportAt(): Promise<number | null>;
 
   addBan(ban: NewBan): Promise<Ban>;
-  /** The longest-lasting active ban for a device or IP hash, if any. */
-  activeBan(deviceId: string, ipHash: string | null, now?: number): Promise<Ban | null>;
+  /** The longest-lasting active ban for a device, IP hash or account, if any. */
+  activeBan(deviceId: string, ipHash: string | null, userId?: string | null, now?: number): Promise<Ban | null>;
   listBans(activeOnly: boolean, now?: number): Promise<Ban[]>;
   liftBan(id: string): Promise<Ban | null>;
 
@@ -147,10 +151,14 @@ export class MemoryStore implements SafetyStore {
     return ban;
   }
 
-  async activeBan(deviceId: string, ipHash: string | null, now = Date.now()) {
+  async activeBan(deviceId: string, ipHash: string | null, userId: string | null = null, now = Date.now()) {
     return longestBan(
       [...this.bans.values()].filter(
-        (b) => isActive(b, now) && (b.deviceId === deviceId || (ipHash !== null && b.ipHash === ipHash)),
+        (b) =>
+          isActive(b, now) &&
+          (b.deviceId === deviceId ||
+            (ipHash !== null && b.ipHash === ipHash) ||
+            (userId !== null && b.userId === userId)),
       ),
     );
   }

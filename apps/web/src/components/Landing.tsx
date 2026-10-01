@@ -1,17 +1,33 @@
 'use client';
 
-import { useState } from 'react';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { MAX_INTERESTS, type ChatMode, type Gender, type JoinPayload } from '@rc/shared';
+import { useAuth } from '@/lib/auth';
+import { loadSettings, onSettingsChange } from '@/lib/settings';
+import { SiteFooter, SiteHeader } from './SiteHeader';
 
 interface Props {
   online: number | null;
-  onStart: (join: Omit<JoinPayload, 'mode'>, mode: ChatMode) => void;
+  onStart: (join: Omit<JoinPayload, 'mode' | 'hideCountry'>, mode: ChatMode) => void;
 }
 
 export function Landing({ online, onStart }: Props) {
+  const { saveSettings } = useAuth();
   const [gender, setGender] = useState<Gender>('male');
   const [interestText, setInterestText] = useState('');
   const [agreed, setAgreed] = useState(false);
+
+  // Prefill from saved settings (the account's, when logged in).
+  useEffect(() => {
+    const apply = () => {
+      const s = loadSettings();
+      if (s.gender) setGender(s.gender);
+      setInterestText(s.interests.join(', '));
+    };
+    apply();
+    return onSettingsChange(apply);
+  }, []);
 
   const interests = interestText
     .split(',')
@@ -19,17 +35,16 @@ export function Landing({ online, onStart }: Props) {
     .filter(Boolean)
     .slice(0, MAX_INTERESTS);
 
+  const begin = (mode: ChatMode) => {
+    if (!agreed) return;
+    // Remember the choices for next time; don't block the chat on the network.
+    void saveSettings({ ...loadSettings(), gender, interests }).catch(() => undefined);
+    onStart({ gender, interests }, mode);
+  };
+
   return (
     <main className="mx-auto flex min-h-full max-w-5xl flex-col px-4 py-6 sm:px-6">
-      <header className="flex items-center justify-between">
-        <span className="text-2xl font-semibold tracking-tight">
-          random<span className="text-brand">Call</span>
-        </span>
-        <span className="flex items-center gap-2 text-sm text-slate-300">
-          <span className="h-2 w-2 rounded-full bg-emerald-400" />
-          {online === null ? 'Connecting…' : `${online.toLocaleString()} online`}
-        </span>
-      </header>
+      <SiteHeader online={online} />
 
       <section className="grid flex-1 items-center gap-10 py-10 md:grid-cols-2">
         <div>
@@ -37,13 +52,18 @@ export function Landing({ online, onStart }: Props) {
           <p className="mt-4 text-lg text-slate-300">
             One click, one stranger, face to face. Free random video chat right in your browser — no download, no sign-up.
           </p>
+          <ul className="mt-6 space-y-2 text-slate-300">
+            <li>✓ Video or text-only chat</li>
+            <li>✓ Report, block and blur tools in every chat</li>
+            <li>✓ Automatic nudity screening</li>
+          </ul>
         </div>
 
         <form
           className="rounded-2xl bg-white p-6 text-ink shadow-xl"
           onSubmit={(e) => {
             e.preventDefault();
-            if (agreed) onStart({ gender, interests }, 'video');
+            begin('video');
           }}
         >
           <label className="text-sm font-medium text-slate-600" htmlFor="gender">
@@ -72,13 +92,18 @@ export function Landing({ online, onStart }: Props) {
           />
 
           <label className="mt-5 flex items-start gap-2 text-sm text-slate-600">
-            <input
-              type="checkbox"
-              checked={agreed}
-              onChange={(e) => setAgreed(e.target.checked)}
-              className="mt-0.5 h-4 w-4"
-            />
-            <span>I confirm I am 18 or older and agree to the Terms of Use and community guidelines.</span>
+            <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 h-4 w-4" />
+            <span>
+              I confirm I am 18 or older and agree to the{' '}
+              <Link href="/terms" className="text-brand underline" target="_blank">
+                Terms of Use
+              </Link>{' '}
+              and{' '}
+              <Link href="/guidelines" className="text-brand underline" target="_blank">
+                Community Guidelines
+              </Link>
+              .
+            </span>
           </label>
 
           <button
@@ -91,13 +116,15 @@ export function Landing({ online, onStart }: Props) {
           <button
             type="button"
             disabled={!agreed}
-            onClick={() => agreed && onStart({ gender, interests }, 'text')}
+            onClick={() => begin('text')}
             className="mt-2 w-full rounded-lg py-2 text-sm font-medium text-brand hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Don&apos;t want your camera on? Start Text Chat
           </button>
         </form>
       </section>
+
+      <SiteFooter />
     </main>
   );
 }

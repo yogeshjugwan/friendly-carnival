@@ -11,7 +11,11 @@ import {
   type PartnerLeftReason,
   type ServerToClientEvents,
 } from '@rc/shared';
+import type { AccountStore } from './accounts.ts';
+import { MemoryAccountStore } from './accounts.ts';
 import { handleAdmin } from './admin.ts';
+import { createAuthHandler } from './auth.ts';
+import { ConsoleMailer, type Mailer } from './mailer.ts';
 import { config } from './config.ts';
 import { Matchmaker, type Pairing } from './matchmaker.ts';
 import { banInfo, clientIp, hashIp, isDeviceId, parseReport, Safety, SNAPSHOT_RETENTION_MS } from './safety.ts';
@@ -20,6 +24,8 @@ import { parseCallResult, parseChatText, parseJoin, parseSignal } from './valida
 
 interface SocketData {
   deviceId: string;
+  /** Logged-in account, from the handshake token. */
+  userId: string | null;
   ipHash: string | null;
   /** Set while the device or IP is banned; the socket stays connected so it can appeal. */
   ban: BanInfo | null;
@@ -45,8 +51,13 @@ export interface AppOptions {
   webOrigins?: (string | RegExp)[];
   statsIntervalMs?: number;
   store?: SafetyStore;
+  accounts?: AccountStore;
+  mailer?: Mailer;
+  /** Whether the stores survive restarts (shown on /health). */
+  persistent?: boolean;
   adminToken?: string;
   ipSalt?: string;
+  webUrl?: string;
 }
 
 export interface App {
@@ -55,6 +66,7 @@ export interface App {
   matchmaker: Matchmaker;
   metrics: CallMetrics;
   store: SafetyStore;
+  accounts: AccountStore;
   safety: Safety;
   close: () => Promise<void>;
 }
@@ -63,6 +75,7 @@ export function createApp(opts: AppOptions = {}): App {
   const matchmaker = new Matchmaker(config.recentPartnerMemory);
   const metrics: CallMetrics = { reports: 0, connected: 0, connectMsTotal: 0 };
   const store = opts.store ?? new MemoryStore();
+  const accounts = opts.accounts ?? new MemoryAccountStore();
   const origins = opts.webOrigins ?? config.webOrigins;
   const ipSalt = opts.ipSalt ?? config.ipSalt;
   let io: IO;
@@ -73,7 +86,7 @@ export function createApp(opts: AppOptions = {}): App {
 
   // A new ban takes effect at once: end the banned user's call and show them the ban.
   const safety = new Safety(store, (ban) => {
-    for (const socketId of matchmaker.socketsFor(ban.deviceId, ban.ipHash)) {
+    for (const socketId of matchmaker.socketsFor(ban.deviceId, ban.ipHash, ban.userId)) {
       const socket = io.sockets.sockets.get(socketId);
       matchmaker.leaveQueue(socketId);
       notifyLeft(matchmaker.endMatch(socketId)?.id, 'disconnect');
@@ -84,8 +97,17 @@ export function createApp(opts: AppOptions = {}): App {
     }
   });
 
+  const handleAuth = createAuthHandler({
+    accounts,
+    mailer: opts.mailer ?? new ConsoleMailer(),
+    webUrl: opts.webUrl ?? config.webUrl,
+    origins,
+    clientKey: (req) => hashIp(clientIp(req.headers, req.socket.remoteAddress), ipSalt) ?? 'unknown',
+  });
+
   const http = createServer((req, res) => {
     void (async () => {
+      if (await handleAuth(req, res)) return;
       if (await handleAdmin(req, res, { store, safety, token: opts.adminToken ?? config.adminToken, origins, online: () => matchmaker.onlineCount })) return;
       if (req.url === '/health') {
         res.writeHead(200, { 'content-type': 'application/json' });
@@ -100,7 +122,7 @@ export function createApp(opts: AppOptions = {}): App {
               avgConnectMs: metrics.connected ? Math.round(metrics.connectMsTotal / metrics.connected) : null,
             },
             turnConfigured: config.iceServers.some((s) => s.username),
-            persistentStore: !(store instanceof MemoryStore),
+            persistentStore: opts.persistent ?? !(store instanceof MemoryStore),
           }),
         );
         return;
@@ -124,10 +146,15 @@ export function createApp(opts: AppOptions = {}): App {
     socket.data.deviceId = isDeviceId(auth.deviceId) ? auth.deviceId.toLowerCase() : `anon:${socket.id}`;
     socket.data.ipHash = hashIp(clientIp(socket.handshake.headers, socket.handshake.address), ipSalt);
     socket.data.reportsAt = [];
-    Promise.all([
-      safety.checkBan({ deviceId: socket.data.deviceId, ipHash: socket.data.ipHash }),
-      store.blocksFor(socket.data.deviceId),
-    ])
+    const sessionUser = typeof auth.token === 'string' && auth.token ? accounts.useToken(auth.token, 'session') : Promise.resolve(null);
+    sessionUser
+      .then((user) => {
+        socket.data.userId = user?.id ?? null;
+        return Promise.all([
+          safety.checkBan({ deviceId: socket.data.deviceId, ipHash: socket.data.ipHash, userId: socket.data.userId }),
+          store.blocksFor(socket.data.deviceId),
+        ]);
+      })
       .then(([ban, blocked]) => {
         socket.data.ban = ban;
         socket.data.blocked = blocked;
@@ -136,6 +163,7 @@ export function createApp(opts: AppOptions = {}): App {
       .catch((e) => {
         // Fail open: a storage hiccup should not lock everyone out.
         console.error('[handshake]', e);
+        socket.data.userId ??= null;
         socket.data.ban = null;
         socket.data.blocked = new Set();
         next();
@@ -146,21 +174,19 @@ export function createApp(opts: AppOptions = {}): App {
     const { a, b, matchId, sharedInterests, reconnected } = pairing;
     const base = { matchId, mode: b.mode, reconnected, iceServers: config.iceServers };
     // b just joined (or pressed Back) and initiates, so a is ready to answer.
-    io.to(a.id).emit('match:found', {
-      ...base,
-      initiator: false,
-      partner: { gender: b.gender, country: b.country, sharedInterests },
+    const info = (s: Pairing['a']) => ({
+      gender: s.gender,
+      country: s.hideCountry ? null : s.country,
+      locationHidden: s.hideCountry,
+      sharedInterests,
     });
-    io.to(b.id).emit('match:found', {
-      ...base,
-      initiator: true,
-      partner: { gender: a.gender, country: a.country, sharedInterests },
-    });
+    io.to(a.id).emit('match:found', { ...base, initiator: false, partner: info(b) });
+    io.to(b.id).emit('match:found', { ...base, initiator: true, partner: info(a) });
   };
 
   io.on('connection', (socket) => {
-    const { deviceId, ipHash, blocked } = socket.data;
-    matchmaker.connect(socket.id, countryFromHeaders(socket.handshake.headers), { deviceId, ipHash, blocked });
+    const { deviceId, ipHash, blocked, userId } = socket.data;
+    matchmaker.connect(socket.id, countryFromHeaders(socket.handshake.headers), { deviceId, ipHash, userId, blocked });
     socket.emit('stats', { online: matchmaker.onlineCount });
     if (socket.data.ban) socket.emit('banned', socket.data.ban);
     const sentAt: number[] = [];
@@ -178,7 +204,7 @@ export function createApp(opts: AppOptions = {}): App {
       const join = parseJoin(payload);
       if (!join) return void socket.emit('error:message', 'Invalid join request');
       if (matchmaker.get(socket.id)?.partnerId) return;
-      const pairing = matchmaker.join(socket.id, join.gender, join.interests, join.mode);
+      const pairing = matchmaker.join(socket.id, join.gender, join.interests, join.mode, join.hideCountry);
       if (pairing) announce(pairing);
       else socket.emit('queue:waiting');
     });
@@ -244,7 +270,7 @@ export function createApp(opts: AppOptions = {}): App {
       times.push(now);
 
       try {
-        await safety.report({ deviceId, ipHash }, target, report);
+        await safety.report({ deviceId, ipHash, userId }, target, report);
         // People you report are never matched with you again.
         if (report.source === 'user') {
           await store.addBlock(deviceId, target.deviceId);
@@ -321,6 +347,7 @@ export function createApp(opts: AppOptions = {}): App {
     matchmaker,
     metrics,
     store,
+    accounts,
     safety,
     close: async () => {
       clearInterval(statsTimer);

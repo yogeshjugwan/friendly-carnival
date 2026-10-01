@@ -18,8 +18,8 @@ function PartnerBadge({ call }: { call: RandomCall }) {
   return (
     <div className="flex items-center gap-2 rounded-full bg-black/55 px-3 py-1 text-sm text-white">
       <span title={GENDER_LABEL[partner.gender]}>{GENDER_ICON[partner.gender]}</span>
-      <span>{flagEmoji(partner.country)}</span>
-      <span>{countryName(partner.country)}</span>
+      <span>{partner.locationHidden ? '📍' : flagEmoji(partner.country)}</span>
+      <span>{partner.locationHidden ? 'Location hidden' : countryName(partner.country)}</span>
       {partner.sharedInterests.length > 0 && (
         <span className="text-slate-300">· likes {partner.sharedInterests.join(', ')}</span>
       )}

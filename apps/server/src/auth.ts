@@ -1,0 +1,173 @@
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, type PublicUser } from '@rc/shared';
+import { hashPassword, verifyPassword, type AccountStore, type User } from './accounts.ts';
+import { bearer, cors, RateLimiter, readJson, sendJson } from './http.ts';
+import { linkEmail, type Mailer } from './mailer.ts';
+import { parseSettings } from './validate.ts';
+
+export interface AuthDeps {
+  accounts: AccountStore;
+  mailer: Mailer;
+  /** Public URL of the web app, used in email links. */
+  webUrl: string;
+  origins: (string | RegExp)[];
+  /** Rate-limit key for the caller (hashed IP). */
+  clientKey: (req: IncomingMessage) => string;
+}
+
+const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
+/** Used to keep login timing similar whether or not the email exists. */
+let dummyHash: Promise<string> | null = null;
+
+export const publicUser = (u: User): PublicUser => ({
+  id: u.id,
+  email: u.email,
+  emailVerified: u.emailVerified,
+  createdAt: u.createdAt,
+  settings: u.settings,
+});
+
+const passwordProblem = (p: unknown): string | null => {
+  if (typeof p !== 'string') return 'Password is required';
+  if (p.length < MIN_PASSWORD_LENGTH) return `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
+  if (p.length > MAX_PASSWORD_LENGTH) return 'Password is too long';
+  return null;
+};
+
+export function createAuthHandler(deps: AuthDeps) {
+  const { accounts, mailer } = deps;
+  // Credential endpoints: 20 attempts per 10 minutes per IP.
+  const strict = new RateLimiter(20, 10 * 60_000);
+
+  const sendVerification = async (user: User) => {
+    await accounts.deleteTokensFor(user.id, 'verify');
+    const token = await accounts.createToken(user.id, 'verify');
+    const url = `${deps.webUrl}/verify?token=${encodeURIComponent(token)}`;
+    await mailer.send(
+      linkEmail(user.email, 'Confirm your randomCall email', 'Welcome to randomCall! Please confirm your email address.', 'Confirm email', url, 'This link expires in 48 hours. If you did not sign up, ignore this email.'),
+    );
+  };
+
+  /** Logged-in user for the request's bearer token. */
+  const currentUser = async (req: IncomingMessage) => {
+    const token = bearer(req);
+    return token ? accounts.useToken(token, 'session') : null;
+  };
+
+  return async function handleAuth(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+    const url = new URL(req.url ?? '/', 'http://local');
+    if (!url.pathname.startsWith('/auth/')) return false;
+    if (cors(req, res, deps.origins)) return true;
+    const route = `${req.method} ${url.pathname}`;
+    const fail = (status: number, error: string) => (sendJson(res, status, { error }), true);
+
+    try {
+      if (['POST /auth/signup', 'POST /auth/login', 'POST /auth/forgot', 'POST /auth/reset'].includes(route)) {
+        if (!strict.allow(deps.clientKey(req))) return fail(429, 'Too many attempts. Try again in a few minutes.');
+      }
+
+      if (route === 'POST /auth/signup') {
+        const { email, password } = await readJson(req);
+        if (typeof email !== 'string' || !EMAIL.test(email.trim())) return fail(400, 'Enter a valid email address');
+        const problem = passwordProblem(password);
+        if (problem) return fail(400, problem);
+        const user = await accounts.createUser(email, await hashPassword(password as string));
+        if (user === 'exists') return fail(409, 'An account with this email already exists');
+        await sendVerification(user).catch((e) => console.error('[mail]', e));
+        const token = await accounts.createToken(user.id, 'session');
+        return sendJson(res, 201, { token, user: publicUser(user) }), true;
+      }
+
+      if (route === 'POST /auth/login') {
+        const { email, password } = await readJson(req);
+        if (typeof email !== 'string' || typeof password !== 'string') return fail(400, 'Email and password are required');
+        const user = await accounts.userByEmail(email);
+        dummyHash ??= hashPassword('timing-equalizer');
+        const ok = user ? await verifyPassword(password, user.passwordHash) : (await verifyPassword(password, await dummyHash), false);
+        if (!user || !ok) return fail(401, 'Wrong email or password');
+        const token = await accounts.createToken(user.id, 'session');
+        return sendJson(res, 200, { token, user: publicUser(user) }), true;
+      }
+
+      if (route === 'POST /auth/verify') {
+        const { token } = await readJson(req);
+        const user = typeof token === 'string' ? await accounts.useToken(token, 'verify') : null;
+        if (!user) return fail(400, 'This confirmation link is invalid or has expired');
+        await accounts.markVerified(user.id);
+        return sendJson(res, 200, { ok: true }), true;
+      }
+
+      if (route === 'POST /auth/forgot') {
+        const { email } = await readJson(req);
+        const user = typeof email === 'string' ? await accounts.userByEmail(email) : null;
+        if (user) {
+          await accounts.deleteTokensFor(user.id, 'reset');
+          const token = await accounts.createToken(user.id, 'reset');
+          const link = `${deps.webUrl}/reset?token=${encodeURIComponent(token)}`;
+          await mailer
+            .send(linkEmail(user.email, 'Reset your randomCall password', 'Someone asked to reset your randomCall password.', 'Choose a new password', link, 'This link expires in 1 hour. If it was not you, ignore this email.'))
+            .catch((e) => console.error('[mail]', e));
+        }
+        // Same answer either way, so the form can't be used to find accounts.
+        return sendJson(res, 200, { ok: true }), true;
+      }
+
+      if (route === 'POST /auth/reset') {
+        const { token, password } = await readJson(req);
+        const problem = passwordProblem(password);
+        if (problem) return fail(400, problem);
+        const user = typeof token === 'string' ? await accounts.useToken(token, 'reset') : null;
+        if (!user) return fail(400, 'This reset link is invalid or has expired');
+        await accounts.setPassword(user.id, await hashPassword(password as string));
+        await accounts.deleteTokensFor(user.id, 'session'); // sign out everywhere
+        await accounts.markVerified(user.id); // they proved they own the inbox
+        return sendJson(res, 200, { ok: true }), true;
+      }
+
+      // Everything below needs a logged-in user.
+      const user = await currentUser(req);
+      if (!user) return fail(401, 'Please log in');
+
+      if (route === 'GET /auth/me') return sendJson(res, 200, publicUser(user)), true;
+
+      if (route === 'POST /auth/logout') {
+        await accounts.deleteToken(bearer(req)!);
+        return sendJson(res, 200, { ok: true }), true;
+      }
+
+      if (route === 'POST /auth/resend-verification') {
+        if (!user.emailVerified) await sendVerification(user);
+        return sendJson(res, 200, { ok: true }), true;
+      }
+
+      if (route === 'POST /auth/settings') {
+        const settings = parseSettings((await readJson(req)).settings);
+        if (!settings) return fail(400, 'Invalid settings');
+        await accounts.updateSettings(user.id, settings);
+        return sendJson(res, 200, publicUser({ ...user, settings })), true;
+      }
+
+      if (route === 'POST /auth/password') {
+        const { current, next } = await readJson(req);
+        if (typeof current !== 'string' || !(await verifyPassword(current, user.passwordHash))) return fail(400, 'Current password is wrong');
+        const problem = passwordProblem(next);
+        if (problem) return fail(400, problem);
+        await accounts.setPassword(user.id, await hashPassword(next as string));
+        return sendJson(res, 200, { ok: true }), true;
+      }
+
+      if (route === 'POST /auth/delete') {
+        const { password } = await readJson(req);
+        if (typeof password !== 'string' || !(await verifyPassword(password, user.passwordHash))) return fail(400, 'Password is wrong');
+        await accounts.deleteUser(user.id);
+        return sendJson(res, 200, { ok: true }), true;
+      }
+
+      return fail(404, 'Not found');
+    } catch (e) {
+      if (e instanceof SyntaxError) return fail(400, 'Invalid request');
+      console.error('[auth]', e);
+      return fail(500, 'Server error');
+    }
+  };
+}

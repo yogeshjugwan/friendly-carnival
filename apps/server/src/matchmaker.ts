@@ -7,6 +7,10 @@ export interface Session {
   interests: string[];
   mode: ChatMode;
   country: string | null;
+  /** Partners see "location hidden" instead of the country. */
+  hideCountry: boolean;
+  /** Logged-in account, if any. */
+  userId: string | null;
   /** Persistent browser id (from the handshake); falls back to the socket id. */
   deviceId: string;
   ipHash: string | null;
@@ -38,7 +42,7 @@ export class Matchmaker {
   private sessions = new Map<string, Session>();
   private queue: string[] = [];
   /** Identity of recent sockets, kept after disconnect so "previous partner" can still be reported. */
-  private identities = new Map<string, { deviceId: string; ipHash: string | null }>();
+  private identities = new Map<string, { deviceId: string; ipHash: string | null; userId: string | null }>();
   private static readonly IDENTITY_MEMORY = 10_000;
 
   constructor(private readonly recentMemory = 5) {}
@@ -54,11 +58,12 @@ export class Matchmaker {
   connect(
     id: string,
     country: string | null,
-    identity: { deviceId?: string; ipHash?: string | null; blocked?: Set<string> } = {},
+    identity: { deviceId?: string; ipHash?: string | null; userId?: string | null; blocked?: Set<string> } = {},
   ): Session {
     const deviceId = identity.deviceId ?? id;
     const ipHash = identity.ipHash ?? null;
-    this.identities.set(id, { deviceId, ipHash });
+    const userId = identity.userId ?? null;
+    this.identities.set(id, { deviceId, ipHash, userId });
     if (this.identities.size > Matchmaker.IDENTITY_MEMORY) {
       this.identities.delete(this.identities.keys().next().value!);
     }
@@ -68,6 +73,8 @@ export class Matchmaker {
       interests: [],
       mode: 'video',
       country,
+      hideCountry: false,
+      userId,
       deviceId,
       ipHash,
       blocked: identity.blocked ?? new Set(),
@@ -90,7 +97,7 @@ export class Matchmaker {
   }
 
   /** Device + IP hash of a socket, even if it has since disconnected. */
-  identityOf(socketId: string): { deviceId: string; ipHash: string | null } | undefined {
+  identityOf(socketId: string): { deviceId: string; ipHash: string | null; userId: string | null } | undefined {
     return this.identities.get(socketId);
   }
 
@@ -110,9 +117,9 @@ export class Matchmaker {
   }
 
   /** Socket ids currently connected for a device or IP hash. */
-  socketsFor(deviceId: string, ipHash: string | null): string[] {
+  socketsFor(deviceId: string, ipHash: string | null, userId: string | null = null): string[] {
     return [...this.sessions.values()]
-      .filter((s) => s.deviceId === deviceId || (ipHash !== null && s.ipHash === ipHash))
+      .filter((s) => s.deviceId === deviceId || (ipHash !== null && s.ipHash === ipHash) || (userId !== null && s.userId === userId))
       .map((s) => s.id);
   }
 
@@ -126,12 +133,13 @@ export class Matchmaker {
   }
 
   /** Queue a session; returns a pairing if a partner was available right away. */
-  join(id: string, gender: Gender, interests: string[], mode: ChatMode): Pairing | null {
+  join(id: string, gender: Gender, interests: string[], mode: ChatMode, hideCountry = false): Pairing | null {
     const session = this.sessions.get(id);
     if (!session || session.partnerId) return null;
     session.gender = gender;
     session.interests = interests;
     session.mode = mode;
+    session.hideCountry = hideCountry;
     return this.requeue(session);
   }
 

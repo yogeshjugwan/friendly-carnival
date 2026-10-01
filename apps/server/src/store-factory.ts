@@ -1,12 +1,17 @@
+import { MemoryAccountStore, PostgresAccountStore, type AccountStore } from './accounts.ts';
 import { MemoryStore, type SafetyStore } from './store.ts';
 
-/** Postgres when DATABASE_URL is set, otherwise an in-memory store (data is lost on restart). */
-export async function createStore(databaseUrl: string | undefined): Promise<SafetyStore> {
+export interface Stores {
+  safety: SafetyStore;
+  accounts: AccountStore;
+  persistent: boolean;
+}
+
+/** Postgres when DATABASE_URL is set, otherwise in-memory stores (data is lost on restart). */
+export async function createStores(databaseUrl: string | undefined): Promise<Stores> {
   if (!databaseUrl) {
-    console.warn('[rc-server] DATABASE_URL not set: reports and bans are kept in memory and lost on restart');
-    const store = new MemoryStore();
-    await store.init();
-    return store;
+    console.warn('[rc-server] DATABASE_URL not set: accounts, reports and bans are kept in memory and lost on restart');
+    return { safety: new MemoryStore(), accounts: new MemoryAccountStore(), persistent: false };
   }
   const [{ default: pg }, { PostgresStore }] = await Promise.all([import('pg'), import('./store-postgres.ts')]);
   const pool = new pg.Pool({
@@ -15,8 +20,10 @@ export async function createStore(databaseUrl: string | undefined): Promise<Safe
     // Hosted Postgres (Neon, Supabase, Render) requires TLS; localhost usually does not.
     ssl: /localhost|127\.0\.0\.1/.test(databaseUrl) ? undefined : { rejectUnauthorized: false },
   });
-  const store = new PostgresStore(pool);
-  await store.init();
-  console.log('[rc-server] using Postgres for safety data');
-  return store;
+  const safety = new PostgresStore(pool);
+  const accounts = new PostgresAccountStore(pool);
+  await safety.init();
+  await accounts.init();
+  console.log('[rc-server] using Postgres for accounts and safety data');
+  return { safety, accounts, persistent: true };
 }

@@ -31,3 +31,12 @@ services:
       # Without it, safety data lives in memory and is lost on every restart.
       - key: DATABASE_URL
         sync: false
+      # Phase 4 (accounts). Links in emails point here.
+      - key: WEB_URL
+        value: https://call-random-call.vercel.app
+      # https://resend.com API key; without it, emails are printed to the server log.
+      - key: RESEND_API_KEY
+        sync: false
+      # Sender, e.g. "randomCall <hello@yourdomain.com>" once your domain is verified in Resend.
+      - key: MAIL_FROM
+        sync: false

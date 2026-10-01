@@ -14,6 +14,7 @@ import type {
   SignalMessage,
 } from '@rc/shared';
 import { explicitScore, snapshot } from './nsfw';
+import { loadSettings, onSettingsChange } from './settings';
 import { getSocket } from './socket';
 
 export type CallStatus =
@@ -44,7 +45,6 @@ const DISCONNECT_GRACE_MS = 6_000;
 /** Partner video stays blurred this long after connecting. */
 const BLUR_MS = 2_500;
 const TYPING_IDLE_MS = 2_000;
-const RECONNECT_PREF_KEY = 'rc.allowReconnect';
 /** On-device nudity screening of the partner's video. */
 const SCREEN_EVERY_MS = 3_000;
 const SCREEN_THRESHOLD = 0.85;
@@ -348,30 +348,21 @@ export function useRandomCall() {
     };
   }, [startPeer, handleSignal, closePeer, requeue, addLine, flash]);
 
-  // Restore the reconnect preference and tell the server on (re)connect.
+  // Keep the server in sync with the "allow reconnect" setting (and on every reconnect).
   useEffect(() => {
-    let allow = true;
-    try {
-      allow = window.localStorage.getItem(RECONNECT_PREF_KEY) !== 'false';
-    } catch {
-      /* storage unavailable: keep the default */
-    }
-    setAllowReconnectState(allow);
     const socket = getSocket();
-    const sync = () => socket.emit('settings:reconnect', allow);
+    const sync = () => {
+      const allow = loadSettings().allowReconnect;
+      setAllowReconnectState(allow);
+      socket.emit('settings:reconnect', allow);
+    };
     sync();
     socket.on('connect', sync);
-    return () => void socket.off('connect', sync);
-  }, []);
-
-  const setAllowReconnect = useCallback((allow: boolean) => {
-    setAllowReconnectState(allow);
-    try {
-      window.localStorage.setItem(RECONNECT_PREF_KEY, String(allow));
-    } catch {
-      /* ignore */
-    }
-    getSocket().emit('settings:reconnect', allow);
+    const off = onSettingsChange(sync);
+    return () => {
+      socket.off('connect', sync);
+      off();
+    };
   }, []);
 
   const refreshDevices = useCallback(async () => {
@@ -392,8 +383,8 @@ export function useRandomCall() {
   }, []);
 
   const start = useCallback(
-    async (join: Omit<JoinPayload, 'mode'>, chatMode: ChatMode = 'video') => {
-      const payload: JoinPayload = { ...join, mode: chatMode };
+    async (join: Omit<JoinPayload, 'mode' | 'hideCountry'>, chatMode: ChatMode = 'video') => {
+      const payload: JoinPayload = { ...join, mode: chatMode, hideCountry: loadSettings().hideCountry };
       joinRef.current = payload;
       setMode(chatMode);
       setLastLeftReason(null);
@@ -615,7 +606,6 @@ export function useRandomCall() {
     switchDevice,
     sendMessage,
     notifyTyping,
-    setAllowReconnect,
     ban,
     partnerHidden,
     aiHidden,

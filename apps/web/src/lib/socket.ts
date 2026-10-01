@@ -7,10 +7,21 @@ import { getDeviceId } from './deviceId';
 export type RcSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
 let socket: RcSocket | null = null;
+let sessionToken: string | null = null;
+
+/** Called by AuthProvider; reconnects so the server sees the new login state. */
+export function setSessionToken(token: string | null) {
+  if (token === sessionToken) return;
+  sessionToken = token;
+  if (socket) {
+    socket.auth = { deviceId: getDeviceId(), token: token ?? undefined } satisfies HandshakeAuth;
+    socket.disconnect().connect();
+  }
+}
 
 export function getSocket(): RcSocket {
   if (!socket) {
-    const auth: HandshakeAuth = { deviceId: getDeviceId() };
+    const auth: HandshakeAuth = { deviceId: getDeviceId(), token: sessionToken ?? undefined };
     socket = io(process.env.NEXT_PUBLIC_SIGNALING_URL ?? 'http://localhost:4100', {
       transports: ['websocket'],
       autoConnect: true,

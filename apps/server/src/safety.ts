@@ -30,6 +30,8 @@ export const SNAPSHOT_RETENTION_MS = 30 * DAY;
 export interface Party {
   deviceId: string;
   ipHash: string | null;
+  /** Logged-in account, if any. */
+  userId?: string | null;
 }
 
 export function hashIp(ip: string | null | undefined, salt: string): string | null {
@@ -77,7 +79,7 @@ export class Safety {
   ) {}
 
   async checkBan(party: Party): Promise<BanInfo | null> {
-    const ban = await this.store.activeBan(party.deviceId, party.ipHash);
+    const ban = await this.store.activeBan(party.deviceId, party.ipHash, party.userId ?? null);
     return ban ? banInfo(ban, await this.store.hasOpenAppeal(ban.id)) : null;
   }
 
@@ -95,6 +97,7 @@ export class Safety {
     const ban = await this.store.addBan({
       deviceId: target.deviceId,
       ipHash: includeIp ? target.ipHash : null,
+      userId: target.userId ?? null,
       reason,
       source,
       expiresAt: durationMs === null ? null : Date.now() + durationMs,
@@ -110,6 +113,7 @@ export class Safety {
       reporterDevice: reporter.deviceId,
       targetDevice: target.deviceId,
       targetIpHash: target.ipHash,
+      targetUserId: target.userId ?? null,
       reason: payload.reason,
       source: payload.source,
       note: payload.note ?? null,
@@ -118,7 +122,7 @@ export class Safety {
     });
 
     const now = Date.now();
-    const already = await this.store.activeBan(target.deviceId, target.ipHash);
+    const already = await this.store.activeBan(target.deviceId, target.ipHash, target.userId ?? null);
     if (already) return { report, ban: null };
 
     if (payload.source === 'ai') {

@@ -7,10 +7,12 @@ interface Props {
   muted?: boolean;
   mirrored?: boolean;
   className?: string;
+  /** Extra classes on the <video> element itself (e.g. blur). */
+  videoClassName?: string;
   children?: React.ReactNode;
 }
 
-export function VideoTile({ stream, muted, mirrored, className = '', children }: Props) {
+export function VideoTile({ stream, muted, mirrored, className = '', videoClassName = '', children }: Props) {
   const ref = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -25,7 +27,7 @@ export function VideoTile({ stream, muted, mirrored, className = '', children }:
         autoPlay
         playsInline
         muted={muted}
-        className={`h-full w-full object-cover ${mirrored ? '-scale-x-100' : ''} ${stream ? '' : 'invisible'}`}
+        className={`h-full w-full object-cover ${mirrored ? '-scale-x-100' : ''} ${stream ? '' : 'invisible'} ${videoClassName}`}
       />
       {children}
     </div>

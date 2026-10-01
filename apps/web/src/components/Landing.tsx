@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { MAX_INTERESTS, type Gender, type JoinPayload } from '@rc/shared';
+import { MAX_INTERESTS, type ChatMode, type Gender, type JoinPayload } from '@rc/shared';
 
 interface Props {
   online: number | null;
-  onStart: (join: JoinPayload) => void;
+  onStart: (join: Omit<JoinPayload, 'mode'>, mode: ChatMode) => void;
 }
 
 export function Landing({ online, onStart }: Props) {
@@ -43,7 +43,7 @@ export function Landing({ online, onStart }: Props) {
           className="rounded-2xl bg-white p-6 text-ink shadow-xl"
           onSubmit={(e) => {
             e.preventDefault();
-            if (agreed) onStart({ gender, interests });
+            if (agreed) onStart({ gender, interests }, 'video');
           }}
         >
           <label className="text-sm font-medium text-slate-600" htmlFor="gender">
@@ -87,6 +87,14 @@ export function Landing({ online, onStart }: Props) {
             className="mt-5 w-full rounded-lg bg-brand py-3 text-lg font-semibold text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
           >
             Start Chat
+          </button>
+          <button
+            type="button"
+            disabled={!agreed}
+            onClick={() => agreed && onStart({ gender, interests }, 'text')}
+            className="mt-2 w-full rounded-lg py-2 text-sm font-medium text-brand hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Don&apos;t want your camera on? Start Text Chat
           </button>
         </form>
       </section>

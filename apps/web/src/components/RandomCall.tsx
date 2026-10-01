@@ -1,13 +1,27 @@
 'use client';
 
+import { useRef } from 'react';
+import type { JoinPayload } from '@rc/shared';
 import { useRandomCall } from '@/lib/useRandomCall';
 import { ChatScreen } from './ChatScreen';
 import { Landing } from './Landing';
 
 export function RandomCall() {
   const call = useRandomCall();
+  // Remember the landing choices so "use text chat instead" can reuse them.
+  const lastJoin = useRef<Omit<JoinPayload, 'mode'>>({ gender: 'male', interests: [] });
 
-  if (call.status === 'idle') return <Landing online={call.online} onStart={call.start} />;
+  if (call.status === 'idle') {
+    return (
+      <Landing
+        online={call.online}
+        onStart={(join, mode) => {
+          lastJoin.current = join;
+          void call.start(join, mode);
+        }}
+      />
+    );
+  }
 
   if (call.status === 'requesting-media') {
     return (
@@ -24,11 +38,16 @@ export function RandomCall() {
         <p className="text-2xl font-semibold">Camera or microphone blocked</p>
         <p className="max-w-md text-slate-400">
           Allow camera and microphone access for this site in your browser settings (the icon next to the address bar), then try
-          again.
+          again — or chat by text instead.
         </p>
-        <button onClick={call.stop} className="rounded-lg bg-brand px-5 py-2 font-semibold">
-          Back
-        </button>
+        <div className="flex gap-3">
+          <button onClick={() => void call.start(lastJoin.current, 'text')} className="rounded-lg bg-brand px-5 py-2 font-semibold">
+            Start Text Chat
+          </button>
+          <button onClick={call.stop} className="rounded-lg bg-slate-600 px-5 py-2 font-semibold">
+            Back
+          </button>
+        </div>
       </main>
     );
   }

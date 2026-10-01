@@ -1,11 +1,21 @@
-import { MAX_INTEREST_LENGTH, MAX_INTERESTS, type Gender, type JoinPayload, type SignalMessage } from '@rc/shared';
+import {
+  MAX_INTEREST_LENGTH,
+  MAX_INTERESTS,
+  MAX_MESSAGE_LENGTH,
+  type CallResult,
+  type ChatMode,
+  type Gender,
+  type JoinPayload,
+  type SignalMessage,
+} from '@rc/shared';
 
 const GENDERS: Gender[] = ['male', 'female', 'couple'];
+const MODES: ChatMode[] = ['video', 'text'];
 const MAX_SDP_LENGTH = 20_000;
 
 export function parseJoin(input: unknown): JoinPayload | null {
   if (!input || typeof input !== 'object') return null;
-  const { gender, interests } = input as Record<string, unknown>;
+  const { gender, interests, mode } = input as Record<string, unknown>;
   if (!GENDERS.includes(gender as Gender)) return null;
   const cleaned = Array.isArray(interests)
     ? [
@@ -17,7 +27,10 @@ export function parseJoin(input: unknown): JoinPayload | null {
         ),
       ].slice(0, MAX_INTERESTS)
     : [];
-  return { gender: gender as Gender, interests: cleaned };
+  // Older clients send no mode; treat them as video users.
+  const chatMode = mode === undefined ? 'video' : MODES.includes(mode as ChatMode) ? (mode as ChatMode) : null;
+  if (!chatMode) return null;
+  return { gender: gender as Gender, interests: cleaned, mode: chatMode };
 }
 
 export function parseSignal(input: unknown): SignalMessage | null {
@@ -39,4 +52,21 @@ export function parseSignal(input: unknown): SignalMessage | null {
     };
   }
   return null;
+}
+
+/** Trimmed message text, or null when empty, too long or not a string. */
+export function parseChatText(input: unknown): string | null {
+  if (typeof input !== 'string') return null;
+  // Strip control characters except newlines and tabs.
+  const text = input.replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '').trim();
+  if (!text || text.length > MAX_MESSAGE_LENGTH) return null;
+  return text;
+}
+
+export function parseCallResult(input: unknown): CallResult | null {
+  if (!input || typeof input !== 'object') return null;
+  const { matchId, connected, ms } = input as Record<string, unknown>;
+  if (typeof matchId !== 'string' || typeof connected !== 'boolean' || typeof ms !== 'number') return null;
+  if (!Number.isFinite(ms) || ms < 0 || ms > 120_000) return null;
+  return { matchId, connected, ms: Math.round(ms) };
 }

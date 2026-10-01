@@ -14,3 +14,10 @@ services:
       - key: WEB_ORIGIN
         # Exact origins or wildcard hosts, comma separated. Update after the first Vercel deploy.
         value: https://*.vercel.app,http://localhost:3000
+      # TURN relay (e.g. Metered.ca free tier). Set the values in the Render dashboard.
+      - key: TURN_URLS
+        sync: false
+      - key: TURN_USERNAME
+        sync: false
+      - key: TURN_CREDENTIAL
+        sync: false

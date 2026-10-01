@@ -1,8 +1,12 @@
 # randomCall
 
-Web-only, one-on-one random video chat. Phase 1 (Foundations) of the MVP plan:
-landing page, 18+ gate, camera/mic permission, a matchmaking queue, a peer-to-peer
-WebRTC call, and Next / Stop.
+Web-only, one-on-one random video chat.
+
+- **Phase 1:** landing page, 18+ gate, camera/mic permission, matchmaking queue,
+  peer-to-peer WebRTC call, Next / Stop.
+- **Phase 2:** Back (reconnect with the partner you skipped), text chat with emoji and
+  typing indicator, text-only mode, camera/mic picker, blur on connect, TURN support,
+  connect timeouts and a measured connect rate (`/health`).
 
 ```
 apps/web      Next.js 15 (App Router) + Tailwind 4 — landing + call UI, WebRTC in the browser
@@ -43,12 +47,18 @@ pnpm build
 
 | Direction | Event | Payload |
 | --- | --- | --- |
-| client → server | `queue:join` | `{ gender, interests[] }` |
+| client → server | `queue:join` | `{ gender, interests[], mode: 'video' \| 'text' }` |
+| client → server | `call:back` | reconnect with the previous partner if they are searching |
+| client → server | `chat:message`, `chat:typing` | text (≤ 500 chars, 5 per 5 s), boolean |
+| client → server | `settings:reconnect` | boolean — let skipped partners press Back |
+| client → server | `call:result` | `{ matchId, connected, ms }` — feeds `/health` connect rate |
 | client → server | `call:next` | — ends the match and re-queues the caller |
 | client → server | `queue:leave` | — Stop: leaves the queue and ends any match |
 | both ways | `signal` | `{ kind: 'offer' \| 'answer', sdp }` or `{ kind: 'ice', candidate }` |
 | server → client | `match:found` | `{ matchId, initiator, partner, iceServers }` |
 | server → client | `partner:left` | `'next' \| 'stop' \| 'disconnect'` — client re-queues itself |
+| server → client | `back:unavailable` | `'no-previous' \| 'gone' \| 'busy' \| 'declined'` |
+| server → client | `chat:message`, `chat:typing`, `chat:rejected` | `{ text, at }`, boolean, `'rate-limited' \| 'invalid'` |
 | server → client | `queue:waiting`, `stats` | waiting ack, `{ online }` every 5 s |
 
 Matching: the newcomer pairs with the waiting user who shares the most interests,
@@ -68,4 +78,12 @@ falling back to the longest waiter; the last 5 partners are never re-matched.
 - Matchmaker is in memory, so run one server instance. Moving the queue to Redis
   plus `@socket.io/redis-adapter` is the step to multiple instances.
 - Country comes from `cf-ipcountry` / `x-vercel-ip-country` headers only; locally it shows "Unknown".
-- No text chat, reconnect (Back), report/block or moderation yet — Phases 2–3.
+- No report/block or moderation yet — Phase 3.
+
+## TURN (needed for ~15–20% of calls)
+
+1. Create a free account at https://www.metered.ca/stun-turn and copy the TURN credentials.
+2. In Render → random-call-server → Environment, set `TURN_URLS`
+   (e.g. `turn:global.relay.metered.ca:80,turn:global.relay.metered.ca:443?transport=tcp`),
+   `TURN_USERNAME` and `TURN_CREDENTIAL`.
+3. `/health` then reports `"turnConfigured": true`; watch `calls.connectRate` (Phase 2 gate: ≥ 0.9).

@@ -1,14 +1,17 @@
 import { randomUUID } from 'node:crypto';
-import type { Gender } from '@rc/shared';
+import type { BackUnavailableReason, ChatMode, Gender } from '@rc/shared';
 
 export interface Session {
   id: string;
   gender: Gender;
   interests: string[];
+  mode: ChatMode;
   country: string | null;
   partnerId: string | null;
   matchId: string | null;
-  /** Most recent partners first; never re-matched while listed. */
+  /** Whether skipped partners may press Back to reach this user again. */
+  allowReconnect: boolean;
+  /** Most recent partners first; never re-matched at random while listed. */
   recent: string[];
 }
 
@@ -17,12 +20,14 @@ export interface Pairing {
   a: Session;
   b: Session;
   sharedInterests: string[];
+  reconnected: boolean;
 }
 
 /**
  * Single-node, in-memory matchmaker. Waiting users sit in a FIFO queue;
- * a newcomer pairs with the waiting user who shares the most interests,
- * falling back to whoever has waited longest. Recent partners are skipped.
+ * a newcomer pairs with the waiting user of the same mode who shares the most
+ * interests, falling back to whoever has waited longest. Recent partners are
+ * skipped, except through an explicit Back.
  */
 export class Matchmaker {
   private sessions = new Map<string, Session>();
@@ -43,9 +48,11 @@ export class Matchmaker {
       id,
       gender: 'male',
       interests: [],
+      mode: 'video',
       country,
       partnerId: null,
       matchId: null,
+      allowReconnect: true,
       recent: [],
     };
     this.sessions.set(id, session);
@@ -61,21 +68,50 @@ export class Matchmaker {
     return partnerId ? this.sessions.get(partnerId) : undefined;
   }
 
+  isWaiting(id: string): boolean {
+    return this.queue.includes(id);
+  }
+
+  setAllowReconnect(id: string, allow: boolean): void {
+    const session = this.sessions.get(id);
+    if (session) session.allowReconnect = allow;
+  }
+
   /** Queue a session; returns a pairing if a partner was available right away. */
-  join(id: string, gender: Gender, interests: string[]): Pairing | null {
+  join(id: string, gender: Gender, interests: string[], mode: ChatMode): Pairing | null {
     const session = this.sessions.get(id);
     if (!session || session.partnerId) return null;
     session.gender = gender;
     session.interests = interests;
-    this.dequeue(id);
+    session.mode = mode;
+    return this.requeue(session);
+  }
 
-    const candidateId = this.pickCandidate(session);
-    if (!candidateId) {
-      this.queue.push(id);
-      return null;
-    }
-    this.dequeue(candidateId);
-    return this.pair(this.sessions.get(candidateId)!, session);
+  /** Re-queue with the session's current preferences (used by Next). */
+  rejoin(id: string): Pairing | null {
+    const session = this.sessions.get(id);
+    if (!session || session.partnerId) return null;
+    return this.requeue(session);
+  }
+
+  /**
+   * Back: reconnect with the most recent partner, if they are still searching,
+   * use the same mode and allow reconnects.
+   */
+  reconnect(id: string): Pairing | BackUnavailableReason {
+    const session = this.sessions.get(id);
+    // Mid-call, recent[0] is the current partner, so "previous" is one further back.
+    const lastId = session?.partnerId ? session.recent[1] : session?.recent[0];
+    if (!session || !lastId) return 'no-previous';
+    const last = this.sessions.get(lastId);
+    if (!last) return 'gone';
+    if (!last.allowReconnect) return 'declined';
+    if (last.partnerId || !this.isWaiting(lastId) || last.mode !== session.mode) return 'busy';
+
+    this.endMatch(id);
+    this.dequeue(id);
+    this.dequeue(lastId);
+    return this.pair(last, session, true);
   }
 
   leaveQueue(id: string): void {
@@ -105,13 +141,24 @@ export class Matchmaker {
     return partner;
   }
 
+  private requeue(session: Session): Pairing | null {
+    this.dequeue(session.id);
+    const candidateId = this.pickCandidate(session);
+    if (!candidateId) {
+      this.queue.push(session.id);
+      return null;
+    }
+    this.dequeue(candidateId);
+    return this.pair(this.sessions.get(candidateId)!, session, false);
+  }
+
   private pickCandidate(session: Session): string | null {
     let best: string | null = null;
     let bestScore = -1;
     for (const otherId of this.queue) {
       if (otherId === session.id) continue;
       const other = this.sessions.get(otherId);
-      if (!other || other.partnerId) continue;
+      if (!other || other.partnerId || other.mode !== session.mode) continue;
       if (session.recent.includes(otherId) || other.recent.includes(session.id)) continue;
       const score = sharedInterests(session.interests, other.interests).length;
       // Queue is oldest-first, so strict ">" keeps the longest waiter on ties.
@@ -123,7 +170,7 @@ export class Matchmaker {
     return best;
   }
 
-  private pair(a: Session, b: Session): Pairing {
+  private pair(a: Session, b: Session, reconnected: boolean): Pairing {
     const matchId = randomUUID();
     a.partnerId = b.id;
     b.partnerId = a.id;
@@ -131,7 +178,7 @@ export class Matchmaker {
     b.matchId = matchId;
     this.remember(a, b.id);
     this.remember(b, a.id);
-    return { matchId, a, b, sharedInterests: sharedInterests(a.interests, b.interests) };
+    return { matchId, a, b, sharedInterests: sharedInterests(a.interests, b.interests), reconnected };
   }
 
   private remember(session: Session, partnerId: string): void {

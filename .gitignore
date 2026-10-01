@@ -6,3 +6,4 @@ dist
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store
+apps/web/public/models/nsfw/

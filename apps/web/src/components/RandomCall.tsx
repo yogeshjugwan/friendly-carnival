@@ -3,6 +3,7 @@
 import { useRef } from 'react';
 import type { JoinPayload } from '@rc/shared';
 import { useRandomCall } from '@/lib/useRandomCall';
+import { BannedScreen } from './BannedScreen';
 import { ChatScreen } from './ChatScreen';
 import { Landing } from './Landing';
 
@@ -10,6 +11,8 @@ export function RandomCall() {
   const call = useRandomCall();
   // Remember the landing choices so "use text chat instead" can reuse them.
   const lastJoin = useRef<Omit<JoinPayload, 'mode'>>({ gender: 'male', interests: [] });
+
+  if (call.status === 'banned') return <BannedScreen call={call} />;
 
   if (call.status === 'idle') {
     return (

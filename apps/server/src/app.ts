@@ -3,15 +3,36 @@ import { Server } from 'socket.io';
 import {
   CHAT_BURST,
   CHAT_WINDOW_MS,
+  MAX_APPEAL_LENGTH,
+  MAX_SNAPSHOT_BYTES,
+  type BanInfo,
   type ClientToServerEvents,
+  type HandshakeAuth,
   type PartnerLeftReason,
   type ServerToClientEvents,
 } from '@rc/shared';
+import { handleAdmin } from './admin.ts';
 import { config } from './config.ts';
 import { Matchmaker, type Pairing } from './matchmaker.ts';
+import { banInfo, clientIp, hashIp, isDeviceId, parseReport, Safety, SNAPSHOT_RETENTION_MS } from './safety.ts';
+import { MemoryStore, type SafetyStore } from './store.ts';
 import { parseCallResult, parseChatText, parseJoin, parseSignal } from './validate.ts';
 
-type IO = Server<ClientToServerEvents, ServerToClientEvents>;
+interface SocketData {
+  deviceId: string;
+  ipHash: string | null;
+  /** Set while the device or IP is banned; the socket stays connected so it can appeal. */
+  ban: BanInfo | null;
+  /** Devices blocked by or blocking this device, loaded at handshake. */
+  blocked: Set<string>;
+  reportsAt: number[];
+}
+
+type IO = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
+
+/** Per-socket report limit: 10 reports per 10 minutes. */
+const REPORT_BURST = 10;
+const REPORT_WINDOW_MS = 10 * 60_000;
 
 export interface CallMetrics {
   reports: number;
@@ -20,42 +41,105 @@ export interface CallMetrics {
   connectMsTotal: number;
 }
 
+export interface AppOptions {
+  webOrigins?: (string | RegExp)[];
+  statsIntervalMs?: number;
+  store?: SafetyStore;
+  adminToken?: string;
+  ipSalt?: string;
+}
+
 export interface App {
   http: HttpServer;
   io: IO;
   matchmaker: Matchmaker;
   metrics: CallMetrics;
+  store: SafetyStore;
+  safety: Safety;
   close: () => Promise<void>;
 }
 
-export function createApp(opts: { webOrigins?: (string | RegExp)[]; statsIntervalMs?: number } = {}): App {
+export function createApp(opts: AppOptions = {}): App {
   const matchmaker = new Matchmaker(config.recentPartnerMemory);
   const metrics: CallMetrics = { reports: 0, connected: 0, connectMsTotal: 0 };
+  const store = opts.store ?? new MemoryStore();
+  const origins = opts.webOrigins ?? config.webOrigins;
+  const ipSalt = opts.ipSalt ?? config.ipSalt;
+  let io: IO;
 
-  const http = createServer((req, res) => {
-    if (req.url === '/health') {
-      res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(
-        JSON.stringify({
-          ok: true,
-          online: matchmaker.onlineCount,
-          waiting: matchmaker.waitingCount,
-          calls: {
-            reports: metrics.reports,
-            connectRate: metrics.reports ? +(metrics.connected / metrics.reports).toFixed(3) : null,
-            avgConnectMs: metrics.connected ? Math.round(metrics.connectMsTotal / metrics.connected) : null,
-          },
-          turnConfigured: config.iceServers.some((s) => s.username),
-        }),
-      );
-      return;
+  const notifyLeft = (partnerId: string | undefined, reason: PartnerLeftReason) => {
+    if (partnerId) io.to(partnerId).emit('partner:left', reason);
+  };
+
+  // A new ban takes effect at once: end the banned user's call and show them the ban.
+  const safety = new Safety(store, (ban) => {
+    for (const socketId of matchmaker.socketsFor(ban.deviceId, ban.ipHash)) {
+      const socket = io.sockets.sockets.get(socketId);
+      matchmaker.leaveQueue(socketId);
+      notifyLeft(matchmaker.endMatch(socketId)?.id, 'disconnect');
+      if (socket) {
+        socket.data.ban = banInfo(ban, false);
+        socket.emit('banned', socket.data.ban);
+      }
     }
-    res.writeHead(404).end();
   });
 
-  const io: IO = new Server(http, {
-    cors: { origin: opts.webOrigins ?? config.webOrigins },
-    maxHttpBufferSize: 64 * 1024,
+  const http = createServer((req, res) => {
+    void (async () => {
+      if (await handleAdmin(req, res, { store, safety, token: opts.adminToken ?? config.adminToken, origins, online: () => matchmaker.onlineCount })) return;
+      if (req.url === '/health') {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            ok: true,
+            online: matchmaker.onlineCount,
+            waiting: matchmaker.waitingCount,
+            calls: {
+              reports: metrics.reports,
+              connectRate: metrics.reports ? +(metrics.connected / metrics.reports).toFixed(3) : null,
+              avgConnectMs: metrics.connected ? Math.round(metrics.connectMsTotal / metrics.connected) : null,
+            },
+            turnConfigured: config.iceServers.some((s) => s.username),
+            persistentStore: !(store instanceof MemoryStore),
+          }),
+        );
+        return;
+      }
+      res.writeHead(404).end();
+    })().catch((e) => {
+      console.error('[http]', e);
+      if (!res.headersSent) res.writeHead(500).end();
+    });
+  });
+
+  io = new Server(http, {
+    cors: { origin: origins },
+    // Reports carry a small JPEG snapshot.
+    maxHttpBufferSize: MAX_SNAPSHOT_BYTES + 16 * 1024,
+  });
+
+  // Identify the browser and check bans before any event is handled.
+  io.use((socket, next) => {
+    const auth = (socket.handshake.auth ?? {}) as HandshakeAuth;
+    socket.data.deviceId = isDeviceId(auth.deviceId) ? auth.deviceId.toLowerCase() : `anon:${socket.id}`;
+    socket.data.ipHash = hashIp(clientIp(socket.handshake.headers, socket.handshake.address), ipSalt);
+    socket.data.reportsAt = [];
+    Promise.all([
+      safety.checkBan({ deviceId: socket.data.deviceId, ipHash: socket.data.ipHash }),
+      store.blocksFor(socket.data.deviceId),
+    ])
+      .then(([ban, blocked]) => {
+        socket.data.ban = ban;
+        socket.data.blocked = blocked;
+        next();
+      })
+      .catch((e) => {
+        // Fail open: a storage hiccup should not lock everyone out.
+        console.error('[handshake]', e);
+        socket.data.ban = null;
+        socket.data.blocked = new Set();
+        next();
+      });
   });
 
   const announce = (pairing: Pairing) => {
@@ -74,16 +158,23 @@ export function createApp(opts: { webOrigins?: (string | RegExp)[]; statsInterva
     });
   };
 
-  const notifyLeft = (partnerId: string | undefined, reason: PartnerLeftReason) => {
-    if (partnerId) io.to(partnerId).emit('partner:left', reason);
-  };
-
   io.on('connection', (socket) => {
-    matchmaker.connect(socket.id, countryFromHeaders(socket.handshake.headers));
+    const { deviceId, ipHash, blocked } = socket.data;
+    matchmaker.connect(socket.id, countryFromHeaders(socket.handshake.headers), { deviceId, ipHash, blocked });
     socket.emit('stats', { online: matchmaker.onlineCount });
+    if (socket.data.ban) socket.emit('banned', socket.data.ban);
     const sentAt: number[] = [];
 
+    /** True (and tells the client) while a ban is in force; clears expired bans. */
+    const stillBanned = () => {
+      const ban = socket.data.ban;
+      if (ban && ban.expiresAt !== null && ban.expiresAt <= Date.now()) socket.data.ban = null;
+      if (socket.data.ban) socket.emit('banned', socket.data.ban);
+      return !!socket.data.ban;
+    };
+
     socket.on('queue:join', (payload) => {
+      if (stillBanned()) return;
       const join = parseJoin(payload);
       if (!join) return void socket.emit('error:message', 'Invalid join request');
       if (matchmaker.get(socket.id)?.partnerId) return;
@@ -98,7 +189,7 @@ export function createApp(opts: { webOrigins?: (string | RegExp)[]; statsInterva
     });
 
     socket.on('call:next', () => {
-      if (!matchmaker.get(socket.id)) return;
+      if (!matchmaker.get(socket.id) || stillBanned()) return;
       notifyLeft(matchmaker.endMatch(socket.id)?.id, 'next');
       const pairing = matchmaker.rejoin(socket.id);
       if (pairing) announce(pairing);
@@ -106,6 +197,7 @@ export function createApp(opts: { webOrigins?: (string | RegExp)[]; statsInterva
     });
 
     socket.on('call:back', () => {
+      if (stillBanned()) return;
       const current = matchmaker.partnerOf(socket.id);
       const result = matchmaker.reconnect(socket.id);
       if (typeof result === 'string') return void socket.emit('back:unavailable', result);
@@ -135,6 +227,64 @@ export function createApp(opts: { webOrigins?: (string | RegExp)[]; statsInterva
       if (partner && typeof typing === 'boolean') io.to(partner.id).emit('chat:typing', typing);
     });
 
+    const targetSocketId = (target: 'current' | 'previous') =>
+      target === 'current' ? matchmaker.get(socket.id)?.partnerId ?? undefined : matchmaker.previousPartnerId(socket.id);
+
+    socket.on('report:submit', async (payload) => {
+      const report = parseReport(payload);
+      if (!report) return void socket.emit('report:rejected', 'invalid');
+      const now = Date.now();
+      const times = socket.data.reportsAt;
+      while (times.length && now - times[0]! > REPORT_WINDOW_MS) times.shift();
+      if (times.length >= REPORT_BURST) return void socket.emit('report:rejected', 'rate-limited');
+
+      const targetId = targetSocketId(report.target);
+      const target = targetId ? matchmaker.identityOf(targetId) : undefined;
+      if (!target) return void socket.emit('report:rejected', 'no-target');
+      times.push(now);
+
+      try {
+        await safety.report({ deviceId, ipHash }, target, report);
+        // People you report are never matched with you again.
+        if (report.source === 'user') {
+          await store.addBlock(deviceId, target.deviceId);
+          matchmaker.block(deviceId, target.deviceId);
+        }
+        socket.emit('report:received');
+      } catch (e) {
+        console.error('[report]', e);
+        socket.emit('report:rejected', 'invalid');
+      }
+    });
+
+    socket.on('user:block', async (which) => {
+      if (which !== 'current' && which !== 'previous') return;
+      const targetId = targetSocketId(which);
+      const target = targetId ? matchmaker.identityOf(targetId) : undefined;
+      if (!target) return;
+      await store.addBlock(deviceId, target.deviceId).catch((e) => console.error('[block]', e));
+      matchmaker.block(deviceId, target.deviceId);
+      socket.emit('user:blocked');
+      if (which === 'current' && matchmaker.get(socket.id)?.partnerId === targetId) {
+        notifyLeft(matchmaker.endMatch(socket.id)?.id, 'next');
+        const pairing = matchmaker.rejoin(socket.id);
+        if (pairing) announce(pairing);
+        else socket.emit('queue:waiting');
+      }
+    });
+
+    socket.on('ban:appeal', async (message) => {
+      const ban = socket.data.ban;
+      if (!ban || ban.appealPending || typeof message !== 'string') return;
+      const text = message.trim().slice(0, MAX_APPEAL_LENGTH);
+      if (!text) return;
+      if (await store.hasOpenAppeal(ban.banId)) return;
+      await store.addAppeal(ban.banId, deviceId, text);
+      socket.data.ban = { ...ban, appealPending: true };
+      socket.emit('ban:appealed');
+      socket.emit('banned', socket.data.ban);
+    });
+
     socket.on('call:result', (payload) => {
       const result = parseCallResult(payload);
       if (!result) return;
@@ -160,14 +310,21 @@ export function createApp(opts: { webOrigins?: (string | RegExp)[]; statsInterva
     () => io.emit('stats', { online: matchmaker.onlineCount }),
     opts.statsIntervalMs ?? config.statsIntervalMs,
   );
+  const purgeTimer = setInterval(
+    () => void store.purgeSnapshots(Date.now() - SNAPSHOT_RETENTION_MS).catch((e) => console.error('[purge]', e)),
+    60 * 60_000,
+  );
 
   return {
     http,
     io,
     matchmaker,
     metrics,
+    store,
+    safety,
     close: async () => {
       clearInterval(statsTimer);
+      clearInterval(purgeTimer);
       await io.close();
     },
   };

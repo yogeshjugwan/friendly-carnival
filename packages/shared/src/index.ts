@@ -67,6 +67,31 @@ export interface Stats {
   online: number;
 }
 
+export type ReportReason = 'nudity' | 'harassment' | 'underage' | 'scam' | 'illegal' | 'other';
+export type ReportSource = 'user' | 'ai';
+export const REPORT_REASONS: ReportReason[] = ['nudity', 'harassment', 'underage', 'scam', 'illegal', 'other'];
+
+export interface ReportPayload {
+  /** Who is reported: the person on screen now, or the one just skipped. */
+  target: 'current' | 'previous';
+  reason: ReportReason;
+  source: ReportSource;
+  note?: string;
+  /** Small JPEG data URL of the partner's video. */
+  snapshot?: string;
+  /** Classifier confidence for AI reports, 0..1. */
+  aiScore?: number;
+}
+
+export interface BanInfo {
+  banId: string;
+  reason: string;
+  /** ms since epoch, or null for a permanent ban. */
+  expiresAt: number | null;
+  /** True once an appeal for this ban is waiting for review. */
+  appealPending: boolean;
+}
+
 export interface ClientToServerEvents {
   'queue:join': (payload: JoinPayload) => void;
   'queue:leave': () => void;
@@ -76,6 +101,9 @@ export interface ClientToServerEvents {
   'settings:reconnect': (allow: boolean) => void;
   'chat:message': (text: string) => void;
   'chat:typing': (typing: boolean) => void;
+  'report:submit': (report: ReportPayload) => void;
+  'user:block': (target: 'current' | 'previous') => void;
+  'ban:appeal': (message: string) => void;
   signal: (msg: SignalMessage) => void;
 }
 
@@ -87,6 +115,11 @@ export interface ServerToClientEvents {
   'chat:message': (msg: ChatMessage) => void;
   'chat:typing': (typing: boolean) => void;
   'chat:rejected': (reason: 'rate-limited' | 'invalid') => void;
+  'report:received': () => void;
+  'report:rejected': (reason: 'no-target' | 'invalid' | 'rate-limited') => void;
+  'user:blocked': () => void;
+  banned: (ban: BanInfo) => void;
+  'ban:appealed': () => void;
   signal: (msg: SignalMessage) => void;
   stats: (stats: Stats) => void;
   'error:message': (message: string) => void;
@@ -98,3 +131,12 @@ export const MAX_MESSAGE_LENGTH = 500;
 /** Chat rate limit: at most this many messages per window. */
 export const CHAT_BURST = 5;
 export const CHAT_WINDOW_MS = 5_000;
+export const MAX_REPORT_NOTE_LENGTH = 500;
+export const MAX_SNAPSHOT_BYTES = 120_000;
+export const MAX_APPEAL_LENGTH = 1_000;
+
+/** Sent in the Socket.IO handshake `auth`. */
+export interface HandshakeAuth {
+  /** Random per-browser id (UUID v4) kept in localStorage. */
+  deviceId?: string;
+}

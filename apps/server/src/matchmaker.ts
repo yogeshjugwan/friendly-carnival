@@ -7,6 +7,11 @@ export interface Session {
   interests: string[];
   mode: ChatMode;
   country: string | null;
+  /** Persistent browser id (from the handshake); falls back to the socket id. */
+  deviceId: string;
+  ipHash: string | null;
+  /** Devices this user blocked or was blocked by; never matched with them. */
+  blocked: Set<string>;
   partnerId: string | null;
   matchId: string | null;
   /** Whether skipped partners may press Back to reach this user again. */
@@ -32,6 +37,9 @@ export interface Pairing {
 export class Matchmaker {
   private sessions = new Map<string, Session>();
   private queue: string[] = [];
+  /** Identity of recent sockets, kept after disconnect so "previous partner" can still be reported. */
+  private identities = new Map<string, { deviceId: string; ipHash: string | null }>();
+  private static readonly IDENTITY_MEMORY = 10_000;
 
   constructor(private readonly recentMemory = 5) {}
 
@@ -43,13 +51,26 @@ export class Matchmaker {
     return this.queue.length;
   }
 
-  connect(id: string, country: string | null): Session {
+  connect(
+    id: string,
+    country: string | null,
+    identity: { deviceId?: string; ipHash?: string | null; blocked?: Set<string> } = {},
+  ): Session {
+    const deviceId = identity.deviceId ?? id;
+    const ipHash = identity.ipHash ?? null;
+    this.identities.set(id, { deviceId, ipHash });
+    if (this.identities.size > Matchmaker.IDENTITY_MEMORY) {
+      this.identities.delete(this.identities.keys().next().value!);
+    }
     const session: Session = {
       id,
       gender: 'male',
       interests: [],
       mode: 'video',
       country,
+      deviceId,
+      ipHash,
+      blocked: identity.blocked ?? new Set(),
       partnerId: null,
       matchId: null,
       allowReconnect: true,
@@ -66,6 +87,33 @@ export class Matchmaker {
   partnerOf(id: string): Session | undefined {
     const partnerId = this.sessions.get(id)?.partnerId;
     return partnerId ? this.sessions.get(partnerId) : undefined;
+  }
+
+  /** Device + IP hash of a socket, even if it has since disconnected. */
+  identityOf(socketId: string): { deviceId: string; ipHash: string | null } | undefined {
+    return this.identities.get(socketId);
+  }
+
+  /** The partner before the current one (or the last one, when not in a call). */
+  previousPartnerId(id: string): string | undefined {
+    const s = this.sessions.get(id);
+    if (!s) return undefined;
+    return s.partnerId ? s.recent[1] : s.recent[0];
+  }
+
+  /** Record a block in every live session of both devices. */
+  block(deviceA: string, deviceB: string): void {
+    for (const s of this.sessions.values()) {
+      if (s.deviceId === deviceA) s.blocked.add(deviceB);
+      if (s.deviceId === deviceB) s.blocked.add(deviceA);
+    }
+  }
+
+  /** Socket ids currently connected for a device or IP hash. */
+  socketsFor(deviceId: string, ipHash: string | null): string[] {
+    return [...this.sessions.values()]
+      .filter((s) => s.deviceId === deviceId || (ipHash !== null && s.ipHash === ipHash))
+      .map((s) => s.id);
   }
 
   isWaiting(id: string): boolean {
@@ -101,11 +149,11 @@ export class Matchmaker {
   reconnect(id: string): Pairing | BackUnavailableReason {
     const session = this.sessions.get(id);
     // Mid-call, recent[0] is the current partner, so "previous" is one further back.
-    const lastId = session?.partnerId ? session.recent[1] : session?.recent[0];
+    const lastId = this.previousPartnerId(id);
     if (!session || !lastId) return 'no-previous';
     const last = this.sessions.get(lastId);
     if (!last) return 'gone';
-    if (!last.allowReconnect) return 'declined';
+    if (!last.allowReconnect || isBlocked(session, last)) return 'declined';
     if (last.partnerId || !this.isWaiting(lastId) || last.mode !== session.mode) return 'busy';
 
     this.endMatch(id);
@@ -160,6 +208,7 @@ export class Matchmaker {
       const other = this.sessions.get(otherId);
       if (!other || other.partnerId || other.mode !== session.mode) continue;
       if (session.recent.includes(otherId) || other.recent.includes(session.id)) continue;
+      if (isBlocked(session, other)) continue;
       const score = sharedInterests(session.interests, other.interests).length;
       // Queue is oldest-first, so strict ">" keeps the longest waiter on ties.
       if (score > bestScore) {
@@ -190,6 +239,8 @@ export class Matchmaker {
     if (index !== -1) this.queue.splice(index, 1);
   }
 }
+
+const isBlocked = (a: Session, b: Session) => a.blocked.has(b.deviceId) || b.blocked.has(a.deviceId);
 
 export function sharedInterests(a: string[], b: string[]): string[] {
   const set = new Set(b);

@@ -7,6 +7,9 @@ Web-only, one-on-one random video chat.
 - **Phase 2:** Back (reconnect with the partner you skipped), text chat with emoji and
   typing indicator, text-only mode, camera/mic picker, blur on connect, TURN support,
   connect timeouts and a measured connect rate (`/health`).
+- **Phase 3 (safety):** report (current or previous partner, 6 reasons, snapshot),
+  block, hide partner video, device bans (IP opt-in) with appeals, automatic bans on
+  repeated reports, on-device AI nudity screening (nsfwjs), and an admin dashboard at `/admin`.
 
 ```
 apps/web      Next.js 15 (App Router) + Tailwind 4 — landing + call UI, WebRTC in the browser
@@ -42,6 +45,9 @@ pnpm build
 | `WEB_ORIGIN` | server | `http://localhost:3000` | Allowed CORS origins, comma separated |
 | `STUN_URLS` | server | Google public STUN | Comma-separated STUN URLs |
 | `TURN_URLS`, `TURN_USERNAME`, `TURN_CREDENTIAL` | server | unset | TURN relay (needed in production) |
+| `ADMIN_TOKEN` | server | unset | Bearer token for `/admin/*`; the dashboard is disabled without it |
+| `IP_SALT` | server | dev salt | Salt for hashing IPs before storage |
+| `DATABASE_URL` | server | unset | Postgres for safety data; in-memory (lost on restart) when unset |
 
 ## Socket protocol
 
@@ -78,7 +84,8 @@ falling back to the longest waiter; the last 5 partners are never re-matched.
 - Matchmaker is in memory, so run one server instance. Moving the queue to Redis
   plus `@socket.io/redis-adapter` is the step to multiple instances.
 - Country comes from `cf-ipcountry` / `x-vercel-ip-country` headers only; locally it shows "Unknown".
-- No report/block or moderation yet — Phase 3.
+- Safety data is in memory until `DATABASE_URL` is set.
+- AI screening detects nudity only; age is not estimated, so "underage" relies on user reports.
 
 ## TURN (needed for ~15–20% of calls)
 
@@ -87,3 +94,21 @@ falling back to the longest waiter; the last 5 partners are never re-matched.
    (e.g. `turn:global.relay.metered.ca:80,turn:global.relay.metered.ca:443?transport=tcp`),
    `TURN_USERNAME` and `TURN_CREDENTIAL`.
 3. `/health` then reports `"turnConfigured": true`; watch `calls.connectRate` (Phase 2 gate: ≥ 0.9).
+
+## Safety and moderation
+
+| Rule | Action |
+| --- | --- |
+| 3 different users report someone within 24 h | automatic 24 h ban |
+| 2 different users report "underage" within 24 h | automatic 7-day ban, pending review |
+| AI flags nudity from 2 different partners within 1 h | automatic 1 h ban |
+| You report someone | you are never matched with them again |
+
+- Bans follow the **device** (a random id in localStorage). Admins can also ban the
+  hashed IP, but shared mobile IPs (CGNAT) can cover many users, so it is off by default.
+- AI screening runs in the **receiver's** browser on the partner's incoming video every
+  3 s. Two flagged frames in a row blur the video and file an automatic report.
+- Report snapshots are 320 px JPEGs, shown blurred in the dashboard until clicked, and
+  purged after 30 days.
+- Dashboard: open `/admin` on the web app and sign in with the server's `ADMIN_TOKEN`.
+  The "Oldest open" card turns red when a report waits more than 24 h (the Phase 3 gate).

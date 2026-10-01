@@ -21,3 +21,13 @@ services:
         sync: false
       - key: TURN_CREDENTIAL
         sync: false
+      # Phase 3 (safety). Render generates random values for these on first sync;
+      # read ADMIN_TOKEN in the dashboard to sign in at /admin.
+      - key: ADMIN_TOKEN
+        generateValue: true
+      - key: IP_SALT
+        generateValue: true
+      # Postgres for reports/bans/blocks/appeals (e.g. a free Neon database).
+      # Without it, safety data lives in memory and is lost on every restart.
+      - key: DATABASE_URL
+        sync: false

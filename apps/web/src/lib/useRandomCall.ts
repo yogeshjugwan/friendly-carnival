@@ -3,14 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   BackUnavailableReason,
+  BanInfo,
   ChatMessage,
   ChatMode,
   JoinPayload,
   MatchFound,
   PartnerInfo,
   PartnerLeftReason,
+  ReportReason,
   SignalMessage,
 } from '@rc/shared';
+import { explicitScore, snapshot } from './nsfw';
 import { getSocket } from './socket';
 
 export type CallStatus =
@@ -19,7 +22,8 @@ export type CallStatus =
   | 'media-denied' // user blocked the camera or mic
   | 'searching' // in the match queue
   | 'connecting' // matched, WebRTC negotiating
-  | 'in-call'; // media flowing (or text chat open)
+  | 'in-call' // media flowing (or text chat open)
+  | 'banned'; // device is banned; can appeal
 
 export interface ChatLine {
   id: number;
@@ -41,6 +45,11 @@ const DISCONNECT_GRACE_MS = 6_000;
 const BLUR_MS = 2_500;
 const TYPING_IDLE_MS = 2_000;
 const RECONNECT_PREF_KEY = 'rc.allowReconnect';
+/** On-device nudity screening of the partner's video. */
+const SCREEN_EVERY_MS = 3_000;
+const SCREEN_THRESHOLD = 0.85;
+/** Consecutive flagged frames before acting, to avoid one-frame false positives. */
+const SCREEN_HITS = 2;
 
 const BACK_TEXT: Record<BackUnavailableReason, string> = {
   'no-previous': 'There is no previous partner to go back to.',
@@ -75,6 +84,11 @@ export function useRandomCall() {
   const [mics, setMics] = useState<MediaDeviceOption[]>([]);
   const [cameraId, setCameraId] = useState<string | null>(null);
   const [micId, setMicId] = useState<string | null>(null);
+  const [ban, setBan] = useState<BanInfo | null>(null);
+  /** The user chose to hide the partner's video. */
+  const [partnerHidden, setPartnerHidden] = useState(false);
+  /** Screening flagged the partner's video; it stays blurred for this match. */
+  const [aiHidden, setAiHidden] = useState(false);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localRef = useRef<MediaStream | null>(null);
@@ -85,6 +99,10 @@ export function useRandomCall() {
   const timers = useRef<{ connect?: number; disconnect?: number; blur?: number; typing?: number; notice?: number }>({});
   const lineId = useRef(0);
   const typingSent = useRef(false);
+  const partnerVideoRef = useRef<HTMLVideoElement | null>(null);
+  /** Latest frame of the current partner, and of the one before, for reports. */
+  const snapshots = useRef<{ current?: string; previous?: string }>({});
+  const aiReported = useRef(false);
 
   const clearTimer = (key: keyof typeof timers.current) => {
     window.clearTimeout(timers.current[key]);
@@ -122,10 +140,14 @@ export function useRandomCall() {
       pc.onconnectionstatechange = null;
       pc.close();
     }
+    if (snapshots.current.current) snapshots.current = { previous: snapshots.current.current };
+    aiReported.current = false;
     setRemoteStream(null);
     setPartner(null);
     setPartnerTyping(false);
     setBlurPartner(false);
+    setPartnerHidden(false);
+    setAiHidden(false);
     typingSent.current = false;
   }, []);
 
@@ -278,6 +300,23 @@ export function useRandomCall() {
     const onRejected = (reason: 'rate-limited' | 'invalid') =>
       flash(reason === 'rate-limited' ? 'Slow down a little — too many messages.' : 'That message could not be sent.');
     const onError = (message: string) => console.warn('[server]', message);
+    const onBanned = (info: BanInfo) => {
+      activeRef.current = false;
+      closePeer();
+      setMessages([]);
+      setBan(info);
+      setStatus('banned');
+    };
+    const onReported = () => flash('Thanks — your report was sent. Our team will review it.');
+    const onReportRejected = (reason: 'no-target' | 'invalid' | 'rate-limited') =>
+      flash(
+        reason === 'no-target'
+          ? 'There is no one to report right now.'
+          : reason === 'rate-limited'
+            ? 'You have sent a lot of reports. Please wait a few minutes.'
+            : 'The report could not be sent.',
+      );
+    const onBlocked = () => flash('Blocked. You will not be matched with them again.');
 
     socket.on('stats', onStats);
     socket.on('match:found', onMatch);
@@ -288,6 +327,10 @@ export function useRandomCall() {
     socket.on('chat:typing', onTyping);
     socket.on('chat:rejected', onRejected);
     socket.on('error:message', onError);
+    socket.on('banned', onBanned);
+    socket.on('report:received', onReported);
+    socket.on('report:rejected', onReportRejected);
+    socket.on('user:blocked', onBlocked);
     return () => {
       socket.off('stats', onStats);
       socket.off('match:found', onMatch);
@@ -298,6 +341,10 @@ export function useRandomCall() {
       socket.off('chat:typing', onTyping);
       socket.off('chat:rejected', onRejected);
       socket.off('error:message', onError);
+      socket.off('banned', onBanned);
+      socket.off('report:received', onReported);
+      socket.off('report:rejected', onReportRejected);
+      socket.off('user:blocked', onBlocked);
     };
   }, [startPeer, handleSignal, closePeer, requeue, addLine, flash]);
 
@@ -436,6 +483,40 @@ export function useRandomCall() {
     }, TYPING_IDLE_MS);
   }, []);
 
+  const setPartnerVideo = useCallback((el: HTMLVideoElement | null) => {
+    partnerVideoRef.current = el;
+  }, []);
+
+  const report = useCallback(
+    (target: 'current' | 'previous', reason: ReportReason, note?: string) => {
+      const shot = target === 'current' ? snapshot(partnerVideoRef.current) ?? snapshots.current.current : snapshots.current.previous;
+      getSocket().emit('report:submit', { target, reason, source: 'user', note: note?.trim() || undefined, snapshot: shot });
+    },
+    [],
+  );
+
+  const block = useCallback((target: 'current' | 'previous') => {
+    if (target === 'current') {
+      setHasPrevious(true);
+      closePeer();
+      setMessages([]);
+      if (activeRef.current) setStatus('searching');
+    }
+    getSocket().emit('user:block', target);
+  }, [closePeer]);
+
+  /** Hide the partner's video, or show it again (also undoes an AI blur). */
+  const togglePartnerHidden = useCallback(() => {
+    if (partnerHidden || aiHidden) {
+      setPartnerHidden(false);
+      setAiHidden(false);
+    } else setPartnerHidden(true);
+  }, [partnerHidden, aiHidden]);
+
+  const appeal = useCallback((message: string) => {
+    if (message.trim()) getSocket().emit('ban:appeal', message.trim());
+  }, []);
+
   const toggleCamera = useCallback(() => {
     const track = localRef.current?.getVideoTracks()[0];
     if (!track) return;
@@ -449,6 +530,49 @@ export function useRandomCall() {
     track.enabled = !track.enabled;
     setMicOn(track.enabled);
   }, []);
+
+  // Screen the partner's incoming video on this device. The receiver runs the
+  // check, so the sender cannot switch it off. Also keeps a recent snapshot.
+  useEffect(() => {
+    if (status !== 'in-call' || mode !== 'video') return;
+    let hits = 0;
+    let cancelled = false;
+    let busy = false;
+    const tick = async () => {
+      const video = partnerVideoRef.current;
+      if (busy || !video) return;
+      busy = true;
+      try {
+        const shot = snapshot(video);
+        if (shot) snapshots.current.current = shot;
+        const score = await explicitScore(video);
+        if (cancelled || score === null) return;
+        hits = score >= SCREEN_THRESHOLD ? hits + 1 : 0;
+        if (hits >= SCREEN_HITS && !aiReported.current) {
+          aiReported.current = true;
+          setAiHidden(true);
+          flash('We blurred this video because it may contain nudity. It was reported automatically.');
+          getSocket().emit('report:submit', {
+            target: 'current',
+            reason: 'nudity',
+            source: 'ai',
+            snapshot: shot,
+            aiScore: Math.min(1, score),
+          });
+        }
+      } catch (e) {
+        console.warn('[screening]', e);
+      } finally {
+        busy = false;
+      }
+    };
+    const timer = window.setInterval(() => void tick(), SCREEN_EVERY_MS);
+    void tick();
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [status, mode, flash]);
 
   // Release the camera and leave the queue when the page unmounts.
   useEffect(
@@ -492,6 +616,14 @@ export function useRandomCall() {
     sendMessage,
     notifyTyping,
     setAllowReconnect,
+    ban,
+    partnerHidden,
+    aiHidden,
+    setPartnerVideo,
+    report,
+    block,
+    togglePartnerHidden,
+    appeal,
   };
 }
 

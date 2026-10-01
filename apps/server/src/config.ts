@@ -9,6 +9,12 @@ export const config = {
   recentPartnerMemory: 5,
   statsIntervalMs: 5_000,
   iceServers: buildIceServers(),
+  /** Bearer token for /admin/*; admin is disabled when unset. */
+  adminToken: env.ADMIN_TOKEN || undefined,
+  /** Salt for hashing IPs before they are stored. Set a long random value in production. */
+  ipSalt: env.IP_SALT || 'dev-only-salt',
+  /** Postgres for reports, bans, blocks and appeals; in-memory when unset. */
+  databaseUrl: env.DATABASE_URL || undefined,
 };
 
 /** `https://*.vercel.app` matches any subdomain; other entries must match exactly. */

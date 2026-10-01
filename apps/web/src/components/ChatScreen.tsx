@@ -3,6 +3,7 @@
 import type { RandomCall } from '@/lib/useRandomCall';
 import { countryName, flagEmoji, GENDER_ICON, GENDER_LABEL } from '@/lib/format';
 import { ChatPanel } from './ChatPanel';
+import { SafetyMenu } from './SafetyMenu';
 import { SettingsMenu } from './SettingsMenu';
 import { VideoTile } from './VideoTile';
 
@@ -77,8 +78,9 @@ export function ChatScreen({ call }: { call: RandomCall }) {
 
       {isText ? (
         <div className="relative flex min-h-0 flex-1 flex-col gap-2">
-          <div className="flex min-h-8 items-center">
+          <div className="relative flex min-h-8 items-center justify-between">
             <PartnerBadge call={call} />
+            <SafetyMenu call={call} />
           </div>
           <div className="relative min-h-0 flex-1">
             <ChatPanel
@@ -101,12 +103,26 @@ export function ChatScreen({ call }: { call: RandomCall }) {
           <div className="grid min-h-0 grid-cols-2 gap-3 lg:grid-cols-1 lg:grid-rows-2">
             <VideoTile
               stream={matched ? call.remoteStream : null}
+              videoRef={call.setPartnerVideo}
               className="aspect-[3/4] sm:aspect-video lg:aspect-auto"
-              videoClassName={`transition-[filter] duration-700 ${call.blurPartner ? 'blur-xl' : ''}`}
+              videoClassName={`transition-[filter] duration-700 ${
+                call.partnerHidden || call.aiHidden ? 'blur-3xl brightness-50' : call.blurPartner ? 'blur-xl' : ''
+              }`}
             >
               <Searching call={call} />
+              {matched && (call.partnerHidden || call.aiHidden) && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
+                  <p className="font-medium">{call.aiHidden ? 'Video hidden: it may contain nudity' : 'Partner video hidden'}</p>
+                  <button onClick={call.togglePartnerHidden} className="rounded-full bg-black/60 px-4 py-1.5 text-sm hover:bg-black/80">
+                    Show anyway
+                  </button>
+                </div>
+              )}
               <div className="absolute left-2 top-2">
                 <PartnerBadge call={call} />
+              </div>
+              <div className="absolute right-2 top-2">
+                <SafetyMenu call={call} />
               </div>
             </VideoTile>
 

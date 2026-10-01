@@ -9,16 +9,23 @@ interface Props {
   className?: string;
   /** Extra classes on the <video> element itself (e.g. blur). */
   videoClassName?: string;
+  /** Receives the underlying <video> element (for snapshots and screening). */
+  videoRef?: (el: HTMLVideoElement | null) => void;
   children?: React.ReactNode;
 }
 
-export function VideoTile({ stream, muted, mirrored, className = '', videoClassName = '', children }: Props) {
+export function VideoTile({ stream, muted, mirrored, className = '', videoClassName = '', videoRef, children }: Props) {
   const ref = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     const video = ref.current;
     if (video && video.srcObject !== stream) video.srcObject = stream;
   }, [stream]);
+
+  useEffect(() => {
+    videoRef?.(ref.current);
+    return () => videoRef?.(null);
+  }, [videoRef]);
 
   return (
     <div className={`relative overflow-hidden rounded-xl bg-ink ${className}`}>

@@ -22,6 +22,7 @@ import { createBillingHandler } from './billing-http.ts';
 import { handleAdmin } from './admin.ts';
 import { createAuthHandler } from './auth.ts';
 import { createGoogleHandler, type GoogleConfig } from './google.ts';
+import { MatchLimits, type LimitOptions } from './limits.ts';
 import { ConsoleMailer, type Mailer } from './mailer.ts';
 import { config } from './config.ts';
 import { Matchmaker, type Pairing } from './matchmaker.ts';
@@ -80,6 +81,10 @@ export interface AppOptions {
   serverUrl?: string;
   /** Replaces fetch for the Google token/userinfo calls (tests). */
   googleFetch?: typeof fetch;
+  /** Free-user daily match limit; null turns it off. */
+  limits?: LimitOptions | null;
+  /** Clock for the match limit (tests). */
+  now?: () => number;
 }
 
 export interface App {
@@ -241,8 +246,28 @@ export function createApp(opts: AppOptions = {}): App {
       });
   });
 
+  const limitOpts = opts.limits === undefined ? config.limits : opts.limits;
+  const limits = limitOpts && limitOpts.daily > 0 ? new MatchLimits(limitOpts, opts.now) : null;
+  /** Account, else browser; guests without a browser id fall back to their (hashed) IP. */
+  const limitKey = (d: SocketData) =>
+    d.userId ? `u:${d.userId}` : d.deviceId.startsWith('anon:') && d.ipHash ? `ip:${d.ipHash}` : `d:${d.deviceId}`;
+  /** False (and tells the client) when a free user has no matches left today. */
+  const mayMatch = (socket: { data: SocketData; emit: IO['emit'] }) => {
+    if (!limits || limits.canMatch(limitKey(socket.data), socket.data.plus)) return true;
+    socket.emit('limit:reached', limits.status(limitKey(socket.data), false));
+    return false;
+  };
+
   const announce = (pairing: Pairing) => {
     const { a, b, matchId, sharedInterests, reconnected } = pairing;
+    if (limits) {
+      for (const id of [a.id, b.id]) {
+        const s = io.sockets.sockets.get(id);
+        if (!s || s.data.plus) continue;
+        limits.count(limitKey(s.data));
+        s.emit('limit:status', limits.status(limitKey(s.data), false));
+      }
+    }
     const base = { matchId, mode: b.mode, reconnected, iceServers: config.iceServers };
     // b just joined (or pressed Back) and initiates, so a is ready to answer.
     const info = (s: Pairing['a']) => ({
@@ -260,6 +285,7 @@ export function createApp(opts: AppOptions = {}): App {
     const { deviceId, ipHash, blocked, userId, plus } = socket.data;
     matchmaker.connect(socket.id, countryFromHeaders(socket.handshake.headers), { deviceId, ipHash, userId, plus, blocked });
     socket.emit('stats', { online: matchmaker.onlineCount });
+    if (limits) socket.emit('limit:status', limits.status(limitKey(socket.data), plus));
     if (socket.data.ban) socket.emit('banned', socket.data.ban);
     const sentAt: number[] = [];
 
@@ -276,6 +302,7 @@ export function createApp(opts: AppOptions = {}): App {
       const join = parseJoin(payload);
       if (!join) return void socket.emit('error:message', 'Invalid join request');
       if (matchmaker.get(socket.id)?.partnerId) return;
+      if (!mayMatch(socket)) return;
       if (hasFilters(join.filters) && !socket.data.plus) socket.emit('plus:required');
       const pairing = matchmaker.join(socket.id, join.gender, join.interests, join.mode, join.hideCountry, join.filters);
       if (pairing) announce(pairing);
@@ -290,19 +317,34 @@ export function createApp(opts: AppOptions = {}): App {
     socket.on('call:next', () => {
       if (!matchmaker.get(socket.id) || stillBanned()) return;
       notifyLeft(matchmaker.endMatch(socket.id)?.id, 'next');
+      if (!mayMatch(socket)) return void matchmaker.leaveQueue(socket.id);
       const pairing = matchmaker.rejoin(socket.id);
       if (pairing) announce(pairing);
       else socket.emit('queue:waiting');
     });
 
     socket.on('call:back', () => {
-      if (stillBanned()) return;
+      if (stillBanned() || !mayMatch(socket)) return;
       const current = matchmaker.partnerOf(socket.id);
       const result = matchmaker.reconnect(socket.id);
       if (typeof result === 'string') return void socket.emit('back:unavailable', result);
       // Leaving a live match to go back: the person being left sees a normal "next".
       if (current && current.id !== result.a.id) notifyLeft(current.id, 'next');
       announce(result);
+    });
+
+    socket.on('limit:ad-start', () => {
+      if (!limits) return;
+      const result = limits.startAd(limitKey(socket.data));
+      if (result !== 'ok') socket.emit('limit:ad-rejected', result);
+    });
+
+    socket.on('limit:ad-done', () => {
+      if (!limits) return;
+      const key = limitKey(socket.data);
+      const result = limits.finishAd(key);
+      if (result === 'ok') socket.emit('limit:granted', limits.status(key, socket.data.plus));
+      else socket.emit('limit:ad-rejected', result);
     });
 
     socket.on('settings:reconnect', (allow) => {

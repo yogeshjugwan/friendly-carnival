@@ -18,6 +18,13 @@ export const config = {
   ipSalt: env.IP_SALT || 'dev-only-salt',
   /** Postgres for reports, bans, blocks and appeals; in-memory when unset. */
   databaseUrl: env.DATABASE_URL || undefined,
+  /** Daily matches for free users (0 turns the limit off) and the rewarded-video top-up. */
+  limits: {
+    daily: Number(env.FREE_DAILY_MATCHES ?? 30),
+    adBonus: Number(env.REWARD_AD_MATCHES ?? 10),
+    maxAds: Number(env.REWARD_ADS_PER_DAY ?? 5),
+    adMs: Number(env.REWARD_AD_MS ?? 15_000),
+  },
   /** Public URL of this server (Google redirects back here). Render sets RENDER_EXTERNAL_URL. */
   serverUrl: (env.SERVER_URL || env.RENDER_EXTERNAL_URL || `http://localhost:${env.PORT ?? 4100}`).replace(/\/$/, ''),
   /** "Continue with Google"; disabled unless both are set. */

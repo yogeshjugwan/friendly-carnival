@@ -11,6 +11,7 @@ import { AdSlot } from './AdSlot';
 import { DraggablePip, type Corner } from './DraggablePip';
 import { BackIcon, MicIcon, MicOffIcon, VideoIcon, VideoOffIcon } from './icons';
 import { FilterBar } from './FilterBar';
+import { LimitModal } from './LimitModal';
 import { PlusUpsell } from './PlusUpsell';
 import { ChatPanel } from './ChatPanel';
 import { SafetyMenu } from './SafetyMenu';
@@ -124,6 +125,15 @@ export function ChatScreen({ call }: { call: RandomCall }) {
 
         <FilterBar />
 
+        <LimitModal call={call} />
+        {!isPlus && call.limit && !call.limit.unlimited && call.limit.remaining <= 5 && call.status !== 'limited' && (
+          <p className="-mt-1 text-xs text-amber-300">
+            {call.limit.remaining === 0 ? 'No free matches left today.' : `${call.limit.remaining} free match${call.limit.remaining === 1 ? '' : 'es'} left today.`}{' '}
+            <Link href="/plus" className="font-semibold underline">
+              Get unlimited
+            </Link>
+          </p>
+        )}
         {call.plusRequired && <PlusUpsell onClose={call.dismissPlusRequired} reason="Filters are a Plus feature" />}
         {call.notice && (
           <p role="status" className="rounded-xl bg-amber-100 px-3 py-2 text-sm text-amber-900">

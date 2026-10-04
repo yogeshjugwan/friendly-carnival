@@ -144,6 +144,9 @@ export interface ClientToServerEvents {
   'relay:start': () => void;
   'relay:chunk': (chunk: RelayChunk) => void;
   signal: (msg: SignalMessage) => void;
+  /** Free users out of matches: a rewarded video starts / finished. */
+  'limit:ad-start': () => void;
+  'limit:ad-done': () => void;
 }
 
 export interface ServerToClientEvents {
@@ -161,11 +164,34 @@ export interface ServerToClientEvents {
   'ban:appealed': () => void;
   /** Filters were sent without an active Plus subscription and were ignored. */
   'plus:required': () => void;
+  /** Matches left today (sent on connect and after each match). */
+  'limit:status': (status: MatchLimitStatus) => void;
+  /** Today's free matches are used up; the join or Next was not queued. */
+  'limit:reached': (status: MatchLimitStatus) => void;
+  /** A watched ad added matches. */
+  'limit:granted': (status: MatchLimitStatus) => void;
+  'limit:ad-rejected': (reason: 'too-soon' | 'no-ads-left' | 'not-started') => void;
   'relay:start': () => void;
   'relay:chunk': (chunk: RelayChunk) => void;
   signal: (msg: SignalMessage) => void;
   stats: (stats: Stats) => void;
   'error:message': (message: string) => void;
+}
+
+/** Daily match allowance for free users (Plus is unlimited). */
+export interface MatchLimitStatus {
+  unlimited: boolean;
+  used: number;
+  limit: number;
+  remaining: number;
+  /** Rewarded videos still available today. */
+  adsLeft: number;
+  /** Matches one watched video adds. */
+  adBonus: number;
+  /** How long the video must play, in ms. */
+  adMs: number;
+  /** When the count resets (next midnight UTC), epoch ms. */
+  resetsAt: number;
 }
 
 export const MAX_INTERESTS = 10;

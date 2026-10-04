@@ -12,6 +12,7 @@ import {
   type JoinPayload,
   type MatchFilters,
   type MatchFound,
+  type MatchLimitStatus,
   type PartnerInfo,
   type PartnerLeftReason,
   type RelayChunk,
@@ -31,6 +32,7 @@ export type CallStatus =
   | 'searching' // in the match queue
   | 'connecting' // matched, WebRTC negotiating
   | 'in-call' // media flowing (or text chat open)
+  | 'limited' // free matches used up for today
   | 'banned'; // device is banned; can appeal
 
 export interface ChatLine {
@@ -105,6 +107,11 @@ export function useRandomCall() {
   const [aiHidden, setAiHidden] = useState(false);
   /** An ad is covering the partner tile between strangers. */
   const [adBreak, setAdBreak] = useState(false);
+  /** Free-user daily allowance, from the server. */
+  const [limit, setLimit] = useState<MatchLimitStatus | null>(null);
+  const [limitReached, setLimitReached] = useState(false);
+  /** A rewarded video is playing; matches are added when it ends. */
+  const [rewardAd, setRewardAd] = useState<{ endsAt: number } | null>(null);
   /** Changes on every ad break so ad slots load a fresh ad. */
   const [adKey, setAdKey] = useState(0);
   /** The server ignored our filters because we don't have Plus. */
@@ -133,6 +140,7 @@ export function useRandomCall() {
     notice?: number;
     ad?: number;
     patience?: number;
+    reward?: number;
   }>({});
   /** Plus members see no ads. */
   const adFreeRef = useRef(false);
@@ -432,6 +440,25 @@ export function useRandomCall() {
       );
     const onBlocked = () => flash('Blocked. You will not be matched with them again.');
     const onPlusRequired = () => setPlusRequired(true);
+    const onLimitStatus = (st: MatchLimitStatus) => setLimit(st);
+    const onLimitReached = (st: MatchLimitStatus) => {
+      setLimit(st);
+      setLimitReached(true);
+      window.clearTimeout(timers.current.ad);
+      setAdBreak(false);
+      setStatus('limited');
+    };
+    const onLimitGranted = (st: MatchLimitStatus) => {
+      setLimit(st);
+      setLimitReached(false);
+      setRewardAd(null);
+      flash(`+${st.adBonus} matches unlocked. Enjoy!`);
+      requeue();
+    };
+    const onAdRejected = (reason: 'too-soon' | 'no-ads-left' | 'not-started') => {
+      setRewardAd(null);
+      flash(reason === 'no-ads-left' ? 'No more videos today. Try Plus for unlimited matches.' : 'Please watch the whole video to unlock matches.');
+    };
     const onRelayStart = () => startRelay();
     const onRelayChunk = (chunk: RelayChunk) => {
       if (!relay.current.active) startRelay();
@@ -459,7 +486,15 @@ export function useRandomCall() {
     socket.on('plus:required', onPlusRequired);
     socket.on('relay:start', onRelayStart);
     socket.on('relay:chunk', onRelayChunk);
+    socket.on('limit:status', onLimitStatus);
+    socket.on('limit:reached', onLimitReached);
+    socket.on('limit:granted', onLimitGranted);
+    socket.on('limit:ad-rejected', onAdRejected);
     return () => {
+      socket.off('limit:status', onLimitStatus);
+      socket.off('limit:reached', onLimitReached);
+      socket.off('limit:granted', onLimitGranted);
+      socket.off('limit:ad-rejected', onAdRejected);
       socket.off('stats', onStats);
       socket.off('match:found', onMatch);
       socket.off('signal', onSignal);
@@ -557,8 +592,20 @@ export function useRandomCall() {
     setMessages([]);
     setHasPrevious(false);
     getSocket().emit('queue:leave');
+    window.clearTimeout(timers.current.reward);
+    setRewardAd(null);
+    setLimitReached(false);
     setStatus('idle');
   }, [closePeer]);
+
+  /** Plays a rewarded video; the server adds matches if it ran the full time. */
+  const watchRewardAd = useCallback(() => {
+    if (!limit || limit.adsLeft <= 0) return;
+    getSocket().emit('limit:ad-start');
+    setRewardAd({ endsAt: Date.now() + limit.adMs });
+    window.clearTimeout(timers.current.reward);
+    timers.current.reward = window.setTimeout(() => getSocket().emit('limit:ad-done'), limit.adMs);
+  }, [limit]);
 
   const switchDevice = useCallback(
     async (kind: 'video' | 'audio', deviceId: string) => {
@@ -793,6 +840,10 @@ export function useRandomCall() {
     searchingLong,
     setAdFree,
     dismissPlusRequired: () => setPlusRequired(false),
+    limit,
+    limitReached,
+    rewardAd,
+    watchRewardAd,
   };
 }
 

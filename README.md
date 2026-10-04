@@ -200,6 +200,17 @@ pages, so card details never reach our servers.
 Complimentary Plus (testers, support): `POST /admin/plus` with `{ "email", "days" }`
 (admin token); `days: 0` removes it.
 
+## Daily match limit (free users)
+
+Free users get `FREE_DAILY_MATCHES` matches per day (default 30; `0` turns the limit
+off, e.g. for load tests). Plus is unlimited. When the allowance is used up, Start and
+Next are refused by the server and the app shows **Get randomCall Plus** or **Watch
+video**: a full-screen ad that must play `REWARD_AD_MS` (default 15 s, checked on the
+server) to add `REWARD_AD_MATCHES` (default 10), up to `REWARD_ADS_PER_DAY` (default 5).
+Counts are per account, else per browser, reset at midnight UTC and live in memory
+(a restart only gives people more matches). Guests who clear their browser storage
+get a fresh allowance.
+
 ## Video when WebRTC can't connect (relay fallback)
 
 Calls first try WebRTC: direct, or through TURN when `TURN_*` is set. If no path

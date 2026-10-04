@@ -149,3 +149,19 @@ test('sweep never re-matches blocked users or different modes', () => {
   mm.join('t', 'male', [], 'text');
   assert.deepEqual(mm.sweep(Date.now() + 60_000), [], 'text and video never meet');
 });
+
+test('a Plus man with "Girls only" never meets a man; free users meet anyone', () => {
+  const mm = new Matchmaker(5);
+  mm.connect('plusMan', null, { plus: true });
+  ['freeMan', 'woman', 'freeMan2'].forEach((id) => mm.connect(id, null));
+  assert.equal(mm.join('plusMan', 'male', [], 'video', false, { gender: 'female', country: 'any' }), null);
+  // Another man arrives: not paired with the Plus man.
+  assert.equal(mm.join('freeMan', 'male', [], 'video'), null);
+  assert.equal(mm.waitingCount, 2);
+  // A woman arrives and meets the Plus man (the longest waiter who accepts her).
+  const pairing = mm.join('woman', 'female', [], 'video');
+  assert.deepEqual([pairing?.a.id, pairing?.b.id].sort(), ['plusMan', 'woman']);
+  // Free men still meet anyone, including other men.
+  const next = mm.join('freeMan2', 'male', [], 'video');
+  assert.deepEqual([next?.a.id, next?.b.id].sort(), ['freeMan', 'freeMan2']);
+});

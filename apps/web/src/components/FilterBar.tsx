@@ -11,20 +11,29 @@ import { PlusUpsell } from './PlusUpsell';
 /** Quick "only girls / only boys" toggle; the gender filters are a Plus feature. */
 const GENDERS: { value: Gender | 'any'; label: string; icon?: string }[] = [
   { value: 'any', label: 'Everyone' },
-  { value: 'female', label: 'Girls', icon: '👩' },
-  { value: 'male', label: 'Boys', icon: '👨' },
+  { value: 'female', label: 'Girls only', icon: '👩' },
+  { value: 'male', label: 'Boys only', icon: '👨' },
 ];
+
+/** Men are offered "Girls only", women "Boys only"; everyone else sees both. */
+const optionsFor = (me: Gender | null) =>
+  GENDERS.filter((g) => g.value === 'any' || me === 'couple' || me === null || g.value !== me);
 
 /** Gender and country filters (Plus). Free users get an upgrade prompt instead. */
 export function FilterBar() {
   const { user, saveSettings } = useAuth();
   const isPlus = !!user?.plus.active;
   const [filters, setFilters] = useState<MatchFilters>(NO_FILTERS);
+  const [myGender, setMyGender] = useState<Gender | null>(null);
   const [upsell, setUpsell] = useState(false);
   const countries = useMemo(() => countryOptions(), []);
 
   useEffect(() => {
-    const sync = () => setFilters(loadSettings().filters);
+    const sync = () => {
+      const settings = loadSettings();
+      setFilters(settings.filters);
+      setMyGender(settings.gender);
+    };
     sync();
     return onSettingsChange(sync);
   }, []);
@@ -74,7 +83,7 @@ export function FilterBar() {
     <>
       <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
         <div role="radiogroup" aria-label="Who you want to meet" className="inline-flex rounded-xl bg-slate-800 p-0.5">
-          {GENDERS.map((g) => {
+          {optionsFor(myGender).map((g) => {
             const active = (isPlus ? filters.gender : 'any') === g.value;
             return (
               <button

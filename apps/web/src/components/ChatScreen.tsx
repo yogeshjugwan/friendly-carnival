@@ -101,7 +101,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
   );
 
   return (
-    <main className="mx-auto flex h-[100dvh] max-w-6xl flex-col overflow-y-auto p-2 sm:p-4">
+    <main className="mx-auto flex h-[100dvh] max-w-6xl flex-col overflow-hidden p-2 sm:p-4">
       <div className="flex min-h-0 flex-1 flex-col gap-3 rounded-3xl bg-[#0f172a] p-3 sm:gap-4 sm:p-5">
         {/* Header: logo · online · settings · upgrade */}
         <header className="flex items-center gap-2 sm:gap-3">
@@ -161,13 +161,13 @@ export function ChatScreen({ call }: { call: RandomCall }) {
             </div>
           </div>
         ) : (
-          <div className="grid min-h-0 flex-1 grid-rows-[minmax(16rem,1fr)_auto] gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:grid-rows-1 max-lg:landscape:grid-cols-[minmax(0,1fr)_minmax(14rem,34%)] max-lg:landscape:grid-rows-1">
+          <div className="grid min-h-0 flex-1 grid-rows-[minmax(11rem,3fr)_minmax(8rem,2fr)] gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:grid-rows-1 max-lg:landscape:grid-cols-[minmax(0,1fr)_minmax(14rem,34%)] max-lg:landscape:grid-rows-1">
             {/* Stage: partner video, your picture-in-picture, controls */}
             <VideoTile
               stream={matched ? call.remoteStream : null}
               videoRef={call.setPartnerVideo}
               forceVisible={call.relayActive}
-              className="min-h-[16rem] rounded-2xl !bg-[#1e293b] max-lg:landscape:min-h-[12rem]"
+              className="min-h-0 rounded-2xl !bg-[#1e293b]"
               videoClassName={`transition-[filter] duration-700 ${
                 call.partnerHidden || call.aiHidden ? 'blur-3xl brightness-50' : call.blurPartner ? 'blur-xl' : ''
               }`}
@@ -261,7 +261,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               </div>
             </VideoTile>
 
-            {chat('h-[clamp(9rem,28dvh,15rem)] lg:h-auto lg:min-h-0 max-lg:landscape:h-auto max-lg:landscape:min-h-0')}
+            {chat('h-full min-h-0')}
           </div>
         )}
       </div>

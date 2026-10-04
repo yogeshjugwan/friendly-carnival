@@ -14,8 +14,8 @@ const EDGE = 4;
  * so the bottom-right corner can drop down beside them.
  */
 const CORNER_CLASS: Record<Corner, string> = {
-  tl: 'left-3 top-[4.5rem] sm:left-4',
-  tr: 'right-3 top-14 sm:right-4',
+  tl: 'left-3 top-[4.5rem] sm:left-4 max-lg:landscape:top-12',
+  tr: 'right-3 top-14 sm:right-4 max-lg:landscape:top-12',
   bl: 'left-3 bottom-[4.25rem] sm:left-4 sm:bottom-20',
   br: 'right-3 bottom-[4.25rem] sm:right-4 sm:bottom-20 max-lg:landscape:bottom-3',
 };

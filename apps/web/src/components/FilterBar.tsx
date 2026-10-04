@@ -55,7 +55,7 @@ export function FilterBar() {
           }
         }}
         aria-label={label}
-        className={`appearance-none rounded-xl bg-slate-800 py-2 pl-4 pr-9 text-sm font-medium text-slate-100 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-brand ${wide ? 'max-w-[11rem]' : ''}`}
+        className={`appearance-none rounded-xl bg-slate-800 py-2 pl-3 pr-12 text-xs font-medium text-slate-100 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-brand sm:pl-4 sm:text-sm ${wide ? 'max-w-[9.5rem] sm:max-w-[11rem]' : ''}`}
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -63,7 +63,7 @@ export function FilterBar() {
           </option>
         ))}
       </select>
-      <span className="pointer-events-none absolute right-3 flex items-center gap-1 text-slate-400">
+      <span className="pointer-events-none absolute right-2.5 flex items-center gap-0.5 text-slate-400">
         {!isPlus && <span className="text-[11px]" title="Plus feature">👑</span>}
         <ChevronDownIcon />
       </span>

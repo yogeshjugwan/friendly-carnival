@@ -45,11 +45,13 @@ function Searching({ call }: { call: RandomCall }) {
   const overlay = STATUS_TEXT[call.status];
   if (!overlay) return null;
   return (
-    <div className="flex flex-col items-center justify-start gap-2 p-4 text-center">
-      <span className="h-6 w-6 animate-spin rounded-full border-[3px] border-slate-600 border-t-brand" />
-      <p className="text-slate-300">{overlay}</p>
+    <div className="flex flex-col items-center gap-1 text-center">
+      <p className="flex items-center gap-2 text-sm text-slate-300 sm:text-base">
+        <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-slate-600 border-t-brand" />
+        {overlay}
+      </p>
       {call.status === 'searching' && call.lastLeftReason && (
-        <p className="text-sm text-slate-500">Your partner left. Finding someone new.</p>
+        <p className="text-xs text-slate-500 sm:text-sm">Your partner left. Finding someone new.</p>
       )}
       {call.searchingLong && <WidenSearch />}
     </div>
@@ -96,7 +98,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
   );
 
   return (
-    <main className="mx-auto flex h-full max-w-6xl flex-col p-2 sm:p-4">
+    <main className="mx-auto flex h-[100dvh] max-w-6xl flex-col overflow-y-auto p-2 sm:p-4">
       <div className="flex min-h-0 flex-1 flex-col gap-3 rounded-3xl bg-[#0f172a] p-3 sm:gap-4 sm:p-5">
         {/* Header: logo · online · settings · upgrade */}
         <header className="flex items-center gap-2 sm:gap-3">
@@ -156,13 +158,13 @@ export function ChatScreen({ call }: { call: RandomCall }) {
             </div>
           </div>
         ) : (
-          <div className="grid min-h-0 flex-1 gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="grid min-h-0 flex-1 grid-rows-[minmax(16rem,1fr)_auto] gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:grid-rows-1 max-lg:landscape:grid-cols-[minmax(0,1fr)_minmax(14rem,34%)] max-lg:landscape:grid-rows-1">
             {/* Stage: partner video, your picture-in-picture, controls */}
             <VideoTile
               stream={matched ? call.remoteStream : null}
               videoRef={call.setPartnerVideo}
               forceVisible={call.relayActive}
-              className="aspect-[4/5] rounded-2xl !bg-[#1e293b] sm:aspect-video lg:aspect-auto lg:min-h-[420px]"
+              className="min-h-[16rem] rounded-2xl !bg-[#1e293b] max-lg:landscape:min-h-[12rem]"
               videoClassName={`transition-[filter] duration-700 ${
                 call.partnerHidden || call.aiHidden ? 'blur-3xl brightness-50' : call.blurPartner ? 'blur-xl' : ''
               }`}
@@ -172,7 +174,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                   <VideoIcon className="h-16 w-16 sm:h-20 sm:w-20" />
                 </div>
               )}
-              <div className="absolute inset-0 top-1/2">
+              <div className="absolute inset-x-0 top-14 flex justify-center px-4">
                 <Searching call={call} />
               </div>
               {matched && (call.partnerHidden || call.aiHidden) && (
@@ -212,7 +214,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               )}
 
               {/* You (picture-in-picture) */}
-              <div className="absolute bottom-20 right-3 z-20 h-36 w-28 overflow-hidden rounded-xl border-2 border-slate-500/80 bg-slate-600 shadow-xl sm:bottom-24 sm:right-4 sm:h-32 sm:w-52">
+              <div className="absolute bottom-[4.25rem] right-3 z-20 aspect-[3/4] h-[34%] max-h-[12rem] min-h-[5rem] overflow-hidden rounded-xl border-2 border-slate-500/80 bg-slate-600 shadow-xl sm:bottom-20 sm:right-4 md:aspect-video landscape:aspect-video">
                 <VideoTile stream={call.localStream} muted mirrored className="h-full w-full rounded-none !bg-slate-600" />
                 {(!call.localStream || !call.cameraOn) && (
                   <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-200">You</div>
@@ -256,7 +258,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               </div>
             </VideoTile>
 
-            {chat('h-56 sm:h-64 lg:h-auto lg:min-h-0')}
+            {chat('h-[clamp(9rem,28dvh,15rem)] lg:h-auto lg:min-h-0 max-lg:landscape:h-auto max-lg:landscape:min-h-0')}
           </div>
         )}
       </div>

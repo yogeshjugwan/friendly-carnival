@@ -4,7 +4,9 @@ import {
   CHAT_BURST,
   CHAT_WINDOW_MS,
   MAX_APPEAL_LENGTH,
+  MAX_RELAY_CHUNK_BYTES,
   MAX_SNAPSHOT_BYTES,
+  RELAY_BYTES_PER_SECOND,
   hasFilters,
   type BanInfo,
   type CallResult,
@@ -53,6 +55,10 @@ export interface CallMetrics {
   connectMsTotal: number;
   /** Last results with diagnostics, newest first (for /health). */
   recent: { at: number; connected: boolean; ms: number; diag?: CallResult['diag'] }[];
+  /** Video bytes relayed through this server (Socket.IO fallback). */
+  relayBytes: number;
+  /** Calls that fell back to the relay. */
+  relayCalls: number;
 }
 
 export interface AppOptions {
@@ -83,7 +89,8 @@ export interface App {
 
 export function createApp(opts: AppOptions = {}): App {
   const matchmaker = new Matchmaker(config.recentPartnerMemory);
-  const metrics: CallMetrics = { reports: 0, connected: 0, connectMsTotal: 0, recent: [] };
+  const metrics: CallMetrics = { reports: 0, connected: 0, connectMsTotal: 0, recent: [], relayBytes: 0, relayCalls: 0 };
+  const relayedMatches = new Set<string>();
   const store = opts.store ?? new MemoryStore();
   const accounts = opts.accounts ?? new MemoryAccountStore();
   const origins = opts.webOrigins ?? config.webOrigins;
@@ -162,6 +169,8 @@ export function createApp(opts: AppOptions = {}): App {
               reports: metrics.reports,
               connectRate: metrics.reports ? +(metrics.connected / metrics.reports).toFixed(3) : null,
               avgConnectMs: metrics.connected ? Math.round(metrics.connectMsTotal / metrics.connected) : null,
+              relayCalls: metrics.relayCalls,
+              relayMB: +(metrics.relayBytes / 1e6).toFixed(1),
               recent: metrics.recent.slice(0, 20).map((r) => ({ ...r, ago: Math.round((Date.now() - r.at) / 1000) + 's' })),
             },
             turnConfigured: config.iceServers.some((s) => s.username),
@@ -180,8 +189,8 @@ export function createApp(opts: AppOptions = {}): App {
 
   io = new Server(http, {
     cors: { origin: origins },
-    // Reports carry a small JPEG snapshot.
-    maxHttpBufferSize: MAX_SNAPSHOT_BYTES + 16 * 1024,
+    // Reports carry a small JPEG snapshot; relay chunks are capped separately.
+    maxHttpBufferSize: Math.max(MAX_SNAPSHOT_BYTES, MAX_RELAY_CHUNK_BYTES) + 16 * 1024,
   });
 
   // Identify the browser and check bans before any event is handled.
@@ -369,6 +378,41 @@ export function createApp(opts: AppOptions = {}): App {
         metrics.connected += 1;
         metrics.connectMsTotal += result.ms;
       }
+    });
+
+    // Video over the server when WebRTC cannot connect (no TURN, strict networks).
+    let relayWindowStart = Date.now();
+    let relayWindowBytes = 0;
+
+    socket.on('relay:start', () => {
+      const session = matchmaker.get(socket.id);
+      const partner = matchmaker.partnerOf(socket.id);
+      if (!session?.matchId || !partner) return;
+      // Both sides may announce; count each match once.
+      if (!relayedMatches.has(session.matchId)) {
+        relayedMatches.add(session.matchId);
+        metrics.relayCalls += 1;
+        if (relayedMatches.size > 10_000) relayedMatches.clear();
+      }
+      io.to(partner.id).emit('relay:start');
+    });
+
+    socket.on('relay:chunk', (chunk) => {
+      const partner = matchmaker.partnerOf(socket.id);
+      if (!partner || !chunk || typeof chunk !== 'object') return;
+      const data = (chunk as { data?: unknown }).data;
+      const size = data instanceof ArrayBuffer ? data.byteLength : Buffer.isBuffer(data) ? data.length : -1;
+      const { seq, mime } = chunk as { seq?: unknown; mime?: unknown };
+      if (size <= 0 || size > MAX_RELAY_CHUNK_BYTES || typeof seq !== 'number' || typeof mime !== 'string' || mime.length > 80) return;
+      const now = Date.now();
+      if (now - relayWindowStart >= 1_000) {
+        relayWindowStart = now;
+        relayWindowBytes = 0;
+      }
+      relayWindowBytes += size;
+      if (relayWindowBytes > RELAY_BYTES_PER_SECOND) return; // over budget: drop (the stream recovers on the next keyframe)
+      metrics.relayBytes += size;
+      io.to(partner.id).emit('relay:chunk', { seq, mime, data: data as ArrayBuffer });
     });
 
     socket.on('signal', (payload) => {

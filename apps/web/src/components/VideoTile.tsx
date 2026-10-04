@@ -11,10 +11,12 @@ interface Props {
   videoClassName?: string;
   /** Receives the underlying <video> element (for snapshots and screening). */
   videoRef?: (el: HTMLVideoElement | null) => void;
+  /** Show the video even without a MediaStream (relay playback sets src directly). */
+  forceVisible?: boolean;
   children?: React.ReactNode;
 }
 
-export function VideoTile({ stream, muted, mirrored, className = '', videoClassName = '', videoRef, children }: Props) {
+export function VideoTile({ stream, muted, mirrored, className = '', videoClassName = '', videoRef, forceVisible, children }: Props) {
   const ref = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -34,7 +36,7 @@ export function VideoTile({ stream, muted, mirrored, className = '', videoClassN
         autoPlay
         playsInline
         muted={muted}
-        className={`h-full w-full object-cover ${mirrored ? '-scale-x-100' : ''} ${stream ? '' : 'invisible'} ${videoClassName}`}
+        className={`h-full w-full object-cover ${mirrored ? '-scale-x-100' : ''} ${stream || forceVisible ? '' : 'invisible'} ${videoClassName}`}
       />
       {children}
     </div>

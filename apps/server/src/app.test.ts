@@ -174,3 +174,37 @@ test('call results keep sanitized diagnostics for /health', async () => {
   assert.deepEqual(direct.diag.path, ['host', 'host'], 'a direct path keeps both ends');
   c.disconnect();
 });
+
+test('relay chunks go only to the current partner and are size-limited', async () => {
+  const a = await client();
+  const b = await client();
+  const aWaiting = next(a, 'queue:waiting');
+  a.emit('queue:join', { gender: 'male', interests: [], mode: 'video' });
+  await aWaiting;
+  const bMatch = next(b, 'match:found');
+  b.emit('queue:join', { gender: 'male', interests: [], mode: 'video' });
+  await bMatch;
+
+  const started = next(b, 'relay:start');
+  a.emit('relay:start');
+  await started;
+
+  const got = next(b, 'relay:chunk');
+  a.emit('relay:chunk', { seq: 0, mime: 'video/webm;codecs=vp8,opus', data: new Uint8Array([1, 2, 3, 4]).buffer });
+  const chunk = (await got) as { seq: number; mime: string; data: ArrayBuffer };
+  assert.equal(chunk.seq, 0);
+  assert.equal(chunk.mime, 'video/webm;codecs=vp8,opus');
+  assert.deepEqual([...new Uint8Array(chunk.data)], [1, 2, 3, 4]);
+
+  // Oversized chunks are dropped silently.
+  let extra = false;
+  b.once('relay:chunk', () => (extra = true));
+  a.emit('relay:chunk', { seq: 1, mime: 'video/webm', data: new Uint8Array(130_000).buffer });
+  await new Promise((r) => setTimeout(r, 200));
+  assert.equal(extra, false);
+
+  const health = await (await fetch(url + '/health')).json();
+  assert.equal(health.calls.relayCalls >= 1, true);
+  a.emit('queue:leave');
+  b.emit('queue:leave');
+});

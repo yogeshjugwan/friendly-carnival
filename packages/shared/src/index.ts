@@ -87,8 +87,8 @@ export interface CallDiagnostics {
   ice: string;
   /** For connected calls: the kinds of the pair actually used. */
   path?: [CandidateType, CandidateType];
-  /** How the attempt ended. */
-  outcome: 'connected' | 'timeout' | 'failed' | 'dropped';
+  /** How the attempt ended. 'relay' = WebRTC failed and video went through the server. */
+  outcome: 'connected' | 'timeout' | 'failed' | 'dropped' | 'relay';
 }
 
 export interface CallResult {
@@ -140,6 +140,9 @@ export interface ClientToServerEvents {
   'report:submit': (report: ReportPayload) => void;
   'user:block': (target: 'current' | 'previous') => void;
   'ban:appeal': (message: string) => void;
+  /** WebRTC could not connect: switch both sides to video over the server. */
+  'relay:start': () => void;
+  'relay:chunk': (chunk: RelayChunk) => void;
   signal: (msg: SignalMessage) => void;
 }
 
@@ -158,6 +161,8 @@ export interface ServerToClientEvents {
   'ban:appealed': () => void;
   /** Filters were sent without an active Plus subscription and were ignored. */
   'plus:required': () => void;
+  'relay:start': () => void;
+  'relay:chunk': (chunk: RelayChunk) => void;
   signal: (msg: SignalMessage) => void;
   stats: (stats: Stats) => void;
   'error:message': (message: string) => void;
@@ -226,3 +231,17 @@ export interface PublicUser {
 
 export const MIN_PASSWORD_LENGTH = 8;
 export const MAX_PASSWORD_LENGTH = 200;
+
+/** A piece of MediaRecorder output relayed through the server when WebRTC fails. */
+export interface RelayChunk {
+  /** Increments per chunk; 0 carries the container header. */
+  seq: number;
+  /** MediaRecorder mime type, e.g. 'video/webm;codecs=vp8,opus'. */
+  mime: string;
+  data: ArrayBuffer;
+}
+
+/** Largest relayed chunk the server forwards. */
+export const MAX_RELAY_CHUNK_BYTES = 120_000;
+/** Per-user relay budget, bytes per second (≈ 1.5 Mbit/s). */
+export const RELAY_BYTES_PER_SECOND = 192_000;

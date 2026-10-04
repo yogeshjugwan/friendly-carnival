@@ -68,7 +68,7 @@ export function parseChatText(input: unknown): string | null {
 }
 
 const CANDIDATE_TYPES = ['host', 'srflx', 'prflx', 'relay'] as const;
-const OUTCOMES = ['connected', 'timeout', 'failed', 'dropped'] as const;
+const OUTCOMES = ['connected', 'timeout', 'failed', 'dropped', 'relay'] as const;
 const kinds = (v: unknown) =>
   Array.isArray(v) ? [...new Set(v.filter((t): t is (typeof CANDIDATE_TYPES)[number] => CANDIDATE_TYPES.includes(t)))] : [];
 

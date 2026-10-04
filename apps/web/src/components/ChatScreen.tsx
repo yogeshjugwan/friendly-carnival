@@ -153,6 +153,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
             <VideoTile
               stream={matched ? call.remoteStream : null}
               videoRef={call.setPartnerVideo}
+              forceVisible={call.relayActive}
               className="aspect-[3/4] sm:aspect-video lg:aspect-auto"
               videoClassName={`transition-[filter] duration-700 ${
                 call.partnerHidden || call.aiHidden ? 'blur-3xl brightness-50' : call.blurPartner ? 'blur-xl' : ''
@@ -174,8 +175,16 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                 </div>
               ) : (
                 <>
-                  <div className="absolute left-2 top-2">
+                  <div className="absolute left-2 top-2 flex flex-col items-start gap-1">
                     <PartnerBadge call={call} />
+                    {call.relayActive && (
+                      <span
+                        className="rounded-full bg-amber-500/90 px-2 py-0.5 text-[11px] font-medium text-white"
+                        title="Your networks blocked a direct connection, so video goes through our server with a short delay."
+                      >
+                        Relay mode · slight delay
+                      </span>
+                    )}
                   </div>
                   <div className="absolute right-2 top-2">
                     <SafetyMenu call={call} />

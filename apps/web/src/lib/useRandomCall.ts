@@ -14,11 +14,13 @@ import {
   type MatchFound,
   type PartnerInfo,
   type PartnerLeftReason,
+  type RelayChunk,
   type ReportReason,
   type SignalMessage,
 } from '@rc/shared';
 import { AD_BREAK_MS } from './ads';
 import { explicitScore, snapshot } from './nsfw';
+import { RelayReceiver, RelaySender, relaySupported } from './relay';
 import { loadSettings, onSettingsChange } from './settings';
 import { getSocket } from './socket';
 
@@ -57,6 +59,8 @@ const SCREEN_THRESHOLD = 0.85;
 const SCREEN_HITS = 2;
 /** With filters on, offer to widen the search after this long. */
 const FILTER_PATIENCE_MS = 15_000;
+
+const FORCE_RELAY = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('relay');
 
 const sameFilters = (a: MatchFilters | undefined, b: MatchFilters | undefined) =>
   (a?.gender ?? 'any') === (b?.gender ?? 'any') && (a?.country ?? 'any') === (b?.country ?? 'any');
@@ -116,6 +120,9 @@ export function useRandomCall() {
   const pendingIce = useRef<RTCIceCandidateInit[]>([]);
   const activeRef = useRef(false);
   const matchRef = useRef<{ id: string; startedAt: number; reported: boolean } | null>(null);
+  /** Socket.IO video fallback for this match, when WebRTC could not connect. */
+  const relay = useRef<{ sender?: RelaySender; receiver?: RelayReceiver; active: boolean }>({ active: false });
+  const [relayActive, setRelayActive] = useState(false);
   /** Candidate kinds seen in the current attempt, for diagnostics. */
   const candidates = useRef<{ local: Set<CandidateType>; remote: Set<CandidateType> }>({ local: new Set(), remote: new Set() });
   const timers = useRef<{
@@ -186,6 +193,10 @@ export function useRandomCall() {
   }, []);
 
   const closePeer = useCallback(() => {
+    relay.current.sender?.stop();
+    relay.current.receiver?.stop();
+    relay.current = { active: false };
+    setRelayActive(false);
     matchRef.current = null;
     clearTimer('connect');
     clearTimer('disconnect');
@@ -241,6 +252,32 @@ export function useRandomCall() {
     timers.current.blur = window.setTimeout(() => setBlurPartner(false), BLUR_MS);
   }, [reportResult]);
 
+  /** Switch this match to video over the server (both sides call this). */
+  const startRelay = useCallback(() => {
+    const local = localRef.current;
+    if (relay.current.active || !matchRef.current || !local) return;
+    relay.current.active = true;
+    clearTimer('connect');
+    clearTimer('disconnect');
+    // Stop the failed WebRTC attempt; the match itself continues.
+    const pc = pcRef.current;
+    pcRef.current = null;
+    if (pc) {
+      pc.onicecandidate = null;
+      pc.onconnectionstatechange = null;
+      pc.close();
+    }
+    const socket = getSocket();
+    socket.emit('relay:start');
+    const sender = new RelaySender(local, (chunk) => socket.emit('relay:chunk', chunk));
+    if (!sender.start()) flash('This browser cannot send video through the relay. Text chat still works.');
+    relay.current.sender = sender;
+    setRelayActive(true);
+    setStatus('in-call');
+    setBlurPartner(true);
+    timers.current.blur = window.setTimeout(() => setBlurPartner(false), BLUR_MS);
+  }, [flash]);
+
   const startPeer = useCallback(
     async (match: MatchFound) => {
       const local = localRef.current;
@@ -251,10 +288,17 @@ export function useRandomCall() {
       // No direct or relayed path (or it dropped for good): count it, then move on.
       const giveUp = (outcome: CallDiagnostics['outcome']) => {
         reportResult(false, outcome);
-        next();
+        // Strict networks block direct video: send it through the server instead.
+        if (relaySupported() && activeRef.current) startRelay();
+        else next();
       };
       candidates.current = { local: new Set(), remote: new Set() };
       pcRef.current = pc;
+      // ?relay=1 forces the fallback (testing).
+      if (FORCE_RELAY && relaySupported()) {
+        startRelay();
+        return;
+      }
       setStatus('connecting');
 
       local.getTracks().forEach((track) => pc.addTrack(track, local));
@@ -299,7 +343,7 @@ export function useRandomCall() {
         socket.emit('signal', { kind: 'offer', sdp: offer.sdp ?? '' });
       }
     },
-    [markConnected, next, reportResult],
+    [markConnected, next, reportResult, startRelay],
   );
 
   const handleSignal = useCallback(async (msg: SignalMessage) => {
@@ -385,6 +429,16 @@ export function useRandomCall() {
       );
     const onBlocked = () => flash('Blocked. You will not be matched with them again.');
     const onPlusRequired = () => setPlusRequired(true);
+    const onRelayStart = () => startRelay();
+    const onRelayChunk = (chunk: RelayChunk) => {
+      if (!relay.current.active) startRelay();
+      const video = partnerVideoRef.current;
+      if (!video) return;
+      relay.current.receiver ??= new RelayReceiver(video, () =>
+        flash('This browser cannot play the relayed video. Try Chrome, or chat by text.'),
+      );
+      relay.current.receiver.push(chunk);
+    };
 
     socket.on('stats', onStats);
     socket.on('match:found', onMatch);
@@ -400,6 +454,8 @@ export function useRandomCall() {
     socket.on('report:rejected', onReportRejected);
     socket.on('user:blocked', onBlocked);
     socket.on('plus:required', onPlusRequired);
+    socket.on('relay:start', onRelayStart);
+    socket.on('relay:chunk', onRelayChunk);
     return () => {
       socket.off('stats', onStats);
       socket.off('match:found', onMatch);
@@ -415,8 +471,10 @@ export function useRandomCall() {
       socket.off('report:rejected', onReportRejected);
       socket.off('user:blocked', onBlocked);
       socket.off('plus:required', onPlusRequired);
+      socket.off('relay:start', onRelayStart);
+      socket.off('relay:chunk', onRelayChunk);
     };
-  }, [startPeer, handleSignal, closePeer, requeue, addLine, flash, startAdBreak]);
+  }, [startPeer, handleSignal, closePeer, requeue, addLine, flash, startAdBreak, startRelay]);
 
   // Keep the server in sync with the "allow reconnect" setting (and on every reconnect).
   useEffect(() => {
@@ -727,6 +785,7 @@ export function useRandomCall() {
     appeal,
     adBreak,
     adKey,
+    relayActive,
     plusRequired,
     searchingLong,
     setAdFree,

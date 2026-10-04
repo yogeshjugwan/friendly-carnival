@@ -45,11 +45,21 @@ export interface Pairing {
 export class Matchmaker {
   private sessions = new Map<string, Session>();
   private queue: string[] = [];
+  /** When each waiting session entered the queue. */
+  private queuedAt = new Map<string, number>();
   /** Identity of recent sockets, kept after disconnect so "previous partner" can still be reported. */
   private identities = new Map<string, { deviceId: string; ipHash: string | null; userId: string | null }>();
   private static readonly IDENTITY_MEMORY = 10_000;
 
-  constructor(private readonly recentMemory = 5) {}
+  /**
+   * @param recentMemory partners avoided right after a match
+   * @param relaxAfterMs after both have waited this long, recent partners may meet
+   *   again — with few people online, otherwise nobody would ever be matched
+   */
+  constructor(
+    private readonly recentMemory = 5,
+    private readonly relaxAfterMs = 8_000,
+  ) {}
 
   get onlineCount(): number {
     return this.sessions.size;
@@ -226,20 +236,43 @@ export class Matchmaker {
     const candidateId = this.pickCandidate(session);
     if (!candidateId) {
       this.queue.push(session.id);
+      this.queuedAt.set(session.id, Date.now());
       return null;
     }
     this.dequeue(candidateId);
     return this.pair(this.sessions.get(candidateId)!, session, false);
   }
 
-  private pickCandidate(session: Session): string | null {
+  /**
+   * Matches people who have waited a while, allowing recent partners to meet
+   * again once both have waited `relaxAfterMs`. Call it every few seconds.
+   */
+  sweep(now = Date.now()): Pairing[] {
+    const pairings: Pairing[] = [];
+    for (const id of [...this.queue]) {
+      if (!this.queue.includes(id)) continue; // paired earlier in this sweep
+      const session = this.sessions.get(id);
+      if (!session || session.partnerId) continue;
+      if (now - (this.queuedAt.get(id) ?? now) < this.relaxAfterMs) continue;
+      const candidateId = this.pickCandidate(session, now);
+      if (!candidateId) continue;
+      this.dequeue(id);
+      this.dequeue(candidateId);
+      pairings.push(this.pair(this.sessions.get(candidateId)!, session, false));
+    }
+    return pairings;
+  }
+
+  private pickCandidate(session: Session, relaxedAt?: number): string | null {
     let best: string | null = null;
     let bestScore = -1;
     for (const otherId of this.queue) {
       if (otherId === session.id) continue;
       const other = this.sessions.get(otherId);
       if (!other || other.partnerId || other.mode !== session.mode) continue;
-      if (session.recent.includes(otherId) || other.recent.includes(session.id)) continue;
+      const recent = session.recent.includes(otherId) || other.recent.includes(session.id);
+      // Recent partners only meet again in a sweep, after both waited long enough.
+      if (recent && (relaxedAt === undefined || relaxedAt - (this.queuedAt.get(otherId) ?? relaxedAt) < this.relaxAfterMs)) continue;
       if (isBlocked(session, other)) continue;
       if (!wants(session, other) || !wants(other, session)) continue;
       const score = sharedInterests(session.interests, other.interests).length;
@@ -270,6 +303,7 @@ export class Matchmaker {
   private dequeue(id: string): void {
     const index = this.queue.indexOf(id);
     if (index !== -1) this.queue.splice(index, 1);
+    this.queuedAt.delete(id);
   }
 }
 

@@ -115,3 +115,37 @@ test('Back is refused when the partner opted out, left, or is busy', () => {
   mm.disconnect('b');
   assert.equal(mm.reconnect('a'), 'gone');
 });
+
+test('sweep re-matches recent partners only after both waited long enough', () => {
+  const mm = new Matchmaker(5, 8_000);
+  mm.connect('a', null);
+  mm.connect('b', null);
+  mm.join('a', 'male', [], 'video');
+  mm.join('b', 'male', [], 'video');
+  mm.endMatch('a'); // the call failed / someone pressed Next
+  mm.rejoin('a');
+  mm.rejoin('b');
+  assert.equal(mm.waitingCount, 2, 'recent partners are not matched straight away');
+  assert.deepEqual(mm.sweep(Date.now() + 3_000), [], 'not yet: only 3 s waited');
+  const pairings = mm.sweep(Date.now() + 9_000);
+  assert.equal(pairings.length, 1, 'after 8 s they can meet again');
+  assert.equal(mm.partnerOf('a')?.id, 'b');
+  assert.equal(mm.waitingCount, 0);
+});
+
+test('sweep never re-matches blocked users or different modes', () => {
+  const mm = new Matchmaker(5, 8_000);
+  mm.connect('a', null, { deviceId: 'dev-a' });
+  mm.connect('b', null, { deviceId: 'dev-b' });
+  mm.join('a', 'male', [], 'video');
+  mm.join('b', 'male', [], 'video');
+  mm.endMatch('a');
+  mm.block('dev-a', 'dev-b');
+  mm.rejoin('a');
+  mm.rejoin('b');
+  assert.deepEqual(mm.sweep(Date.now() + 60_000), []);
+
+  mm.connect('t', null);
+  mm.join('t', 'male', [], 'text');
+  assert.deepEqual(mm.sweep(Date.now() + 60_000), [], 'text and video never meet');
+});

@@ -151,3 +151,26 @@ test('Back reconnects two users after a Next, flagged as reconnected', async () 
   assert.equal(await unavailable, 'busy');
   a.emit('queue:leave');
 });
+
+test('call results keep sanitized diagnostics for /health', async () => {
+  const c = await client();
+  c.emit('call:result', {
+    matchId: 'm1',
+    connected: false,
+    ms: 15000,
+    diag: { local: ['host', 'srflx', 'bogus'], remote: ['host'], ice: 'checking', outcome: 'timeout', ip: '1.2.3.4' },
+  } as never);
+  await new Promise((r) => setTimeout(r, 100));
+  const health = await (await fetch(url + '/health')).json();
+  const last = health.calls.recent[0];
+  assert.equal(last.connected, false);
+  assert.deepEqual(last.diag.local, ['host', 'srflx'], 'unknown kinds are dropped');
+  assert.equal(last.diag.outcome, 'timeout');
+  assert.equal(JSON.stringify(last).includes('1.2.3.4'), false, 'no addresses are kept');
+
+  c.emit('call:result', { matchId: 'm2', connected: true, ms: 90, diag: { local: ['host'], remote: ['host'], ice: 'connected', outcome: 'connected', path: ['host', 'host'] } });
+  await new Promise((r) => setTimeout(r, 100));
+  const direct = (await (await fetch(url + '/health')).json()).calls.recent[0];
+  assert.deepEqual(direct.diag.path, ['host', 'host'], 'a direct path keeps both ends');
+  c.disconnect();
+});

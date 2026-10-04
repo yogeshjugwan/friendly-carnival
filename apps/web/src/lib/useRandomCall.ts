@@ -5,6 +5,8 @@ import {
   hasFilters,
   type BackUnavailableReason,
   type BanInfo,
+  type CallDiagnostics,
+  type CandidateType,
   type ChatMessage,
   type ChatMode,
   type JoinPayload,
@@ -114,6 +116,8 @@ export function useRandomCall() {
   const pendingIce = useRef<RTCIceCandidateInit[]>([]);
   const activeRef = useRef(false);
   const matchRef = useRef<{ id: string; startedAt: number; reported: boolean } | null>(null);
+  /** Candidate kinds seen in the current attempt, for diagnostics. */
+  const candidates = useRef<{ local: Set<CandidateType>; remote: Set<CandidateType> }>({ local: new Set(), remote: new Set() });
   const timers = useRef<{
     connect?: number;
     disconnect?: number;
@@ -159,11 +163,26 @@ export function useRandomCall() {
     timers.current.ad = window.setTimeout(() => setAdBreak(false), AD_BREAK_MS);
   }, []);
 
-  const reportResult = useCallback((connected: boolean) => {
+  const reportResult = useCallback((connected: boolean, outcome: CallDiagnostics['outcome']) => {
     const match = matchRef.current;
     if (!match || match.reported) return;
     match.reported = true;
-    getSocket().emit('call:result', { matchId: match.id, connected, ms: Date.now() - match.startedAt });
+    const pc = pcRef.current;
+    const ms = Date.now() - match.startedAt;
+    const diag: CallDiagnostics = {
+      local: [...candidates.current.local],
+      remote: [...candidates.current.remote],
+      ice: pc?.iceConnectionState ?? 'closed',
+      outcome,
+    };
+    const send = () => getSocket().emit('call:result', { matchId: match.id, connected, ms, diag });
+    if (!connected || !pc) return send();
+    // Which path did the call actually take (direct, via STUN, or via TURN relay)?
+    void selectedPath(pc)
+      .then((path) => {
+        if (path) diag.path = path;
+      })
+      .finally(send);
   }, []);
 
   const closePeer = useCallback(() => {
@@ -217,7 +236,7 @@ export function useRandomCall() {
     clearTimer('connect');
     clearTimer('disconnect');
     setStatus('in-call');
-    reportResult(true);
+    reportResult(true, 'connected');
     setBlurPartner(true);
     timers.current.blur = window.setTimeout(() => setBlurPartner(false), BLUR_MS);
   }, [reportResult]);
@@ -230,10 +249,11 @@ export function useRandomCall() {
       const socket = getSocket();
       const pc = new RTCPeerConnection({ iceServers: match.iceServers });
       // No direct or relayed path (or it dropped for good): count it, then move on.
-      const giveUp = () => {
-        reportResult(false);
+      const giveUp = (outcome: CallDiagnostics['outcome']) => {
+        reportResult(false, outcome);
         next();
       };
+      candidates.current = { local: new Set(), remote: new Set() };
       pcRef.current = pc;
       setStatus('connecting');
 
@@ -249,25 +269,28 @@ export function useRandomCall() {
       };
 
       pc.onicecandidate = (event) => {
-        if (event.candidate) socket.emit('signal', { kind: 'ice', candidate: event.candidate.toJSON() });
+        if (!event.candidate) return;
+        const type = candidateType(event.candidate.candidate);
+        if (type) candidates.current.local.add(type);
+        socket.emit('signal', { kind: 'ice', candidate: event.candidate.toJSON() });
       };
 
       pc.onconnectionstatechange = () => {
         if (pcRef.current !== pc) return;
         const state = pc.connectionState;
         if (state === 'connected') markConnected();
-        else if (state === 'failed') giveUp();
+        else if (state === 'failed') giveUp('failed');
         else if (state === 'disconnected') {
           // Often recovers on its own (network blip); give it a moment first.
           clearTimer('disconnect');
           timers.current.disconnect = window.setTimeout(() => {
-            if (pcRef.current === pc && pc.connectionState !== 'connected') giveUp();
+            if (pcRef.current === pc && pc.connectionState !== 'connected') giveUp('dropped');
           }, DISCONNECT_GRACE_MS);
         }
       };
 
       timers.current.connect = window.setTimeout(() => {
-        if (pcRef.current === pc && pc.connectionState !== 'connected') giveUp();
+        if (pcRef.current === pc && pc.connectionState !== 'connected') giveUp('timeout');
       }, CONNECT_TIMEOUT_MS);
 
       if (match.initiator) {
@@ -293,6 +316,8 @@ export function useRandomCall() {
       await pc.setRemoteDescription({ type: 'answer', sdp: msg.sdp });
     } else {
       const candidate = msg.candidate as RTCIceCandidateInit;
+      const type = candidateType(candidate.candidate ?? '');
+      if (type) candidates.current.remote.add(type);
       if (!pc.remoteDescription) {
         pendingIce.current.push(candidate);
         return;
@@ -710,3 +735,27 @@ export function useRandomCall() {
 }
 
 export type RandomCall = ReturnType<typeof useRandomCall>;
+
+/** 'host' | 'srflx' | 'prflx' | 'relay' from an ICE candidate line. */
+function candidateType(line: string): CandidateType | null {
+  const m = line.match(/ typ (host|srflx|prflx|relay)/);
+  return m ? (m[1] as CandidateType) : null;
+}
+
+/** Kinds of the candidate pair the browser selected, e.g. ['srflx', 'relay']. */
+async function selectedPath(pc: RTCPeerConnection): Promise<[CandidateType, CandidateType] | null> {
+  try {
+    const stats = await pc.getStats();
+    let pair: RTCIceCandidatePairStats | undefined;
+    stats.forEach((r) => {
+      if (r.type === 'transport' && r.selectedCandidatePairId) pair = stats.get(r.selectedCandidatePairId);
+    });
+    if (!pair) stats.forEach((r) => r.type === 'candidate-pair' && r.nominated && r.state === 'succeeded' && (pair ??= r));
+    if (!pair) return null;
+    const local = stats.get(pair.localCandidateId)?.candidateType as CandidateType | undefined;
+    const remote = stats.get(pair.remoteCandidateId)?.candidateType as CandidateType | undefined;
+    return local && remote ? [local, remote] : null;
+  } catch {
+    return null;
+  }
+}

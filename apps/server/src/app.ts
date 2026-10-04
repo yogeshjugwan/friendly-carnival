@@ -7,6 +7,7 @@ import {
   MAX_SNAPSHOT_BYTES,
   hasFilters,
   type BanInfo,
+  type CallResult,
   type ClientToServerEvents,
   type HandshakeAuth,
   type PartnerLeftReason,
@@ -50,6 +51,8 @@ export interface CallMetrics {
   connected: number;
   /** Sum of time-to-connect for connected reports, ms. */
   connectMsTotal: number;
+  /** Last results with diagnostics, newest first (for /health). */
+  recent: { at: number; connected: boolean; ms: number; diag?: CallResult['diag'] }[];
 }
 
 export interface AppOptions {
@@ -80,7 +83,7 @@ export interface App {
 
 export function createApp(opts: AppOptions = {}): App {
   const matchmaker = new Matchmaker(config.recentPartnerMemory);
-  const metrics: CallMetrics = { reports: 0, connected: 0, connectMsTotal: 0 };
+  const metrics: CallMetrics = { reports: 0, connected: 0, connectMsTotal: 0, recent: [] };
   const store = opts.store ?? new MemoryStore();
   const accounts = opts.accounts ?? new MemoryAccountStore();
   const origins = opts.webOrigins ?? config.webOrigins;
@@ -159,6 +162,7 @@ export function createApp(opts: AppOptions = {}): App {
               reports: metrics.reports,
               connectRate: metrics.reports ? +(metrics.connected / metrics.reports).toFixed(3) : null,
               avgConnectMs: metrics.connected ? Math.round(metrics.connectMsTotal / metrics.connected) : null,
+              recent: metrics.recent.slice(0, 20).map((r) => ({ ...r, ago: Math.round((Date.now() - r.at) / 1000) + 's' })),
             },
             turnConfigured: config.iceServers.some((s) => s.username),
             persistentStore: opts.persistent ?? !(store instanceof MemoryStore),
@@ -359,6 +363,8 @@ export function createApp(opts: AppOptions = {}): App {
       const result = parseCallResult(payload);
       if (!result) return;
       metrics.reports += 1;
+      metrics.recent.unshift({ at: Date.now(), connected: result.connected, ms: result.ms, diag: result.diag });
+      metrics.recent.length = Math.min(metrics.recent.length, 50);
       if (result.connected) {
         metrics.connected += 1;
         metrics.connectMsTotal += result.ms;
@@ -380,6 +386,8 @@ export function createApp(opts: AppOptions = {}): App {
     () => io.emit('stats', { online: matchmaker.onlineCount }),
     opts.statsIntervalMs ?? config.statsIntervalMs,
   );
+  // With few people online, recent partners must eventually meet again (see Matchmaker.sweep).
+  const sweepTimer = setInterval(() => matchmaker.sweep().forEach(announce), 2_000);
   const purgeTimer = setInterval(
     () => void store.purgeSnapshots(Date.now() - SNAPSHOT_RETENTION_MS).catch((e) => console.error('[purge]', e)),
     60 * 60_000,
@@ -395,6 +403,7 @@ export function createApp(opts: AppOptions = {}): App {
     safety,
     close: async () => {
       clearInterval(statsTimer);
+      clearInterval(sweepTimer);
       clearInterval(purgeTimer);
       await io.close();
     },

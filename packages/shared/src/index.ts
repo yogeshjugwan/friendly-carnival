@@ -74,11 +74,29 @@ export interface ChatMessage {
   at: number;
 }
 
+/** ICE candidate kinds: host = local network, srflx = public address via STUN, relay = TURN. */
+export type CandidateType = 'host' | 'srflx' | 'prflx' | 'relay';
+
+/** Why a call did or didn't connect. No addresses, only candidate kinds and states. */
+export interface CallDiagnostics {
+  /** Candidate kinds this browser found. */
+  local: CandidateType[];
+  /** Candidate kinds received from the partner. */
+  remote: CandidateType[];
+  /** Final RTCPeerConnection.iceConnectionState. */
+  ice: string;
+  /** For connected calls: the kinds of the pair actually used. */
+  path?: [CandidateType, CandidateType];
+  /** How the attempt ended. */
+  outcome: 'connected' | 'timeout' | 'failed' | 'dropped';
+}
+
 export interface CallResult {
   matchId: string;
   connected: boolean;
   /** Time from match to connected (or to giving up). */
   ms: number;
+  diag?: CallDiagnostics;
 }
 
 export interface Stats {

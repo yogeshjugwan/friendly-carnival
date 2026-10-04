@@ -67,12 +67,30 @@ export function parseChatText(input: unknown): string | null {
   return text;
 }
 
+const CANDIDATE_TYPES = ['host', 'srflx', 'prflx', 'relay'] as const;
+const OUTCOMES = ['connected', 'timeout', 'failed', 'dropped'] as const;
+const kinds = (v: unknown) =>
+  Array.isArray(v) ? [...new Set(v.filter((t): t is (typeof CANDIDATE_TYPES)[number] => CANDIDATE_TYPES.includes(t)))] : [];
+
 export function parseCallResult(input: unknown): CallResult | null {
   if (!input || typeof input !== 'object') return null;
-  const { matchId, connected, ms } = input as Record<string, unknown>;
+  const { matchId, connected, ms, diag } = input as Record<string, unknown>;
   if (typeof matchId !== 'string' || typeof connected !== 'boolean' || typeof ms !== 'number') return null;
   if (!Number.isFinite(ms) || ms < 0 || ms > 120_000) return null;
-  return { matchId, connected, ms: Math.round(ms) };
+  const result: CallResult = { matchId, connected, ms: Math.round(ms) };
+  if (diag && typeof diag === 'object') {
+    const d = diag as Record<string, unknown>;
+    // Not deduplicated: a direct call is ['host', 'host'].
+    const path = Array.isArray(d.path) && d.path.length === 2 && d.path.every((t) => CANDIDATE_TYPES.includes(t)) ? d.path : [];
+    result.diag = {
+      local: kinds(d.local),
+      remote: kinds(d.remote),
+      ice: typeof d.ice === 'string' ? d.ice.slice(0, 20) : 'unknown',
+      outcome: OUTCOMES.includes(d.outcome as (typeof OUTCOMES)[number]) ? (d.outcome as (typeof OUTCOMES)[number]) : 'failed',
+      ...(path.length === 2 ? { path: [path[0]!, path[1]!] } : {}),
+    };
+  }
+  return result;
 }
 
 /** Validates settings sent by a client; unknown fields are ignored. */

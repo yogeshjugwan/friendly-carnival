@@ -1,6 +1,9 @@
 import type { RTCIceServerLike } from '@rc/shared';
 
-const env = process.env;
+// Trim values: a stray space or newline pasted into a dashboard breaks tokens and URLs.
+const env: Record<string, string | undefined> = Object.fromEntries(
+  Object.entries(process.env).map(([k, v]) => [k, v?.trim()]),
+);
 
 export const config = {
   port: Number(env.PORT ?? 4100),

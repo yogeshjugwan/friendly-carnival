@@ -114,7 +114,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
           )}
           <SettingsMenu call={call} />
           {isPlus ? (
-            <span className="text-sm font-semibold text-amber-300">👑 Plus</span>
+            <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-sm font-semibold text-amber-300" title="Your Plus membership">👑 Plus member</span>
           ) : (
             <Link href="/plus" className="rounded-xl bg-amber-500 px-4 py-2 font-semibold text-white hover:bg-amber-600">
               Upgrade

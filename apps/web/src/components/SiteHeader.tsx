@@ -29,8 +29,8 @@ export function SiteHeader({ online }: { online?: number | null }) {
         (user ? (
           <>
             {user.plus.active ? (
-              <Link href="/plus" className="text-sm font-semibold text-amber-300" title="Plus member">
-                👑 Plus
+              <Link href="/plus" className="rounded-full bg-amber-400/15 px-2.5 py-0.5 text-sm font-semibold text-amber-300" title="Your Plus membership">
+                👑 Plus member
               </Link>
             ) : (
               <Link href="/plus" className="rounded-lg bg-amber-500 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-600">
@@ -47,7 +47,7 @@ export function SiteHeader({ online }: { online?: number | null }) {
               👤 Guest
             </span>
             <Link href="/plus" className="text-sm font-semibold text-amber-300 hover:text-amber-200">
-              👑 Plus
+              👑 Get Plus
             </Link>
             <Link href="/settings" className="text-sm text-slate-300 hover:text-white">
               Settings

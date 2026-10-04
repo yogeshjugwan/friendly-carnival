@@ -9,10 +9,9 @@ import { ChevronDownIcon } from './icons';
 import { PlusUpsell } from './PlusUpsell';
 
 const GENDERS: { value: Gender | 'any'; label: string }[] = [
-  { value: 'any', label: 'Everyone' },
-  { value: 'female', label: 'Females only' },
-  { value: 'male', label: 'Males only' },
-  { value: 'couple', label: 'Couples only' },
+  { value: 'any', label: 'Any' },
+  { value: 'female', label: 'Girls' },
+  { value: 'male', label: 'Boys' },
 ];
 
 /** Gender and country filters (Plus). Free users get an upgrade prompt instead. */

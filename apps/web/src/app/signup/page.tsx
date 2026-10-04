@@ -24,6 +24,7 @@ export default function SignupPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [terms, setTerms] = useState(false);
+  const [highlight, setHighlight] = useState(false);
   const [next, setNext] = useState<string | null>(null);
 
   useEffect(() => setNext(safeNext()), []);
@@ -34,12 +35,15 @@ export default function SignupPage() {
       <GoogleSignIn
         agreed={adult && terms}
         next={next ?? '/settings?welcome=1'}
-        onNeedAgreement={() => setError('Please tick both boxes below to continue with Google.')}
+        onNeedAgreement={() => setHighlight(true)}
       />
       <form
         onSubmit={async (e) => {
           e.preventDefault();
-          if (!adult || !terms) return setError('Please tick both boxes to create your account.');
+          if (!adult || !terms) {
+            setHighlight(true);
+            return setError('Please tick both boxes to create your account.');
+          }
           setBusy(true);
           setError(null);
           try {
@@ -63,7 +67,7 @@ export default function SignupPage() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
-        <Agreement adult={adult} terms={terms} onAdult={setAdult} onTerms={setTerms} />
+        <Agreement adult={adult} terms={terms} onAdult={setAdult} onTerms={setTerms} highlight={highlight} />
         <FormError error={error} />
         <Submit busy={busy}>Sign up</Submit>
       </form>

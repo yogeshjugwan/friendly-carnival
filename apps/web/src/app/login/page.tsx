@@ -23,6 +23,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [adult, setAdult] = useState(false);
   const [terms, setTerms] = useState(false);
+  const [highlight, setHighlight] = useState(false);
   const [next, setNext] = useState<string | null>(null);
 
   useEffect(() => {
@@ -35,7 +36,7 @@ export default function LoginPage() {
       <GoogleSignIn
         agreed={adult && terms}
         next={next}
-        onNeedAgreement={() => setError('Please tick both boxes below to continue with Google.')}
+        onNeedAgreement={() => setHighlight(true)}
       />
       <form
         onSubmit={async (e) => {
@@ -57,7 +58,7 @@ export default function LoginPage() {
         <FormError error={error} />
         <Submit busy={busy}>Log in</Submit>
       </form>
-      <Agreement adult={adult} terms={terms} onAdult={setAdult} onTerms={setTerms} />
+      <Agreement adult={adult} terms={terms} onAdult={setAdult} onTerms={setTerms} highlight={highlight} />
       <div className="mt-4 flex justify-between text-sm">
         <Link href="/forgot" className="text-brand">
           Forgot password?

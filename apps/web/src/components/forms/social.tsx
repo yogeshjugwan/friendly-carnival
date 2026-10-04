@@ -41,23 +41,45 @@ export const googleError = (code: string | null) => (code ? (ERRORS[code] ?? ERR
  */
 export function GoogleSignIn({ agreed, onNeedAgreement, next }: { agreed: boolean; onNeedAgreement: () => void; next?: string | null }) {
   const enabled = useGoogleEnabled();
+  const [blocked, setBlocked] = useState(false);
+  const [going, setGoing] = useState(false);
+  useEffect(() => {
+    if (agreed) setBlocked(false);
+  }, [agreed]);
+  // Coming back with the browser's Back button: reset the button.
+  useEffect(() => {
+    const reset = () => setGoing(false);
+    window.addEventListener('pageshow', reset);
+    return () => window.removeEventListener('pageshow', reset);
+  }, []);
   if (!enabled) return null;
   const href = `${API_URL}/auth/google/start?next=${encodeURIComponent(next ?? '/')}`;
   return (
     <>
       <a
         href={href}
+        aria-disabled={going}
         onClick={(e) => {
           if (!agreed) {
             e.preventDefault();
+            setBlocked(true);
             onNeedAgreement();
+            document.getElementById('agreement')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
           }
+          // The free server can take a while to wake up; show that something is happening.
+          setGoing(true);
         }}
-        className="mt-4 flex w-full items-center justify-center gap-3 rounded-full border border-slate-300 bg-white py-3 text-base font-medium text-slate-800 shadow-sm transition hover:bg-slate-50"
+        className={`mt-4 flex w-full items-center justify-center gap-3 rounded-full border border-slate-300 bg-white py-3 text-base font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 ${going ? 'pointer-events-none opacity-70' : ''}`}
       >
-        <GoogleLogo />
-        Continue with Google
+        {going ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-brand" aria-hidden /> : <GoogleLogo />}
+        {going ? 'Connecting to Google…' : 'Continue with Google'}
       </a>
+      {blocked && (
+        <p role="alert" className="mt-2 text-center text-sm font-medium text-red-600">
+          Tick both boxes below first ↓
+        </p>
+      )}
       <div className="my-4 flex items-center gap-3 text-xs font-medium text-slate-400">
         <span className="h-px flex-1 bg-slate-200" />
         OR
@@ -73,14 +95,21 @@ export function Agreement({
   terms,
   onAdult,
   onTerms,
+  highlight = false,
 }: {
   adult: boolean;
   terms: boolean;
   onAdult: (v: boolean) => void;
   onTerms: (v: boolean) => void;
+  /** Red outline after someone tried to continue without ticking. */
+  highlight?: boolean;
 }) {
+  const missing = highlight && !(adult && terms);
   return (
-    <fieldset className="mt-4 text-sm text-slate-600">
+    <fieldset
+      id="agreement"
+      className={`mt-4 rounded-xl text-sm text-slate-600 transition ${missing ? 'bg-red-50 p-3 ring-2 ring-red-400' : ''}`}
+    >
       <legend className="mb-2">By creating an account or logging in, you certify that</legend>
       <label className="flex items-start gap-2">
         <input type="checkbox" checked={adult} onChange={(e) => onAdult(e.target.checked)} className="mt-0.5 h-4 w-4" />

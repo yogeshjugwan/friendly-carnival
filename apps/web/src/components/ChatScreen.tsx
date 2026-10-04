@@ -1,13 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { NO_FILTERS } from '@rc/shared';
 import { useAuth } from '@/lib/auth';
 import { countryName, flagEmoji, GENDER_ICON, GENDER_LABEL } from '@/lib/format';
 import { loadSettings } from '@/lib/settings';
 import type { RandomCall } from '@/lib/useRandomCall';
 import { AdSlot } from './AdSlot';
+import { DraggablePip, type Corner } from './DraggablePip';
 import { BackIcon, MicIcon, MicOffIcon, VideoIcon, VideoOffIcon } from './icons';
 import { FilterBar } from './FilterBar';
 import { PlusUpsell } from './PlusUpsell';
@@ -83,6 +84,8 @@ export function ChatScreen({ call }: { call: RandomCall }) {
   const isPlus = !!user?.plus.active;
   const { setAdFree } = call;
   const showAd = call.adBreak && !isPlus;
+  const [pipCorner, setPipCorner] = useState<Corner>('br');
+  const pipOnTop = pipCorner[0] === 't';
 
   useEffect(() => setAdFree(isPlus), [isPlus, setAdFree]);
 
@@ -174,7 +177,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                   <VideoIcon className="h-16 w-16 sm:h-20 sm:w-20" />
                 </div>
               )}
-              <div className="absolute inset-x-0 top-14 flex justify-center px-4">
+              <div className={`absolute inset-x-0 flex justify-center px-4 ${pipOnTop ? 'bottom-[4.5rem] sm:bottom-24' : 'top-14'}`}>
                 <Searching call={call} />
               </div>
               {matched && (call.partnerHidden || call.aiHidden) && (
@@ -213,13 +216,13 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                 </>
               )}
 
-              {/* You (picture-in-picture) */}
-              <div className="absolute bottom-[4.25rem] right-3 z-20 aspect-[3/4] h-[34%] max-h-[12rem] min-h-[5rem] overflow-hidden rounded-xl border-2 border-slate-500/80 bg-slate-600 shadow-xl sm:bottom-20 sm:right-4 md:aspect-video landscape:aspect-video max-lg:landscape:bottom-3 max-lg:landscape:h-[38%] max-w-[40%] lg:h-[26%]">
-                <VideoTile stream={call.localStream} muted mirrored className="h-full w-full rounded-none !bg-slate-600" />
+              {/* You (picture-in-picture): drag it to any corner */}
+              <DraggablePip onCornerChange={setPipCorner} className="aspect-[3/4] h-[34%] max-h-[12rem] min-h-[5rem] max-w-[40%] overflow-hidden rounded-xl border-2 border-slate-500/80 bg-slate-600 shadow-xl md:aspect-video landscape:aspect-video max-lg:landscape:h-[38%] lg:h-[26%]">
+                <VideoTile stream={call.localStream} muted mirrored className="pointer-events-none h-full w-full rounded-none !bg-slate-600" />
                 {(!call.localStream || !call.cameraOn) && (
                   <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-200">You</div>
                 )}
-              </div>
+              </DraggablePip>
 
               {/* Controls */}
               <div className="absolute bottom-3 left-0 right-0 z-20 flex items-center justify-center gap-1.5 px-2 sm:bottom-4 sm:gap-3 max-lg:landscape:justify-start max-lg:landscape:pl-3">

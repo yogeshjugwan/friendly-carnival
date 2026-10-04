@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { loadSettings } from '@/lib/settings';
 import type { RandomCall } from '@/lib/useRandomCall';
+import { GearIcon } from './icons';
 
 export function SettingsMenu({ call }: { call: RandomCall }) {
   const [open, setOpen] = useState(false);
@@ -15,9 +16,11 @@ export function SettingsMenu({ call }: { call: RandomCall }) {
       <button
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="rounded-lg bg-slate-700 px-3 py-2 font-medium hover:bg-slate-600"
+        aria-label="Settings"
+        title="Settings"
+        className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 text-slate-200 hover:bg-slate-700"
       >
-        Settings
+        <GearIcon />
       </button>
       {open && (
         <div className="absolute right-0 z-20 mt-2 w-72 space-y-4 rounded-xl bg-white p-4 text-ink shadow-xl">

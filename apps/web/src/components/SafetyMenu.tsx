@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { MAX_REPORT_NOTE_LENGTH, type ReportReason } from '@rc/shared';
 import type { RandomCall } from '@/lib/useRandomCall';
+import { ShieldIcon } from './icons';
 
 const REASONS: { value: ReportReason; label: string }[] = [
   { value: 'nudity', label: 'Nudity or sexual content' },
@@ -44,9 +45,10 @@ export function SafetyMenu({ call }: { call: RandomCall }) {
         onClick={() => setStep(step === 'closed' ? 'menu' : 'closed')}
         aria-label="Safety options"
         aria-expanded={step !== 'closed'}
-        className="rounded-full bg-black/55 px-2.5 py-1 text-sm font-medium text-white hover:bg-black/70 sm:px-3 sm:py-1.5"
+        className="flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-black/80 sm:px-3"
       >
-        🛡<span className="hidden sm:inline"> Safety</span>
+        <ShieldIcon className="h-4 w-4" />
+        <span className="hidden sm:inline">Safety</span>
       </button>
 
       {step === 'menu' && (

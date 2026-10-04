@@ -386,6 +386,9 @@ export function useRandomCall() {
       setPartner(match.partner);
       setLastLeftReason(null);
       setMessages([]);
+      // Every change of partner shows a fresh ad; Start/Next/partner-left start it
+      // earlier, Back only once the reconnect actually happened.
+      if (match.reconnected) startAdBreak();
       addLine(
         'system',
         match.reconnected ? "You're back with your previous partner." : "You're now chatting with a random stranger. Say hi!",

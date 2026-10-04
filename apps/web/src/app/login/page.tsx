@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AuthCard } from '@/components/SiteHeader';
 import { errorText, Field, FormError, Submit } from '@/components/forms/fields';
+import { Agreement, GoogleSignIn, googleError } from '@/components/forms/social';
 import { useAuth } from '@/lib/auth';
 
 /** Only same-site paths, so ?next= can't send people to another website. */
@@ -20,9 +21,22 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [adult, setAdult] = useState(false);
+  const [terms, setTerms] = useState(false);
+  const [next, setNext] = useState<string | null>(null);
+
+  useEffect(() => {
+    setNext(safeNext());
+    setError(googleError(new URLSearchParams(window.location.search).get('error')));
+  }, []);
 
   return (
     <AuthCard title="Log in">
+      <GoogleSignIn
+        agreed={adult && terms}
+        next={next}
+        onNeedAgreement={() => setError('Please tick both boxes below to continue with Google.')}
+      />
       <form
         onSubmit={async (e) => {
           e.preventDefault();
@@ -43,6 +57,7 @@ export default function LoginPage() {
         <FormError error={error} />
         <Submit busy={busy}>Log in</Submit>
       </form>
+      <Agreement adult={adult} terms={terms} onAdult={setAdult} onTerms={setTerms} />
       <div className="mt-4 flex justify-between text-sm">
         <Link href="/forgot" className="text-brand">
           Forgot password?

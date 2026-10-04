@@ -34,6 +34,11 @@ services:
       # Phase 4 (accounts). Links in emails point here.
       - key: WEB_URL
         value: https://call-random-call.vercel.app
+      # "Continue with Google" (Google Cloud OAuth client); the button is hidden until both are set.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
       # https://resend.com API key; without it, emails are printed to the server log.
       - key: RESEND_API_KEY
         sync: false

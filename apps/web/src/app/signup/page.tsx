@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MIN_PASSWORD_LENGTH } from '@rc/shared';
 import { AuthCard } from '@/components/SiteHeader';
 import { errorText, Field, FormError, Submit } from '@/components/forms/fields';
+import { Agreement, GoogleSignIn } from '@/components/forms/social';
 import { useAuth } from '@/lib/auth';
 
 /** Only same-site paths, so ?next= can't send people to another website. */
@@ -22,14 +23,23 @@ export default function SignupPage() {
   const [adult, setAdult] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [terms, setTerms] = useState(false);
+  const [next, setNext] = useState<string | null>(null);
+
+  useEffect(() => setNext(safeNext()), []);
 
   return (
     <AuthCard title="Create an account">
       <p className="mt-1 text-sm text-slate-500">Optional — save your settings and keep them on every device.</p>
+      <GoogleSignIn
+        agreed={adult && terms}
+        next={next ?? '/settings?welcome=1'}
+        onNeedAgreement={() => setError('Please tick both boxes below to continue with Google.')}
+      />
       <form
         onSubmit={async (e) => {
           e.preventDefault();
-          if (!adult) return setError('You must be 18 or older to use randomCall.');
+          if (!adult || !terms) return setError('Please tick both boxes to create your account.');
           setBusy(true);
           setError(null);
           try {
@@ -53,20 +63,7 @@ export default function SignupPage() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
-        <label className="mt-4 flex items-start gap-2 text-sm text-slate-600">
-          <input type="checkbox" checked={adult} onChange={(e) => setAdult(e.target.checked)} className="mt-0.5 h-4 w-4" />
-          <span>
-            I am 18 or older and agree to the{' '}
-            <Link href="/terms" className="text-brand underline">
-              Terms
-            </Link>{' '}
-            and{' '}
-            <Link href="/privacy" className="text-brand underline">
-              Privacy Policy
-            </Link>
-            .
-          </span>
-        </label>
+        <Agreement adult={adult} terms={terms} onAdult={setAdult} onTerms={setTerms} />
         <FormError error={error} />
         <Submit busy={busy}>Sign up</Submit>
       </form>

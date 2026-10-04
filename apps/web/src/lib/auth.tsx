@@ -17,6 +17,9 @@ export class ApiError extends Error {
   }
 }
 
+/** Base URL of the realtime/API server. */
+export const API_URL = API;
+
 export async function api<T>(path: string, body?: unknown, token?: string | null): Promise<T> {
   let res: Response;
   try {
@@ -41,6 +44,8 @@ interface AuthState {
   loading: boolean;
   signup: (email: string, password: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  /** Signs in with a session token from Google sign-in; `isNew` keeps the guest's preferences. */
+  adoptSession: (token: string, isNew: boolean) => Promise<void>;
   logout: () => Promise<void>;
   /** Saves to the account when logged in, and always to this browser. */
   saveSettings: (settings: UserSettings) => Promise<void>;
@@ -114,6 +119,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       login: async (email, password) => {
         const res = await api<{ token: string; user: PublicUser }>('/auth/login', { email, password });
         adopt(res.token, res.user);
+      },
+      adoptSession: async (t, isNew) => {
+        const u = isNew
+          ? await api<PublicUser>('/auth/settings', { settings: loadSettings() }, t).catch(() => api<PublicUser>('/auth/me', undefined, t))
+          : await api<PublicUser>('/auth/me', undefined, t);
+        adopt(t, u);
       },
       logout: async () => {
         await api('/auth/logout', {}, token).catch(() => undefined);

@@ -128,6 +128,24 @@ SHA-256 hashes. Credential endpoints are limited to 20 attempts per 10 minutes p
 The web app keeps the session token in localStorage and sends it as a bearer token
 (the web and server are on different domains, so cookies are not used).
 
+### Continue with Google
+
+The login and sign-up pages show **Continue with Google** once the server has
+`GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → create a project →
+   **APIs & Services → OAuth consent screen**: External, app name, support email,
+   scopes `openid` and `email`, then **Publish app**.
+2. **Credentials → Create credentials → OAuth client ID** → Web application.
+   Authorized redirect URI: `https://<your-server>.onrender.com/auth/google/callback`
+   (locally `http://localhost:4100/auth/google/callback`).
+3. Put the client ID and secret in the server's environment.
+
+The server uses the authorization-code flow with a single-use `state`, accepts only
+Google-verified emails, signs into the existing account with that email or creates
+one, and hands the web app its session token in the URL fragment (`/auth/google`).
+The callback URL is `SERVER_URL`, or Render's `RENDER_EXTERNAL_URL`.
+
 ## Load test
 
 ```bash

@@ -18,6 +18,11 @@ export const config = {
   ipSalt: env.IP_SALT || 'dev-only-salt',
   /** Postgres for reports, bans, blocks and appeals; in-memory when unset. */
   databaseUrl: env.DATABASE_URL || undefined,
+  /** Public URL of this server (Google redirects back here). Render sets RENDER_EXTERNAL_URL. */
+  serverUrl: (env.SERVER_URL || env.RENDER_EXTERNAL_URL || `http://localhost:${env.PORT ?? 4100}`).replace(/\/$/, ''),
+  /** "Continue with Google"; disabled unless both are set. */
+  google:
+    env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } : null,
   /** Public URL of the web app, used in email links. */
   webUrl: (env.WEB_URL || 'http://localhost:3000').replace(/\/$/, ''),
   /** https://resend.com API key; without it emails are printed to the log. */

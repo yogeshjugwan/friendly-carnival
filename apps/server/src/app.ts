@@ -21,6 +21,7 @@ import type { BillingProvider } from './billing.ts';
 import { createBillingHandler } from './billing-http.ts';
 import { handleAdmin } from './admin.ts';
 import { createAuthHandler } from './auth.ts';
+import { createGoogleHandler, type GoogleConfig } from './google.ts';
 import { ConsoleMailer, type Mailer } from './mailer.ts';
 import { config } from './config.ts';
 import { Matchmaker, type Pairing } from './matchmaker.ts';
@@ -74,6 +75,11 @@ export interface AppOptions {
   webUrl?: string;
   /** Stripe (or a fake in tests); Plus checkout is disabled without it. */
   billing?: BillingProvider | null;
+  /** Google sign-in; defaults to GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET. */
+  google?: GoogleConfig | null;
+  serverUrl?: string;
+  /** Replaces fetch for the Google token/userinfo calls (tests). */
+  googleFetch?: typeof fetch;
 }
 
 export interface App {
@@ -122,6 +128,15 @@ export function createApp(opts: AppOptions = {}): App {
     clientKey: (req) => hashIp(clientIp(req.headers, req.socket.remoteAddress), ipSalt) ?? 'unknown',
   });
 
+  const handleGoogle = createGoogleHandler({
+    google: opts.google === undefined ? config.google : opts.google,
+    accounts,
+    webUrl: opts.webUrl ?? config.webUrl,
+    serverUrl: opts.serverUrl ?? config.serverUrl,
+    origins,
+    fetch: opts.googleFetch,
+  });
+
   // A payment, renewal or cancellation landed: refresh Plus on the user's live sessions.
   const onPlusChanged = (userId: string) => {
     void accounts
@@ -145,6 +160,7 @@ export function createApp(opts: AppOptions = {}): App {
   const http = createServer((req, res) => {
     void (async () => {
       if (await handleBilling(req, res)) return;
+      if (await handleGoogle(req, res)) return;
       if (await handleAuth(req, res)) return;
       if (
         await handleAdmin(req, res, {

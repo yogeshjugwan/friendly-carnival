@@ -8,32 +8,23 @@ import { loadSettings, onSettingsChange } from '@/lib/settings';
 import { ChevronDownIcon } from './icons';
 import { PlusUpsell } from './PlusUpsell';
 
-/** Quick "only girls / only boys" toggle; the gender filters are a Plus feature. */
-const GENDERS: { value: Gender | 'any'; label: string; icon?: string }[] = [
+const GENDERS: { value: Gender | 'any'; label: string }[] = [
   { value: 'any', label: 'Everyone' },
-  { value: 'female', label: 'Girls only', icon: '👩' },
-  { value: 'male', label: 'Boys only', icon: '👨' },
+  { value: 'female', label: 'Females only' },
+  { value: 'male', label: 'Males only' },
+  { value: 'couple', label: 'Couples only' },
 ];
-
-/** Men are offered "Girls only", women "Boys only"; everyone else sees both. */
-const optionsFor = (me: Gender | null) =>
-  GENDERS.filter((g) => g.value === 'any' || me === 'couple' || me === null || g.value !== me);
 
 /** Gender and country filters (Plus). Free users get an upgrade prompt instead. */
 export function FilterBar() {
   const { user, saveSettings } = useAuth();
   const isPlus = !!user?.plus.active;
   const [filters, setFilters] = useState<MatchFilters>(NO_FILTERS);
-  const [myGender, setMyGender] = useState<Gender | null>(null);
   const [upsell, setUpsell] = useState(false);
   const countries = useMemo(() => countryOptions(), []);
 
   useEffect(() => {
-    const sync = () => {
-      const settings = loadSettings();
-      setFilters(settings.filters);
-      setMyGender(settings.gender);
-    };
+    const sync = () => setFilters(loadSettings().filters);
     sync();
     return onSettingsChange(sync);
   }, []);
@@ -52,7 +43,7 @@ export function FilterBar() {
     options: { value: string; label: string }[],
     wide = false,
   ) => (
-    <label className={`relative inline-flex items-center ${wide ? 'min-w-0 flex-1 sm:flex-none' : ''}`}>
+    <label className="relative inline-flex items-center">
       <span className="sr-only">{label}</span>
       <select
         value={value}
@@ -64,7 +55,7 @@ export function FilterBar() {
           }
         }}
         aria-label={label}
-        className={`appearance-none rounded-xl bg-slate-800 py-2 pl-3 pr-12 text-xs font-medium text-slate-100 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-brand sm:pl-4 sm:text-sm ${wide ? 'w-full sm:w-auto sm:max-w-[11rem]' : ''}`}
+        className={`appearance-none rounded-xl bg-slate-800 py-2 pl-3 pr-12 text-xs font-medium text-slate-100 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-brand sm:pl-4 sm:text-sm ${wide ? 'max-w-[9.5rem] sm:max-w-[11rem]' : ''}`}
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -81,39 +72,8 @@ export function FilterBar() {
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-        <div role="radiogroup" aria-label="Who you want to meet" className="inline-flex rounded-xl bg-slate-800 p-0.5">
-          {optionsFor(myGender).map((g) => {
-            const active = (isPlus ? filters.gender : 'any') === g.value;
-            return (
-              <button
-                key={g.value}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                onClick={() => (active ? undefined : change({ gender: g.value }))}
-                className={`flex items-center gap-1 rounded-[0.6rem] px-2 py-1.5 text-xs font-medium transition sm:px-3 sm:text-sm ${
-                  active ? 'bg-brand text-white shadow' : 'text-slate-300 hover:bg-slate-700 hover:text-white'
-                }`}
-              >
-                {g.icon && <span aria-hidden>{g.icon}</span>}
-                {g.value === 'any' ? (
-                  <>
-                    <span className="sm:hidden">All</span>
-                    <span className="hidden sm:inline">{g.label}</span>
-                  </>
-                ) : (
-                  g.label
-                )}
-                {g.value !== 'any' && !isPlus && (
-                  <span className="text-[10px]" title="Plus feature" aria-label="Plus feature">
-                    👑
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {pill('Gender filter', isPlus ? filters.gender : 'any', (v) => change({ gender: v as MatchFilters['gender'] }), GENDERS)}
         {pill(
           'Country filter',
           isPlus ? filters.country : 'any',

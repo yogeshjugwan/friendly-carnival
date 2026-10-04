@@ -181,3 +181,18 @@ pages, so card details never reach our servers.
 
 Complimentary Plus (testers, support): `POST /admin/plus` with `{ "email", "days" }`
 (admin token); `days: 0` removes it.
+
+## Video when WebRTC can't connect (relay fallback)
+
+Calls first try WebRTC: direct, or through TURN when `TURN_*` is set. If no path
+connects within 15 s (strict NAT, mobile data, no TURN), both sides switch to
+**relay mode**: each browser records its camera with MediaRecorder in 250 ms chunks,
+sends them over Socket.IO, and the partner plays them with Media Source Extensions.
+A "Relay mode · slight delay" badge shows on the partner's video.
+
+- Delay ≈ 0.5–1.5 s; ~350 kbit/s video + 32 kbit/s audio per side
+  (≈ 130 MB per hour of relayed call, both directions, through the Render server).
+- Server limits: 120 KB per chunk, 192 KB/s per user; `/health` shows `relayCalls` and `relayMB`.
+- Works in Chrome, Edge, Firefox and Android. Safari/iPhone support depends on the
+  browser's MediaRecorder/MediaSource formats; TURN is the better fix there.
+- Open the site with `?relay=1` to force relay mode for testing.

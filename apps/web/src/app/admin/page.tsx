@@ -224,6 +224,8 @@ export default function AdminPage() {
         </section>
       )}
 
+      <GivePlus api={api} />
+
       <nav className="mt-5 flex gap-2 border-b border-slate-700">
         {(['reports', 'appeals', 'bans', 'history'] as Tab[]).map((t) => (
           <button
@@ -381,5 +383,57 @@ export default function AdminPage() {
         </section>
       )}
     </main>
+  );
+}
+
+/** Complimentary Plus for testers / support: enter the account email and days (0 removes it). */
+function GivePlus({ api }: { api: <T>(path: string, init?: RequestInit) => Promise<T> }) {
+  const [email, setEmail] = useState('');
+  const [days, setDays] = useState(30);
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api('/admin/plus', { method: 'POST', body: JSON.stringify({ email: email.trim(), days }) });
+      setResult({ ok: true, text: days === 0 ? `Removed Plus from ${email.trim()}` : `${email.trim()} has Plus for ${days} days` });
+    } catch (err) {
+      setResult({ ok: false, text: err instanceof Error ? err.message : 'Could not update Plus' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="mt-4 flex flex-wrap items-end gap-2 rounded-xl bg-panel p-3">
+      <p className="w-full text-sm font-semibold">👑 Give Plus</p>
+      <label className="flex min-w-[14rem] flex-1 flex-col text-xs text-slate-400">
+        Account email
+        <input
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="mt-1 rounded-lg bg-slate-800 px-3 py-2 text-sm text-white"
+        />
+      </label>
+      <label className="flex w-24 flex-col text-xs text-slate-400">
+        Days (0 = remove)
+        <input
+          type="number"
+          min={0}
+          max={3650}
+          value={days}
+          onChange={(e) => setDays(Number(e.target.value))}
+          className="mt-1 rounded-lg bg-slate-800 px-3 py-2 text-sm text-white"
+        />
+      </label>
+      <button disabled={busy} className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+        {days === 0 ? 'Remove Plus' : 'Give Plus'}
+      </button>
+      {result && <p className={`w-full text-sm ${result.ok ? 'text-emerald-400' : 'text-red-400'}`}>{result.text}</p>}
+    </form>
   );
 }

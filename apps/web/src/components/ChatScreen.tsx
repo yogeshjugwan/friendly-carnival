@@ -170,7 +170,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               }`}
             >
               {!matched && !showAd && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-slate-500">
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-slate-500 max-lg:landscape:hidden">
                   <VideoIcon className="h-16 w-16 sm:h-20 sm:w-20" />
                 </div>
               )}
@@ -214,7 +214,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               )}
 
               {/* You (picture-in-picture) */}
-              <div className="absolute bottom-[4.25rem] right-3 z-20 aspect-[3/4] h-[34%] max-h-[12rem] min-h-[5rem] overflow-hidden rounded-xl border-2 border-slate-500/80 bg-slate-600 shadow-xl sm:bottom-20 sm:right-4 md:aspect-video landscape:aspect-video">
+              <div className="absolute bottom-[4.25rem] right-3 z-20 aspect-[3/4] h-[34%] max-h-[12rem] min-h-[5rem] overflow-hidden rounded-xl border-2 border-slate-500/80 bg-slate-600 shadow-xl sm:bottom-20 sm:right-4 md:aspect-video landscape:aspect-video max-lg:landscape:bottom-3 max-lg:landscape:h-[38%] max-w-[40%] lg:h-[26%]">
                 <VideoTile stream={call.localStream} muted mirrored className="h-full w-full rounded-none !bg-slate-600" />
                 {(!call.localStream || !call.cameraOn) && (
                   <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-200">You</div>
@@ -222,7 +222,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               </div>
 
               {/* Controls */}
-              <div className="absolute bottom-3 left-0 right-0 z-20 flex items-center justify-center gap-1.5 px-2 sm:bottom-4 sm:gap-3">
+              <div className="absolute bottom-3 left-0 right-0 z-20 flex items-center justify-center gap-1.5 px-2 sm:bottom-4 sm:gap-3 max-lg:landscape:justify-start max-lg:landscape:pl-3">
                 <button
                   onClick={call.toggleCamera}
                   aria-label={call.cameraOn ? 'Turn camera off' : 'Turn camera on'}

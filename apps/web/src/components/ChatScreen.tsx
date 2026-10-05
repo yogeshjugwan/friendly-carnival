@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { NO_FILTERS } from '@rc/shared';
 import { useAuth } from '@/lib/auth';
 import { countryName, flagEmoji, GENDER_ICON, GENDER_LABEL } from '@/lib/format';
@@ -12,6 +12,7 @@ import { DraggablePip, type Corner } from './DraggablePip';
 import { BackIcon, MicIcon, MicOffIcon, VideoIcon, VideoOffIcon } from './icons';
 import { FilterBar } from './FilterBar';
 import { LimitModal } from './LimitModal';
+import { IncomingCallModal, OnlineUsersPanel } from './OnlineUsers';
 import { PlusUpsell } from './PlusUpsell';
 import { ChatPanel } from './ChatPanel';
 import { SafetyMenu } from './SafetyMenu';
@@ -84,6 +85,9 @@ export function ChatScreen({ call }: { call: RandomCall }) {
   const { user } = useAuth();
   const isPlus = !!user?.plus.active;
   const showAd = call.adBreak && !isPlus;
+  const [showOnline, setShowOnline] = useState(false);
+  const [onlineUpsell, setOnlineUpsell] = useState(false);
+  const closeOnline = useCallback(() => setShowOnline(false), []);
   const [pipCorner, setPipCorner] = useState<Corner>('br');
   const pipOnTop = pipCorner[0] === 't';
 
@@ -108,9 +112,24 @@ export function ChatScreen({ call }: { call: RandomCall }) {
             random<span className="text-brand">Call</span>
             {isText && <span className="ml-2 text-sm font-normal text-slate-400">text chat</span>}
           </span>
-          {call.online !== null && (
-            <span className="hidden text-sm leading-tight text-slate-400 sm:block">{call.online.toLocaleString()} online</span>
-          )}
+          {/* Online count and the Online list are Plus-only. */}
+          <button
+            onClick={() => (isPlus ? setShowOnline(true) : setOnlineUpsell(true))}
+            className="flex items-center gap-1.5 rounded-xl bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-slate-700"
+            title={isPlus ? 'See who is online and call them' : 'See who is online (Plus)'}
+          >
+            <span aria-hidden>👥</span>
+            {isPlus && call.online !== null ? (
+              <span>
+                {Math.max(0, call.online - 1).toLocaleString()}
+                <span className="hidden sm:inline"> online</span>
+              </span>
+            ) : (
+              <span>
+                <span className="hidden sm:inline">Online </span>👑
+              </span>
+            )}
+          </button>
           <SettingsMenu call={call} />
           {isPlus ? (
             <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-sm font-semibold text-amber-300" title="Your Plus membership">👑 Plus member</span>
@@ -124,6 +143,9 @@ export function ChatScreen({ call }: { call: RandomCall }) {
         <FilterBar />
 
         <LimitModal call={call} />
+        <IncomingCallModal call={call} />
+        {showOnline && <OnlineUsersPanel call={call} onClose={closeOnline} />}
+        {onlineUpsell && <PlusUpsell onClose={() => setOnlineUpsell(false)} reason="See who is online and call them with Plus" />}
         {!isPlus && call.limit && !call.limit.unlimited && call.limit.remaining <= 5 && call.status !== 'limited' && (
           <p className="-mt-1 text-xs text-amber-300">
             {call.limit.remaining === 0 ? 'No free matches left today.' : `${call.limit.remaining} free match${call.limit.remaining === 1 ? '' : 'es'} left today.`}{' '}

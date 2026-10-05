@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingHttpHeaders, type Server as HttpServer } from 'node:http';
 import { Server } from 'socket.io';
 import {
+  CALL_REQUEST_MS,
   CHAT_BURST,
   CHAT_WINDOW_MS,
   MAX_APPEAL_LENGTH,
@@ -9,6 +11,7 @@ import {
   RELAY_BYTES_PER_SECOND,
   hasFilters,
   type BanInfo,
+  type CallAnswer,
   type CallResult,
   type ClientToServerEvents,
   type HandshakeAuth,
@@ -258,8 +261,26 @@ export function createApp(opts: AppOptions = {}): App {
     return false;
   };
 
+  /** Direct call requests from the Plus "Online now" list: requestId → who asked whom. */
+  const callRequests = new Map<string, { from: string; to: string; timer: NodeJS.Timeout }>();
+  const requestFrom = (socketId: string) => [...callRequests.entries()].find(([, r]) => r.from === socketId);
+  /** Ends a request and tells the caller how it went (and the callee, if it was withdrawn). */
+  const closeRequest = (requestId: string, answer: CallAnswer | null, tellCallee = false) => {
+    const r = callRequests.get(requestId);
+    if (!r) return;
+    clearTimeout(r.timer);
+    callRequests.delete(requestId);
+    if (answer) io.to(r.from).emit('call:answered', answer);
+    if (tellCallee) io.to(r.to).emit('call:incoming-cancelled', requestId);
+  };
+
   const announce = (pairing: Pairing) => {
     const { a, b, matchId, sharedInterests, reconnected } = pairing;
+    // Matched some other way: any open call request involving them lapses.
+    for (const [id, r] of callRequests) {
+      if (r.to === a.id || r.to === b.id) closeRequest(id, { accepted: false, reason: 'busy' }, true);
+      else if (r.from === a.id || r.from === b.id) closeRequest(id, null, true);
+    }
     if (limits) {
       for (const id of [a.id, b.id]) {
         const s = io.sockets.sockets.get(id);
@@ -336,6 +357,63 @@ export function createApp(opts: AppOptions = {}): App {
       if (typeof result === 'string') return void socket.emit('back:unavailable', result);
       // Leaving a live match to go back: the person being left sees a normal "next".
       if (current && current.id !== result.a.id) notifyLeft(current.id, 'next');
+      announce(result);
+    });
+
+    socket.on('users:list', (ack) => {
+      if (typeof ack !== 'function') return;
+      if (!socket.data.plus) return ack(null);
+      ack(matchmaker.listActive(socket.id));
+    });
+
+    socket.on('users:call', (publicId, ack) => {
+      if (typeof ack !== 'function') return;
+      if (!socket.data.plus) return ack({ ok: false, reason: 'plus-required' });
+      if (stillBanned()) return ack({ ok: false, reason: 'unavailable' });
+      if (requestFrom(socket.id)) return ack({ ok: false, reason: 'pending' });
+      const target = typeof publicId === 'string' ? matchmaker.byPublicId(publicId) : undefined;
+      if (!target) return ack({ ok: false, reason: 'gone' });
+      // Someone with a request already open can't be asked again until it's answered.
+      if ([...callRequests.values()].some((r) => r.to === target.id)) return ack({ ok: false, reason: 'busy' });
+      const check = matchmaker.canCall(socket.id, target.id);
+      if (check !== 'ok') return ack({ ok: false, reason: check });
+
+      const me = matchmaker.get(socket.id)!;
+      const requestId = randomUUID();
+      const expiresAt = Date.now() + CALL_REQUEST_MS;
+      const timer = setTimeout(() => closeRequest(requestId, { accepted: false, reason: 'timeout' }, true), CALL_REQUEST_MS);
+      callRequests.set(requestId, { from: socket.id, to: target.id, timer });
+      io.to(target.id).emit('call:incoming', {
+        requestId,
+        expiresAt,
+        from: {
+          gender: me.gender,
+          country: me.hideCountry ? null : me.country,
+          locationHidden: me.hideCountry,
+          plus: me.plus,
+          sharedInterests: me.interests.filter((i) => target.interests.includes(i)),
+        },
+      });
+      ack({ ok: true, requestId, expiresAt });
+    });
+
+    socket.on('users:cancel', () => {
+      const pending = requestFrom(socket.id);
+      if (pending) closeRequest(pending[0], null, true);
+    });
+
+    socket.on('users:answer', (requestId, accept) => {
+      const r = typeof requestId === 'string' ? callRequests.get(requestId) : undefined;
+      if (!r || r.to !== socket.id) return;
+      if (!accept) return closeRequest(requestId, { accepted: false, reason: 'declined' });
+      const oldPartner = matchmaker.partnerOf(r.from);
+      const result = matchmaker.pairDirect(r.from, r.to);
+      if (typeof result === 'string') {
+        socket.emit('call:incoming-cancelled', requestId);
+        return closeRequest(requestId, { accepted: false, reason: result === 'gone' ? 'gone' : 'busy' });
+      }
+      closeRequest(requestId, { accepted: true });
+      if (oldPartner) notifyLeft(oldPartner.id, 'next');
       announce(result);
     });
 
@@ -486,6 +564,10 @@ export function createApp(opts: AppOptions = {}): App {
     });
 
     socket.on('disconnect', () => {
+      for (const [id, r] of callRequests) {
+        if (r.from === socket.id) closeRequest(id, null, true);
+        else if (r.to === socket.id) closeRequest(id, { accepted: false, reason: 'gone' });
+      }
       notifyLeft(matchmaker.disconnect(socket.id)?.id, 'disconnect');
     });
   });
@@ -512,6 +594,7 @@ export function createApp(opts: AppOptions = {}): App {
     close: async () => {
       clearInterval(statsTimer);
       clearInterval(sweepTimer);
+      for (const r of callRequests.values()) clearTimeout(r.timer);
       clearInterval(purgeTimer);
       await io.close();
     },

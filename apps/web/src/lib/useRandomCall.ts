@@ -13,6 +13,10 @@ import {
   type MatchFilters,
   type MatchFound,
   type MatchLimitStatus,
+  type ActiveUser,
+  type CallAnswer,
+  type CallRequestResult,
+  type IncomingCall,
   type PartnerInfo,
   type PartnerLeftReason,
   type RelayChunk,
@@ -112,6 +116,10 @@ export function useRandomCall() {
   const [limitReached, setLimitReached] = useState(false);
   /** A rewarded video is playing; matches are added when it ends. */
   const [rewardAd, setRewardAd] = useState<{ endsAt: number } | null>(null);
+  /** A Plus member asked to chat with this user. */
+  const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
+  /** This (Plus) user's open request from the Online list. */
+  const [outgoingCall, setOutgoingCall] = useState<{ publicId: string; expiresAt: number } | null>(null);
   /** Changes on every ad break so ad slots load a fresh ad. */
   const [adKey, setAdKey] = useState(0);
   /** The server ignored our filters because we don't have Plus. */
@@ -397,6 +405,9 @@ export function useRandomCall() {
     const socket = getSocket();
     const onStats = ({ online }: { online: number }) => setOnline(online);
     const onMatch = (match: MatchFound) => {
+      // A new partner ends any open call request either way.
+      setOutgoingCall(null);
+      setIncomingCall(null);
       if (pcRef.current || matchRef.current) setHasPrevious(true);
       closePeer();
       matchRef.current = { id: match.matchId, startedAt: Date.now(), reported: false };
@@ -449,6 +460,13 @@ export function useRandomCall() {
       );
     const onBlocked = () => flash('Blocked. You will not be matched with them again.');
     const onPlusRequired = () => setPlusRequired(true);
+    const onIncomingCall = (c: IncomingCall) => setIncomingCall(c);
+    const onIncomingCancelled = (id: string) => setIncomingCall((c) => (c?.requestId === id ? null : c));
+    const onCallAnswered = (a: CallAnswer) => {
+      setOutgoingCall(null);
+      if (!a.accepted) flash(CALL_ANSWER_TEXT[a.reason]);
+      // Accepted: match:found follows and switches the call over.
+    };
     const onLimitStatus = (st: MatchLimitStatus) => setLimit(st);
     const onLimitReached = (st: MatchLimitStatus) => {
       setLimit(st);
@@ -495,11 +513,17 @@ export function useRandomCall() {
     socket.on('plus:required', onPlusRequired);
     socket.on('relay:start', onRelayStart);
     socket.on('relay:chunk', onRelayChunk);
+    socket.on('call:incoming', onIncomingCall);
+    socket.on('call:incoming-cancelled', onIncomingCancelled);
+    socket.on('call:answered', onCallAnswered);
     socket.on('limit:status', onLimitStatus);
     socket.on('limit:reached', onLimitReached);
     socket.on('limit:granted', onLimitGranted);
     socket.on('limit:ad-rejected', onAdRejected);
     return () => {
+      socket.off('call:incoming', onIncomingCall);
+      socket.off('call:incoming-cancelled', onIncomingCancelled);
+      socket.off('call:answered', onCallAnswered);
       socket.off('limit:status', onLimitStatus);
       socket.off('limit:reached', onLimitReached);
       socket.off('limit:granted', onLimitGranted);
@@ -607,6 +631,41 @@ export function useRandomCall() {
   }, [closePeer]);
 
   /** Plays a rewarded video; the server adds matches if it ran the full time. */
+  /** Plus: people online now, or null without Plus. */
+  const listUsers = useCallback(
+    () => new Promise<ActiveUser[] | null>((resolve) => getSocket().timeout(8_000).emit('users:list', (err, users) => resolve(err ? [] : users))),
+    [],
+  );
+
+  /** Plus: ask someone on the list to chat. */
+  const callUser = useCallback(
+    (publicId: string) =>
+      new Promise<CallRequestResult>((resolve) =>
+        getSocket()
+          .timeout(8_000)
+          .emit('users:call', publicId, (err, result) => {
+            const r: CallRequestResult = err ? { ok: false, reason: 'gone' } : result;
+            if (r.ok) setOutgoingCall({ publicId, expiresAt: r.expiresAt });
+            resolve(r);
+          }),
+      ),
+    [],
+  );
+
+  const cancelCall = useCallback(() => {
+    getSocket().emit('users:cancel');
+    setOutgoingCall(null);
+  }, []);
+
+  const answerCall = useCallback(
+    (accept: boolean) => {
+      if (!incomingCall) return;
+      getSocket().emit('users:answer', incomingCall.requestId, accept);
+      setIncomingCall(null);
+    },
+    [incomingCall],
+  );
+
   const watchRewardAd = useCallback(() => {
     if (!limit || limit.adsLeft <= 0) return;
     getSocket().emit('limit:ad-start');
@@ -852,10 +911,23 @@ export function useRandomCall() {
     limitReached,
     rewardAd,
     watchRewardAd,
+    incomingCall,
+    outgoingCall,
+    listUsers,
+    callUser,
+    cancelCall,
+    answerCall,
   };
 }
 
 export type RandomCall = ReturnType<typeof useRandomCall>;
+
+const CALL_ANSWER_TEXT: Record<Extract<CallAnswer, { accepted: false }>['reason'], string> = {
+  declined: 'They said no this time. Try someone else!',
+  timeout: 'No answer. Try someone else!',
+  busy: 'They just started another chat.',
+  gone: 'They left before answering.',
+};
 
 /** 'host' | 'srflx' | 'prflx' | 'relay' from an ICE candidate line. */
 function candidateType(line: string): CandidateType | null {

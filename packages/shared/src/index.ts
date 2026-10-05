@@ -35,6 +35,37 @@ export interface PartnerInfo {
   sharedInterests: string[];
 }
 
+/** Someone on the Plus "Online now" list (no names, ids or exact location). */
+export interface ActiveUser {
+  /** Opaque id for this visit; changes every time they connect. */
+  publicId: string;
+  gender: Gender;
+  /** ISO 3166-1 alpha-2, or null when unknown or hidden. */
+  country: string | null;
+  locationHidden: boolean;
+  interests: string[];
+  plus: boolean;
+  mode: ChatMode;
+  /** 'waiting' people can be called; 'in-call' are busy. */
+  state: 'waiting' | 'in-call';
+}
+
+/** A Plus member asked to chat with you directly. */
+export interface IncomingCall {
+  requestId: string;
+  from: PartnerInfo;
+  /** Epoch ms after which the request lapses. */
+  expiresAt: number;
+}
+
+export type CallRequestResult =
+  | { ok: true; requestId: string; expiresAt: number }
+  | { ok: false; reason: 'plus-required' | 'gone' | 'busy' | 'unavailable' | 'pending' | 'mode' };
+
+export type CallAnswer = { accepted: true } | { accepted: false; reason: 'declined' | 'timeout' | 'busy' | 'gone' };
+
+export const CALL_REQUEST_MS = 20_000;
+
 export interface MatchFound {
   matchId: string;
   mode: ChatMode;
@@ -146,6 +177,13 @@ export interface ClientToServerEvents {
   'relay:start': () => void;
   'relay:chunk': (chunk: RelayChunk) => void;
   signal: (msg: SignalMessage) => void;
+  /** Plus: who is online now (ack gets the list, or null without Plus). */
+  'users:list': (ack: (users: ActiveUser[] | null) => void) => void;
+  /** Plus: ask a waiting person to chat. */
+  'users:call': (publicId: string, ack: (result: CallRequestResult) => void) => void;
+  'users:cancel': () => void;
+  /** Answer an incoming call request. */
+  'users:answer': (requestId: string, accept: boolean) => void;
   /** Free users out of matches: a rewarded video starts / finished. */
   'limit:ad-start': () => void;
   'limit:ad-done': () => void;
@@ -166,6 +204,12 @@ export interface ServerToClientEvents {
   'ban:appealed': () => void;
   /** Filters were sent without an active Plus subscription and were ignored. */
   'plus:required': () => void;
+  /** Someone (a Plus member) wants to chat with you. */
+  'call:incoming': (call: IncomingCall) => void;
+  /** The incoming request was withdrawn or lapsed. */
+  'call:incoming-cancelled': (requestId: string) => void;
+  /** Your call request was answered (on accept, match:found follows). */
+  'call:answered': (answer: CallAnswer) => void;
   /** Matches left today (sent on connect and after each match). */
   'limit:status': (status: MatchLimitStatus) => void;
   /** Today's free matches are used up; the join or Next was not queued. */

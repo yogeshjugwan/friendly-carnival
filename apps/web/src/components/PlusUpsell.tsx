@@ -5,6 +5,8 @@ import Link from 'next/link';
 export const PLUS_FEATURES = [
   { icon: '⚧', title: 'Gender filter', body: 'Meet only girls or only boys.' },
   { icon: '🌍', title: 'Country filter', body: 'Chat with people from the country you pick.' },
+  { icon: '👥', title: 'Online list', body: 'See who is online now and call them directly.' },
+  { icon: '♾️', title: 'Unlimited matches', body: 'No daily limit and no ad before each match.' },
   { icon: '🚫', title: 'No ads', body: 'No ad box and no ad between strangers.' },
   { icon: '👑', title: 'Plus badge', body: 'Partners see that you are a Plus member.' },
 ];

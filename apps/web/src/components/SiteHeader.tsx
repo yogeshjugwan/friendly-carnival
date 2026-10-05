@@ -19,7 +19,8 @@ export function SiteHeader({ online }: { online?: number | null }) {
       <span className="mr-auto">
         <Brand />
       </span>
-      {online !== undefined && (
+      {/* The online count is a Plus perk. */}
+      {online !== undefined && !!user?.plus.active && (
         <span className="flex items-center gap-2 text-sm text-slate-300">
           <span className="h-2 w-2 rounded-full bg-emerald-400" />
           {online === null ? 'Connecting…' : `${online.toLocaleString()} online`}

@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { NO_FILTERS, type BackUnavailableReason, type ChatMode, type Gender, type MatchFilters } from '@rc/shared';
+import { NO_FILTERS, type ActiveUser, type BackUnavailableReason, type ChatMode, type Gender, type MatchFilters } from '@rc/shared';
 
 export interface Session {
   id: string;
+  /** Shown on the Plus "Online now" list instead of the socket id. */
+  publicId: string;
   gender: Gender;
   interests: string[];
   mode: ChatMode;
@@ -83,6 +85,7 @@ export class Matchmaker {
     }
     const session: Session = {
       id,
+      publicId: randomUUID().replace(/-/g, '').slice(0, 16),
       gender: 'male',
       interests: [],
       mode: 'video',
@@ -202,6 +205,58 @@ export class Matchmaker {
     this.dequeue(id);
     this.dequeue(lastId);
     return this.pair(last, session, true);
+  }
+
+  /**
+   * People searching or in a call right now, for the Plus list: waiting first
+   * (longest wait first), never the viewer, their partner or anyone either side blocked.
+   */
+  listActive(viewerId: string, limit = 100): ActiveUser[] {
+    const viewer = this.sessions.get(viewerId);
+    const view = (s: Session, state: ActiveUser['state']): ActiveUser => ({
+      publicId: s.publicId,
+      gender: s.gender,
+      country: s.hideCountry ? null : s.country,
+      locationHidden: s.hideCountry,
+      interests: s.interests,
+      plus: s.plus,
+      mode: s.mode,
+      state,
+    });
+    const visible = (s: Session | undefined): s is Session =>
+      !!s && s.id !== viewerId && s.id !== viewer?.partnerId && !(viewer && isBlocked(viewer, s));
+    const waiting = this.queue.map((id) => this.sessions.get(id)).filter(visible).map((s) => view(s, 'waiting'));
+    const busy = [...this.sessions.values()].filter((s) => s.partnerId && visible(s)).map((s) => view(s, 'in-call'));
+    return [...waiting, ...busy].slice(0, limit);
+  }
+
+  byPublicId(publicId: string): Session | undefined {
+    for (const s of this.sessions.values()) if (s.publicId === publicId) return s;
+    return undefined;
+  }
+
+  /**
+   * Can `fromId` call `toId` directly? The target must be searching in the same
+   * mode, not blocked either way, and their own filters must accept the caller.
+   */
+  canCall(fromId: string, toId: string): 'ok' | 'gone' | 'busy' | 'unavailable' | 'mode' {
+    const from = this.sessions.get(fromId);
+    const to = this.sessions.get(toId);
+    if (!from || !to) return 'gone';
+    if (isBlocked(from, to) || !wants(to, from)) return 'unavailable';
+    if (to.mode !== from.mode) return 'mode';
+    if (to.partnerId || !this.isWaiting(toId)) return 'busy';
+    return 'ok';
+  }
+
+  /** Pairs two people after an accepted call request (ends the caller's current match first). */
+  pairDirect(fromId: string, toId: string): Pairing | 'gone' | 'busy' | 'unavailable' | 'mode' {
+    const check = this.canCall(fromId, toId);
+    if (check !== 'ok') return check;
+    this.endMatch(fromId);
+    this.dequeue(fromId);
+    this.dequeue(toId);
+    return this.pair(this.sessions.get(fromId)!, this.sessions.get(toId)!, false);
   }
 
   leaveQueue(id: string): void {

@@ -115,7 +115,7 @@ export default function PlusPage() {
         <p className="mt-3 text-slate-300">Filters, no ads, and a Plus badge. Cancel any time.</p>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {PLUS_FEATURES.map((f) => (
           <div key={f.title} className="rounded-xl bg-panel p-4">
             <p className="text-2xl" aria-hidden>

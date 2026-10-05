@@ -323,6 +323,12 @@ export function createApp(opts: AppOptions = {}): App {
       else socket.emit('queue:waiting');
     });
 
+    socket.on('call:skip', () => {
+      if (!matchmaker.get(socket.id)) return;
+      notifyLeft(matchmaker.endMatch(socket.id)?.id, 'next');
+      matchmaker.leaveQueue(socket.id);
+    });
+
     socket.on('call:back', () => {
       if (stillBanned() || !mayMatch(socket)) return;
       const current = matchmaker.partnerOf(socket.id);

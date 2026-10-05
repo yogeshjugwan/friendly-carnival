@@ -167,16 +167,23 @@ export function useRandomCall() {
   }, []);
 
   /**
-   * Show an ad in the partner tile for AD_BREAK_MS. Matching and connecting keep
-   * running underneath, so the next stranger is usually ready when it ends.
+   * Show an ad in the partner tile for AD_BREAK_MS. With `then`, free users see
+   * the whole ad before `then` runs (e.g. joining the queue); Plus members skip
+   * the ad and `then` runs at once. Without it, the ad just covers the tile.
    */
-  const startAdBreak = useCallback(() => {
-    if (AD_BREAK_MS <= 0 || adFreeRef.current) return;
+  const startAdBreak = useCallback((then?: () => void) => {
+    if (AD_BREAK_MS <= 0 || adFreeRef.current) return then?.();
     setAdKey((k) => k + 1);
     setAdBreak(true);
     window.clearTimeout(timers.current.ad);
-    timers.current.ad = window.setTimeout(() => setAdBreak(false), AD_BREAK_MS);
+    timers.current.ad = window.setTimeout(() => {
+      setAdBreak(false);
+      if (then && activeRef.current) then();
+    }, AD_BREAK_MS);
   }, []);
+
+  /** True when the next search waits for an ad (free users with ads on). */
+  const adFirst = () => AD_BREAK_MS > 0 && !adFreeRef.current;
 
   const reportResult = useCallback((connected: boolean, outcome: CallDiagnostics['outcome']) => {
     const match = matchRef.current;
@@ -242,8 +249,10 @@ export function useRandomCall() {
     setLastLeftReason(null);
     setMessages([]);
     setStatus('searching');
-    startAdBreak();
-    getSocket().emit('call:next');
+    if (!adFirst()) return void getSocket().emit('call:next');
+    // Free users: leave the partner now, watch the ad, then start searching.
+    getSocket().emit('call:skip');
+    startAdBreak(() => joinRef.current && getSocket().emit('queue:join', joinRef.current));
   }, [closePeer, startAdBreak]);
 
   const back = useCallback(() => {
@@ -410,8 +419,8 @@ export function useRandomCall() {
       closePeer();
       setLastLeftReason(reason);
       addLine('system', LEFT_TEXT[reason]);
-      startAdBreak();
-      requeue();
+      setStatus('searching');
+      startAdBreak(requeue);
     };
     const onBackUnavailable = (reason: BackUnavailableReason) => flash(BACK_TEXT[reason]);
     const onChat = (msg: ChatMessage) => {
@@ -578,8 +587,7 @@ export function useRandomCall() {
 
       activeRef.current = true;
       setStatus('searching');
-      startAdBreak();
-      getSocket().emit('queue:join', payload);
+      startAdBreak(() => getSocket().emit('queue:join', payload));
     },
     [adoptStream, refreshDevices, startAdBreak],
   );

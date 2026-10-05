@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { NO_FILTERS } from '@rc/shared';
 import { useAuth } from '@/lib/auth';
 import { countryName, flagEmoji, GENDER_ICON, GENDER_LABEL } from '@/lib/format';
@@ -83,12 +83,10 @@ export function ChatScreen({ call }: { call: RandomCall }) {
   const isText = call.mode === 'text';
   const { user } = useAuth();
   const isPlus = !!user?.plus.active;
-  const { setAdFree } = call;
   const showAd = call.adBreak && !isPlus;
   const [pipCorner, setPipCorner] = useState<Corner>('br');
   const pipOnTop = pipCorner[0] === 't';
 
-  useEffect(() => setAdFree(isPlus), [isPlus, setAdFree]);
 
   const chat = (className: string) => (
     <ChatPanel
@@ -203,7 +201,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               {showAd && (
                 <div className="absolute inset-0 z-10">
                   <AdSlot placement="break" refreshKey={call.adKey} className="h-full rounded-none" />
-                  <p className="absolute left-0 right-0 top-3 text-center text-xs text-white/80">Finding your next stranger…</p>
+                  <p className="absolute left-0 right-0 top-3 text-center text-xs text-white/80">Your next stranger is right after this ad</p>
                 </div>
               )}
 

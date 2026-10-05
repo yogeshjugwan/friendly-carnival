@@ -1,7 +1,8 @@
 'use client';
 
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import type { JoinPayload } from '@rc/shared';
+import { useAuth } from '@/lib/auth';
 import { useRandomCall } from '@/lib/useRandomCall';
 import { BannedScreen } from './BannedScreen';
 import { ChatScreen } from './ChatScreen';
@@ -9,6 +10,11 @@ import { Landing } from './Landing';
 
 export function RandomCall() {
   const call = useRandomCall();
+  const { user } = useAuth();
+  const isPlus = !!user?.plus.active;
+  const { setAdFree } = call;
+  // Plus members skip ads, including the one before the first match.
+  useEffect(() => setAdFree(isPlus), [isPlus, setAdFree]);
   // Remember the landing choices so "use text chat instead" can reuse them.
   const lastJoin = useRef<Omit<JoinPayload, 'mode'>>({ gender: 'male', interests: [] });
 

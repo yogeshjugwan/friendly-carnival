@@ -132,6 +132,8 @@ export interface ClientToServerEvents {
   'queue:join': (payload: JoinPayload) => void;
   'queue:leave': () => void;
   'call:next': () => void;
+  /** Leave the current partner without searching yet (free users watch an ad first, then join). */
+  'call:skip': () => void;
   'call:back': () => void;
   'call:result': (result: CallResult) => void;
   'settings:reconnect': (allow: boolean) => void;

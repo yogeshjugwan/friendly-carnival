@@ -37,6 +37,7 @@ export type CallStatus =
   | 'connecting' // matched, WebRTC negotiating
   | 'in-call' // media flowing (or text chat open)
   | 'limited' // free matches used up for today
+  | 'browsing' // Plus: online and picking someone from the Online list
   | 'banned'; // device is banned; can appeal
 
 export interface ChatLine {
@@ -582,7 +583,7 @@ export function useRandomCall() {
   }, []);
 
   const start = useCallback(
-    async (join: Omit<JoinPayload, 'mode' | 'hideCountry'>, chatMode: ChatMode = 'video') => {
+    async (join: Omit<JoinPayload, 'mode' | 'hideCountry'>, chatMode: ChatMode = 'video', browse = false) => {
       const saved = loadSettings();
       const payload: JoinPayload = { ...join, mode: chatMode, hideCountry: saved.hideCountry, filters: saved.filters };
       setFiltering(hasFilters(saved.filters));
@@ -610,6 +611,12 @@ export function useRandomCall() {
       }
 
       activeRef.current = true;
+      if (browse) {
+        // Plus: online for direct calls, but not in the random queue until Next.
+        setStatus('browsing');
+        getSocket().emit('queue:join', { ...payload, browse: true });
+        return;
+      }
       setStatus('searching');
       startAdBreak(() => getSocket().emit('queue:join', payload));
     },

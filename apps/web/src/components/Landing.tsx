@@ -9,11 +9,12 @@ import { SiteFooter, SiteHeader } from './SiteHeader';
 
 interface Props {
   online: number | null;
-  onStart: (join: Omit<JoinPayload, 'mode' | 'hideCountry'>, mode: ChatMode) => void;
+  onStart: (join: Omit<JoinPayload, 'mode' | 'hideCountry'>, mode: ChatMode, browse?: boolean) => void;
 }
 
 export function Landing({ online, onStart }: Props) {
-  const { saveSettings } = useAuth();
+  const { saveSettings, user } = useAuth();
+  const isPlus = !!user?.plus.active;
   const [gender, setGender] = useState<Gender>('male');
   const [interestText, setInterestText] = useState('');
   const [agreed, setAgreed] = useState(false);
@@ -35,11 +36,11 @@ export function Landing({ online, onStart }: Props) {
     .filter(Boolean)
     .slice(0, MAX_INTERESTS);
 
-  const begin = (mode: ChatMode) => {
+  const begin = (mode: ChatMode, browse = false) => {
     if (!agreed) return;
     // Remember the choices for next time; don't block the chat on the network.
     void saveSettings({ ...loadSettings(), gender, interests }).catch(() => undefined);
-    onStart({ gender, interests }, mode);
+    onStart({ gender, interests }, mode, browse);
   };
 
   return (
@@ -113,6 +114,16 @@ export function Landing({ online, onStart }: Props) {
           >
             Start Chat
           </button>
+          {isPlus && (
+            <button
+              type="button"
+              disabled={!agreed}
+              onClick={() => begin('video', true)}
+              className="mt-2 w-full rounded-lg border-2 border-amber-400 py-2.5 font-semibold text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              👥 See who&apos;s online <span className="text-xs font-medium">👑 Plus</span>
+            </button>
+          )}
           <button
             type="button"
             disabled={!agreed}

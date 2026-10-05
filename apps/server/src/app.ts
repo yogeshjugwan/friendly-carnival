@@ -325,9 +325,10 @@ export function createApp(opts: AppOptions = {}): App {
       if (matchmaker.get(socket.id)?.partnerId) return;
       if (!mayMatch(socket)) return;
       if (hasFilters(join.filters) && !socket.data.plus) socket.emit('plus:required');
-      const pairing = matchmaker.join(socket.id, join.gender, join.interests, join.mode, join.hideCountry, join.filters);
+      const browsing = !!join.browse && socket.data.plus;
+      const pairing = matchmaker.join(socket.id, join.gender, join.interests, join.mode, join.hideCountry, join.filters, browsing);
       if (pairing) announce(pairing);
-      else socket.emit('queue:waiting');
+      else if (!browsing) socket.emit('queue:waiting');
     });
 
     socket.on('queue:leave', () => {

@@ -22,6 +22,8 @@ export interface JoinPayload {
   hideCountry?: boolean;
   /** Ignored by the server unless the user has Plus. */
   filters?: MatchFilters;
+  /** Plus: go online to browse the Online list without being matched at random yet. */
+  browse?: boolean;
 }
 
 export interface PartnerInfo {

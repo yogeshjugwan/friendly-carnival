@@ -24,9 +24,9 @@ export function RandomCall() {
     return (
       <Landing
         online={call.online}
-        onStart={(join, mode) => {
+        onStart={(join, mode, browse) => {
           lastJoin.current = join;
-          void call.start(join, mode);
+          void call.start(join, mode, browse);
         }}
       />
     );

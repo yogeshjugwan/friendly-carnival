@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { NO_FILTERS } from '@rc/shared';
 import { useAuth } from '@/lib/auth';
 import { countryName, flagEmoji, GENDER_ICON, GENDER_LABEL } from '@/lib/format';
@@ -45,6 +45,14 @@ function PartnerBadge({ call }: { call: RandomCall }) {
 }
 
 function Searching({ call }: { call: RandomCall }) {
+  if (call.status === 'browsing') {
+    return (
+      <p className="max-w-xs text-center text-sm text-slate-300 sm:text-base">
+        Pick someone from <span className="font-semibold text-white">👥 Online</span> to call, or press{' '}
+        <span className="font-semibold text-white">Next</span> for a random stranger.
+      </p>
+    );
+  }
   const overlay = STATUS_TEXT[call.status];
   if (!overlay) return null;
   return (
@@ -88,6 +96,10 @@ export function ChatScreen({ call }: { call: RandomCall }) {
   const [showOnline, setShowOnline] = useState(false);
   const [onlineUpsell, setOnlineUpsell] = useState(false);
   const closeOnline = useCallback(() => setShowOnline(false), []);
+  // "See who's online" from the home page opens the list straight away.
+  useEffect(() => {
+    if (call.status === 'browsing') setShowOnline(true);
+  }, [call.status]);
   const [pipCorner, setPipCorner] = useState<Corner>('br');
   const pipOnTop = pipCorner[0] === 't';
 

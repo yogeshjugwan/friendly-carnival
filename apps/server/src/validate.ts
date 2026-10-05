@@ -34,7 +34,8 @@ export function parseJoin(input: unknown): JoinPayload | null {
   if (!chatMode) return null;
   const hideCountry = (input as Record<string, unknown>).hideCountry === true;
   const filters = parseFilters((input as Record<string, unknown>).filters) ?? undefined;
-  return { gender: gender as Gender, interests: cleaned, mode: chatMode, hideCountry, filters };
+  const browse = (input as Record<string, unknown>).browse === true;
+  return { gender: gender as Gender, interests: cleaned, mode: chatMode, hideCountry, filters, browse };
 }
 
 export function parseSignal(input: unknown): SignalMessage | null {

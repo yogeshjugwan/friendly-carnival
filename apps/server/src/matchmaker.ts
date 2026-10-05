@@ -168,6 +168,7 @@ export class Matchmaker {
     mode: ChatMode,
     hideCountry = false,
     filters: MatchFilters = NO_FILTERS,
+    browse = false,
   ): Pairing | null {
     const session = this.sessions.get(id);
     if (!session || session.partnerId) return null;
@@ -177,6 +178,11 @@ export class Matchmaker {
     session.hideCountry = hideCountry;
     // Filters are a Plus feature; the server never trusts the client on this.
     session.filters = session.plus ? { ...filters } : { ...NO_FILTERS };
+    // Browsing (Plus): profile set so they can call people, but not queued for random matches.
+    if (browse && session.plus) {
+      this.dequeue(id);
+      return null;
+    }
     return this.requeue(session);
   }
 

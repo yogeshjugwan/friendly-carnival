@@ -38,14 +38,21 @@ test('Plus members see who is online and can call a waiting person, who can acce
 
     assert.equal(await list(free), null, 'free users get no list');
 
-    // The Plus member filters to men, so the queue won't pair them on its own; she waits too.
-    plus.emit('queue:join', { gender: 'male', interests: ['music'], mode: 'video', filters: { gender: 'male', country: 'any' } });
-    await once(plus, 'queue:waiting');
+    // The Plus member only browses (not in the random queue); she waits.
+    plus.emit('queue:join', { gender: 'male', interests: ['music'], mode: 'video', browse: true });
     her.emit('queue:join', { gender: 'female', interests: ['music'], mode: 'video' });
     await once(her, 'queue:waiting');
+    assert.equal(app.matchmaker.isWaiting(plus.id!), false, 'browsing is not searching');
+    assert.equal(app.matchmaker.partnerOf(her.id!), undefined, 'she was not matched to the browser at random');
+
+    // A free user asking to browse is simply queued.
+    free.emit('queue:join', { gender: 'male', interests: [], mode: 'text', browse: true });
+    await once(free, 'queue:waiting');
 
     const people = (await list(plus))!;
-    assert.equal(people.length, 1, 'only others who joined; not the viewer');
+    const women = people.filter((p) => p.mode === 'video');
+    assert.equal(women.length, 1, 'only others who joined; not the viewer');
+    people.splice(0, people.length, ...women);
     assert.equal(people[0].gender, 'female');
     assert.equal(people[0].state, 'waiting');
     assert.equal(JSON.stringify(people).includes(her.id!), false, 'socket ids never leak');
@@ -75,7 +82,7 @@ test('Plus members see who is online and can call a waiting person, who can acce
 
     // While she is in a call she shows as busy and can't be called.
     const now = (await list(plus))!;
-    assert.equal(now.length, 0, 'her partner is the viewer, so nobody else is listed');
+    assert.deepEqual(now.map((p) => p.mode), ['text'], 'his own partner is not listed; the free text user still is');
     const r = await call(plus, people[0].publicId);
     assert.equal(r.ok, false);
   } finally {

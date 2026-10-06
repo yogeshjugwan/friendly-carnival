@@ -3,6 +3,7 @@ import { createServer, type IncomingHttpHeaders, type Server as HttpServer } fro
 import { Server } from 'socket.io';
 import {
   CALL_REQUEST_MS,
+  MAX_FRIEND_NICKNAME,
   REACTIONS,
   CHAT_BURST,
   CHAT_WINDOW_MS,
@@ -14,6 +15,8 @@ import {
   type BanInfo,
   type BlockedUser,
   type CallAnswer,
+  type CallRequestResult,
+  type Friend,
   type CallResult,
   type ClientToServerEvents,
   type HandshakeAuth,
@@ -21,7 +24,7 @@ import {
   type ServerToClientEvents,
 } from '@rc/shared';
 import type { AccountStore } from './accounts.ts';
-import { isPlusActive, MemoryAccountStore } from './accounts.ts';
+import { isPlusActive, MAX_FRIENDS, MemoryAccountStore } from './accounts.ts';
 import type { BillingProvider } from './billing.ts';
 import { createBillingHandler } from './billing-http.ts';
 import { handleAdmin } from './admin.ts';
@@ -30,7 +33,7 @@ import { createGoogleHandler, type GoogleConfig } from './google.ts';
 import { MatchLimits, type LimitOptions } from './limits.ts';
 import { ConsoleMailer, type Mailer } from './mailer.ts';
 import { config } from './config.ts';
-import { Matchmaker, type Pairing } from './matchmaker.ts';
+import { Matchmaker, type Pairing, type Session } from './matchmaker.ts';
 import { banInfo, clientIp, hashIp, isDeviceId, parseReport, Safety, SNAPSHOT_RETENTION_MS } from './safety.ts';
 import { MemoryStore, type SafetyStore } from './store.ts';
 import { parseCallResult, parseChatText, parseJoin, parseSignal } from './validate.ts';
@@ -263,8 +266,11 @@ export function createApp(opts: AppOptions = {}): App {
     return false;
   };
 
+  /** Per match: account ids that tapped ❤️ Add friend. */
+  const friendWants = new Map<string, Set<string>>();
+
   /** Direct call requests from the Plus "Online now" list: requestId → who asked whom. */
-  const callRequests = new Map<string, { from: string; to: string; timer: NodeJS.Timeout }>();
+  const callRequests = new Map<string, { from: string; to: string; timer: NodeJS.Timeout; friend: boolean }>();
   const requestFrom = (socketId: string) => [...callRequests.entries()].find(([, r]) => r.from === socketId);
   /** Ends a request and tells the caller how it went (and the callee, if it was withdrawn). */
   const closeRequest = (requestId: string, answer: CallAnswer | null, tellCallee = false) => {
@@ -302,6 +308,19 @@ export function createApp(opts: AppOptions = {}): App {
     });
     io.to(a.id).emit('match:found', { ...base, initiator: false, partner: info(b) });
     io.to(b.id).emit('match:found', { ...base, initiator: true, partner: info(a) });
+    // Already friends? Tell both sides so the ❤️ button shows it.
+    const ua = io.sockets.sockets.get(a.id)?.data.userId;
+    const ub = io.sockets.sockets.get(b.id)?.data.userId;
+    if (ua && ub) {
+      void accounts
+        .isFriend(ua, ub)
+        .then((yes) => {
+          if (!yes) return;
+          io.to(a.id).emit('friend:state', 'friends');
+          io.to(b.id).emit('friend:state', 'friends');
+        })
+        .catch(() => undefined);
+    }
   };
 
   io.on('connection', (socket) => {
@@ -327,7 +346,8 @@ export function createApp(opts: AppOptions = {}): App {
       if (matchmaker.get(socket.id)?.partnerId) return;
       if (!mayMatch(socket)) return;
       if (hasFilters(join.filters) && !socket.data.plus) socket.emit('plus:required');
-      const browsing = !!join.browse && socket.data.plus;
+      // Plus members browse the Online list; any logged-in user can wait for friends.
+      const browsing = !!join.browse && (socket.data.plus || !!socket.data.userId);
       const pairing = matchmaker.join(socket.id, join.gender, join.interests, join.mode, join.hideCountry, join.filters, browsing);
       if (pairing) announce(pairing);
       else if (!browsing) socket.emit('queue:waiting');
@@ -382,26 +402,24 @@ export function createApp(opts: AppOptions = {}): App {
       ack(matchmaker.listActive(socket.id));
     });
 
-    socket.on('users:call', (publicId, ack) => {
-      if (typeof ack !== 'function') return;
-      if (!socket.data.plus) return ack({ ok: false, reason: 'plus-required' });
-      if (stillBanned()) return ack({ ok: false, reason: 'unavailable' });
-      if (requestFrom(socket.id)) return ack({ ok: false, reason: 'pending' });
-      const target = typeof publicId === 'string' ? matchmaker.byPublicId(publicId) : undefined;
-      if (!target) return ack({ ok: false, reason: 'gone' });
+    /** Sends a direct call request to `target` (from the Online list or the Friends list). */
+    const startRequest = (target: Session, friend: boolean, friendNickname?: string): CallRequestResult => {
+      if (stillBanned()) return { ok: false, reason: 'unavailable' };
+      if (requestFrom(socket.id)) return { ok: false, reason: 'pending' };
       // Someone with a request already open can't be asked again until it's answered.
-      if ([...callRequests.values()].some((r) => r.to === target.id)) return ack({ ok: false, reason: 'busy' });
-      const check = matchmaker.canCall(socket.id, target.id);
-      if (check !== 'ok') return ack({ ok: false, reason: check });
+      if ([...callRequests.values()].some((r) => r.to === target.id)) return { ok: false, reason: 'busy' };
+      const check = matchmaker.canCall(socket.id, target.id, friend);
+      if (check !== 'ok') return { ok: false, reason: check };
 
       const me = matchmaker.get(socket.id)!;
       const requestId = randomUUID();
       const expiresAt = Date.now() + CALL_REQUEST_MS;
       const timer = setTimeout(() => closeRequest(requestId, { accepted: false, reason: 'timeout' }, true), CALL_REQUEST_MS);
-      callRequests.set(requestId, { from: socket.id, to: target.id, timer });
+      callRequests.set(requestId, { from: socket.id, to: target.id, timer, friend });
       io.to(target.id).emit('call:incoming', {
         requestId,
         expiresAt,
+        ...(friend ? { friend: friendNickname ?? '' } : {}),
         from: {
           gender: me.gender,
           country: me.hideCountry ? null : me.country,
@@ -410,7 +428,119 @@ export function createApp(opts: AppOptions = {}): App {
           sharedInterests: me.interests.filter((i) => target.interests.includes(i)),
         },
       });
-      ack({ ok: true, requestId, expiresAt });
+      return { ok: true, requestId, expiresAt };
+    };
+
+    socket.on('users:call', (publicId, ack) => {
+      if (typeof ack !== 'function') return;
+      if (!socket.data.plus) return ack({ ok: false, reason: 'plus-required' });
+      const target = typeof publicId === 'string' ? matchmaker.byPublicId(publicId) : undefined;
+      if (!target) return ack({ ok: false, reason: 'gone' });
+      ack(startRequest(target, false));
+    });
+
+    // ---- Friends (accounts only) ----
+    const myUser = () => socket.data.userId;
+    /** Opaque per-user handle for a friend, so account ids never reach the browser. */
+    const friendHandle = (friendId: string) => createHash('sha256').update(`f:${myUser()}:${friendId}`).digest('base64url').slice(0, 16);
+    const resolveFriend = async (handle: unknown) => {
+      const me = myUser();
+      if (!me || typeof handle !== 'string') return null;
+      return (await accounts.listFriends(me)).find((f) => friendHandle(f.friendId) === handle) ?? null;
+    };
+    /** The best socket of a user: a free one in the call screen first. */
+    const socketsOfUser = (userId: string) => [...io.sockets.sockets.values()].filter((x) => x.data.userId === userId);
+
+    socket.on('friend:add', async () => {
+      const partner = matchmaker.partnerOf(socket.id);
+      const me = matchmaker.get(socket.id);
+      if (!partner || !me?.matchId) return;
+      const myId = myUser();
+      const partnerSocket = io.sockets.sockets.get(partner.id);
+      const theirId = partnerSocket?.data.userId ?? null;
+      if (!myId) return void socket.emit('friend:state', 'login-required');
+      if (!theirId) return void socket.emit('friend:state', 'partner-guest');
+      try {
+        if (await accounts.isFriend(myId, theirId)) {
+          socket.emit('friend:state', 'friends');
+          return;
+        }
+        if ((await accounts.listFriends(myId)).length >= MAX_FRIENDS) return void socket.emit('friend:state', 'full');
+        const wants = friendWants.get(me.matchId) ?? new Set<string>();
+        wants.add(myId);
+        friendWants.set(me.matchId, wants);
+        if (!wants.has(theirId)) {
+          socket.emit('friend:state', 'requested');
+          io.to(partner.id).emit('friend:state', 'they-requested');
+          return;
+        }
+        friendWants.delete(me.matchId);
+        const seen = (s: Session) => ({ gender: s.gender, country: s.hideCountry ? null : s.country });
+        await accounts.addFriend(myId, theirId, seen(partner));
+        await accounts.addFriend(theirId, myId, seen(me));
+        socket.emit('friend:state', 'friends');
+        io.to(partner.id).emit('friend:state', 'friends');
+      } catch (e) {
+        console.error('[friend:add]', e);
+      }
+    });
+
+    socket.on('friends:list', async (ack) => {
+      if (typeof ack !== 'function') return;
+      const me = myUser();
+      if (!me) return ack(null);
+      try {
+        const list = await accounts.listFriends(me);
+        ack(
+          list.map((f) => {
+            const socks = socketsOfUser(f.friendId);
+            const sessions = socks.map((x) => matchmaker.get(x.id)).filter((x): x is Session => !!x);
+            const status: Friend['status'] = sessions.some((x) => x.joined && !x.partnerId)
+              ? 'available'
+              : sessions.some((x) => x.partnerId)
+                ? 'in-call'
+                : socks.length
+                  ? 'online'
+                  : 'offline';
+            return { id: friendHandle(f.friendId), nickname: f.nickname, gender: (f.gender as Friend['gender']) ?? null, country: f.country, since: f.createdAt, status };
+          }),
+        );
+      } catch (e) {
+        console.error('[friends:list]', e);
+        ack([]);
+      }
+    });
+
+    socket.on('friends:call', async (handle, ack) => {
+      if (typeof ack !== 'function') return;
+      if (!myUser()) return ack({ ok: false, reason: 'login-required' });
+      const f = await resolveFriend(handle).catch(() => null);
+      if (!f) return ack({ ok: false, reason: 'gone' });
+      const sessions = socketsOfUser(f.friendId)
+        .map((x) => matchmaker.get(x.id))
+        .filter((x): x is Session => !!x);
+      const target = sessions.find((x) => x.joined && !x.partnerId);
+      if (!target) return ack({ ok: false, reason: sessions.length ? (sessions.some((x) => x.partnerId) ? 'busy' : 'offline') : 'offline' });
+      // Their nickname for me, so they see who is calling.
+      const theirs = await accounts.listFriends(f.friendId).catch(() => []);
+      ack(startRequest(target, true, theirs.find((x) => x.friendId === myUser())?.nickname ?? ''));
+    });
+
+    socket.on('friends:remove', async (handle, ack) => {
+      const done = typeof ack === 'function' ? ack : () => undefined;
+      const f = await resolveFriend(handle).catch(() => null);
+      if (!f) return done(false);
+      await accounts.removeFriendship(myUser()!, f.friendId).catch(() => undefined);
+      done(true);
+    });
+
+    socket.on('friends:rename', async (handle, nickname, ack) => {
+      const done = typeof ack === 'function' ? ack : () => undefined;
+      const f = await resolveFriend(handle).catch(() => null);
+      if (!f || typeof nickname !== 'string') return done(false);
+      const clean = nickname.trim().slice(0, MAX_FRIEND_NICKNAME) || null;
+      await accounts.renameFriend(myUser()!, f.friendId, clean).catch(() => undefined);
+      done(true);
     });
 
     socket.on('users:cancel', () => {
@@ -423,7 +553,7 @@ export function createApp(opts: AppOptions = {}): App {
       if (!r || r.to !== socket.id) return;
       if (!accept) return closeRequest(requestId, { accepted: false, reason: 'declined' });
       const oldPartner = matchmaker.partnerOf(r.from);
-      const result = matchmaker.pairDirect(r.from, r.to);
+      const result = matchmaker.pairDirect(r.from, r.to, r.friend);
       if (typeof result === 'string') {
         socket.emit('call:incoming-cancelled', requestId);
         return closeRequest(requestId, { accepted: false, reason: result === 'gone' ? 'gone' : 'busy' });
@@ -507,6 +637,8 @@ export function createApp(opts: AppOptions = {}): App {
       const seen = targetId ? matchmaker.get(targetId) : undefined;
       const info = { gender: seen?.gender ?? null, country: seen && !seen.hideCountry ? seen.country : null };
       await store.addBlock(deviceId, target.deviceId, info).catch((e) => console.error('[block]', e));
+      // Blocking a friend also ends the friendship.
+      if (socket.data.userId && target.userId) await accounts.removeFriendship(socket.data.userId, target.userId).catch(() => undefined);
       matchmaker.block(deviceId, target.deviceId);
       socket.emit('user:blocked');
       if (which === 'current' && matchmaker.get(socket.id)?.partnerId === targetId) {

@@ -52,21 +52,40 @@ export interface ActiveUser {
   state: 'waiting' | 'in-call';
 }
 
-/** A Plus member asked to chat with you directly. */
+/** A Plus member (or a friend) asked to chat with you directly. */
 export interface IncomingCall {
   requestId: string;
   from: PartnerInfo;
+  /** Set when the caller is your friend: your nickname for them, or '' if none. */
+  friend?: string;
   /** Epoch ms after which the request lapses. */
   expiresAt: number;
 }
 
 export type CallRequestResult =
   | { ok: true; requestId: string; expiresAt: number }
-  | { ok: false; reason: 'plus-required' | 'gone' | 'busy' | 'unavailable' | 'pending' | 'mode' };
+  | { ok: false; reason: 'plus-required' | 'gone' | 'busy' | 'unavailable' | 'pending' | 'mode' | 'offline' | 'login-required' };
 
 export type CallAnswer = { accepted: true } | { accepted: false; reason: 'declined' | 'timeout' | 'busy' | 'gone' };
 
 export const CALL_REQUEST_MS = 20_000;
+
+/** Friend status with the current partner (both must be logged in; both tap ❤️). */
+export type FriendState = 'none' | 'requested' | 'they-requested' | 'friends' | 'login-required' | 'partner-guest' | 'full';
+
+/** One of my friends, as I saw them (no emails or account ids). */
+export interface Friend {
+  /** Opaque handle. */
+  id: string;
+  nickname: string | null;
+  gender: Gender | null;
+  country: string | null;
+  since: number;
+  /** available = in the call screen and free to be called. */
+  status: 'available' | 'in-call' | 'online' | 'offline';
+}
+
+export const MAX_FRIEND_NICKNAME = 40;
 
 /** Someone you blocked, as you saw them (their device id never leaves the server). */
 export interface BlockedUser {
@@ -188,6 +207,12 @@ export interface ClientToServerEvents {
   'relay:start': () => void;
   'relay:chunk': (chunk: RelayChunk) => void;
   signal: (msg: SignalMessage) => void;
+  /** Ask to be friends with the current partner (both must tap). */
+  'friend:add': () => void;
+  'friends:list': (ack: (friends: Friend[] | null) => void) => void;
+  'friends:call': (id: string, ack: (result: CallRequestResult) => void) => void;
+  'friends:remove': (id: string, ack: (ok: boolean) => void) => void;
+  'friends:rename': (id: string, nickname: string, ack: (ok: boolean) => void) => void;
   /** People this device blocked (ack gets the list). */
   'blocks:list': (ack: (blocked: BlockedUser[]) => void) => void;
   /** Unblock one of them. */
@@ -221,6 +246,8 @@ export interface ServerToClientEvents {
   'ban:appealed': () => void;
   /** Filters were sent without an active Plus subscription and were ignored. */
   'plus:required': () => void;
+  /** Friendship with the current partner changed. */
+  'friend:state': (state: FriendState) => void;
   /** The partner sent a reaction. */
   reaction: (emoji: string) => void;
   /** Someone (a Plus member) wants to chat with you. */

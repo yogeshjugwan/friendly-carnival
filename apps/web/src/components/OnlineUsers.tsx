@@ -7,16 +7,18 @@ import type { RandomCall } from '@/lib/useRandomCall';
 
 const REFRESH_MS = 5_000;
 
-const FAIL_TEXT: Record<Extract<CallRequestResult, { ok: false }>['reason'], string> = {
+export const FAIL_TEXT: Record<Extract<CallRequestResult, { ok: false }>['reason'], string> = {
   'plus-required': 'Calling people directly is a Plus feature.',
   gone: 'They just left.',
   busy: 'They are busy right now.',
   unavailable: 'They are not available.',
   pending: 'Wait for your current call request first.',
   mode: 'They are in a different chat mode.',
+  offline: 'They are not in the call screen right now.',
+  'login-required': 'Log in to call friends.',
 };
 
-const useSecondsLeft = (until: number | null) => {
+export const useSecondsLeft = (until: number | null) => {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!until) return;
@@ -150,7 +152,9 @@ export function IncomingCallModal({ call }: { call: RandomCall }) {
           📞
         </p>
         <h2 id="incoming-title" className="mt-3 text-xl font-bold">
-          {from.plus ? '👑 A Plus member' : 'Someone'} wants to chat
+          {incomingCall.friend !== undefined
+            ? `❤️ ${incomingCall.friend || 'Your friend'} wants to chat`
+            : `${from.plus ? '👑 A Plus member' : 'Someone'} wants to chat`}
         </h2>
         <p className="mt-2 flex items-center justify-center gap-1.5 text-slate-600">
           <span title={GENDER_LABEL[from.gender]}>{GENDER_ICON[from.gender]}</span>

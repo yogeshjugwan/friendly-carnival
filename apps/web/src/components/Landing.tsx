@@ -9,7 +9,7 @@ import { SiteFooter, SiteHeader } from './SiteHeader';
 
 interface Props {
   online: number | null;
-  onStart: (join: Omit<JoinPayload, 'mode' | 'hideCountry'>, mode: ChatMode, browse?: boolean) => void;
+  onStart: (join: Omit<JoinPayload, 'mode' | 'hideCountry'>, mode: ChatMode, browse?: false | 'online' | 'friends') => void;
 }
 
 export function Landing({ online, onStart }: Props) {
@@ -36,7 +36,7 @@ export function Landing({ online, onStart }: Props) {
     .filter(Boolean)
     .slice(0, MAX_INTERESTS);
 
-  const begin = (mode: ChatMode, browse = false) => {
+  const begin = (mode: ChatMode, browse: false | 'online' | 'friends' = false) => {
     if (!agreed) return;
     // Remember the choices for next time; don't block the chat on the network.
     void saveSettings({ ...loadSettings(), gender, interests }).catch(() => undefined);
@@ -114,11 +114,21 @@ export function Landing({ online, onStart }: Props) {
           >
             Start Chat
           </button>
+          {user && (
+            <button
+              type="button"
+              disabled={!agreed}
+              onClick={() => begin('video', 'friends')}
+              className="mt-2 w-full rounded-lg border-2 border-pink-300 py-2.5 font-semibold text-pink-600 transition hover:bg-pink-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              ❤️ Call a friend
+            </button>
+          )}
           {isPlus && (
             <button
               type="button"
               disabled={!agreed}
-              onClick={() => begin('video', true)}
+              onClick={() => begin('video', 'online')}
               className="mt-2 w-full rounded-lg border-2 border-amber-400 py-2.5 font-semibold text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               👥 See who&apos;s online <span className="text-xs font-medium">👑 Plus</span>

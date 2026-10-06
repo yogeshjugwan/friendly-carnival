@@ -5,6 +5,8 @@ export interface Session {
   id: string;
   /** Shown on the Plus "Online now" list instead of the socket id. */
   publicId: string;
+  /** Has joined the call screen (queue or browse) at least once, so their profile is set. */
+  joined: boolean;
   gender: Gender;
   interests: string[];
   mode: ChatMode;
@@ -86,6 +88,7 @@ export class Matchmaker {
     const session: Session = {
       id,
       publicId: randomUUID().replace(/-/g, '').slice(0, 16),
+      joined: false,
       gender: 'male',
       interests: [],
       mode: 'video',
@@ -177,6 +180,7 @@ export class Matchmaker {
   ): Pairing | null {
     const session = this.sessions.get(id);
     if (!session || session.partnerId) return null;
+    session.joined = true;
     session.gender = gender;
     session.interests = interests;
     session.mode = mode;
@@ -250,19 +254,21 @@ export class Matchmaker {
    * Can `fromId` call `toId` directly? The target must be searching in the same
    * mode, not blocked either way, and their own filters must accept the caller.
    */
-  canCall(fromId: string, toId: string): 'ok' | 'gone' | 'busy' | 'unavailable' | 'mode' {
+  canCall(fromId: string, toId: string, friend = false): 'ok' | 'gone' | 'busy' | 'unavailable' | 'mode' {
     const from = this.sessions.get(fromId);
     const to = this.sessions.get(toId);
     if (!from || !to) return 'gone';
-    if (isBlocked(from, to) || !wants(to, from)) return 'unavailable';
+    // Friends skip each other's match filters; blocks always apply.
+    if (isBlocked(from, to) || (!friend && !wants(to, from))) return 'unavailable';
     if (to.mode !== from.mode) return 'mode';
-    if (to.partnerId || !this.isWaiting(toId)) return 'busy';
+    // Strangers must be searching; friends may also be browsing (joined, not in a call).
+    if (to.partnerId || (friend ? !to.joined : !this.isWaiting(toId))) return 'busy';
     return 'ok';
   }
 
   /** Pairs two people after an accepted call request (ends the caller's current match first). */
-  pairDirect(fromId: string, toId: string): Pairing | 'gone' | 'busy' | 'unavailable' | 'mode' {
-    const check = this.canCall(fromId, toId);
+  pairDirect(fromId: string, toId: string, friend = false): Pairing | 'gone' | 'busy' | 'unavailable' | 'mode' {
+    const check = this.canCall(fromId, toId, friend);
     if (check !== 'ok') return check;
     this.endMatch(fromId);
     this.dequeue(fromId);

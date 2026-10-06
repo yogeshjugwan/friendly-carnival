@@ -13,6 +13,7 @@ import { VideoIcon } from './icons';
 import { CallControls, ReactionLayer } from './CallControls';
 import { FilterBar } from './FilterBar';
 import { LimitModal } from './LimitModal';
+import { FriendButton, FriendsPanel } from './Friends';
 import { IncomingCallModal, OnlineUsersPanel } from './OnlineUsers';
 import { PlusUpsell } from './PlusUpsell';
 import { ChatPanel } from './ChatPanel';
@@ -123,20 +124,34 @@ export function ChatScreen({ call }: { call: RandomCall }) {
   }, []);
   const [onlineUpsell, setOnlineUpsell] = useState(false);
   const closeOnline = useCallback(() => setShowOnline(false), []);
-  // One side panel at a time, like Meet: People (Online now) or Chat.
+  const [showFriends, setShowFriends] = useState(false);
+  const closeFriends = useCallback(() => setShowFriends(false), []);
+  // One side panel at a time, like Meet: Online now, Friends or Chat.
   const openOnline = useCallback(() => {
     setChatOpen(false);
+    setShowFriends(false);
     setShowOnline(true);
+  }, []);
+  const toggleFriends = useCallback(() => {
+    setChatOpen(false);
+    setShowOnline(false);
+    setShowFriends((o) => !o);
   }, []);
   const toggleChat = useCallback(() => {
     setShowOnline(false);
+    setShowFriends(false);
     setChatOpen((o) => !o);
   }, []);
-  const sideOpen = chatOpen || showOnline;
+  const sideOpen = chatOpen || showOnline || showFriends;
   // "See who's online" from the home page opens the list straight away.
   useEffect(() => {
-    if (call.status === 'browsing') openOnline();
-  }, [call.status, openOnline]);
+    if (call.status !== 'browsing') return;
+    if (call.browseFor === 'friends') {
+      setChatOpen(false);
+      setShowOnline(false);
+      setShowFriends(true);
+    } else openOnline();
+  }, [call.status, call.browseFor, openOnline]);
   const [pipCorner, setPipCorner] = useState<Corner>('br');
   const pipOnTop = pipCorner[0] === 't';
 
@@ -167,6 +182,15 @@ export function ChatScreen({ call }: { call: RandomCall }) {
             <FilterBar />
           </div>
           <span className="mr-auto sm:hidden [@media(max-height:500px)]:hidden" aria-hidden />
+          <button
+            onClick={toggleFriends}
+            aria-pressed={showFriends}
+            title="Friends"
+            className={`flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition ${showFriends ? 'bg-pink-200 text-slate-900' : 'bg-[#3c4043] text-slate-100 hover:bg-[#4a4e52]'}`}
+          >
+            <span aria-hidden>❤️</span>
+            <span className="hidden sm:inline">Friends</span>
+          </button>
           {/* Online count and the Online list are Plus-only. */}
           <button
             onClick={() => (isPlus ? (showOnline ? closeOnline() : openOnline()) : setOnlineUpsell(true))}
@@ -204,6 +228,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
         <IncomingCallModal call={call} />
         {/* Text chat has no side column, so the list floats on the right there. */}
         {showOnline && isText && <OnlineUsersPanel call={call} onClose={closeOnline} className="fixed inset-y-2 right-2 z-40 w-[min(24rem,95vw)] shadow-2xl" />}
+        {showFriends && isText && <FriendsPanel call={call} onClose={closeFriends} className="fixed inset-y-2 right-2 z-40 w-[min(24rem,95vw)] shadow-2xl" />}
         {onlineUpsell && <PlusUpsell onClose={() => setOnlineUpsell(false)} reason="See who is online and call them with Plus" />}
         {!isPlus && call.limit && !call.limit.unlimited && call.limit.remaining <= 5 && call.status !== 'limited' && (
           <p className="-mt-1 text-xs text-amber-300">
@@ -223,7 +248,10 @@ export function ChatScreen({ call }: { call: RandomCall }) {
         {isText ? (
           <div className="relative flex min-h-0 flex-1 flex-col gap-2">
             <div className="relative flex min-h-8 items-center justify-between">
-              <PartnerBadge call={call} />
+              <div className="flex items-center gap-2">
+                <PartnerBadge call={call} />
+                {matched && <FriendButton call={call} />}
+              </div>
               <SafetyMenu call={call} />
             </div>
             <div className="relative min-h-0 flex-1">
@@ -294,6 +322,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                 <>
                   <div className="absolute left-3 top-3 flex flex-col items-start gap-1">
                     <PartnerBadge call={call} />
+                    {matched && <FriendButton call={call} />}
                     {call.relayActive && (
                       <span
                         className="rounded-full bg-amber-500/90 px-2 py-0.5 text-[11px] font-medium text-white"
@@ -322,6 +351,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
             </VideoTile>
 
             {showOnline && <OnlineUsersPanel call={call} onClose={closeOnline} className="h-full shadow-2xl max-lg:portrait:fixed max-lg:portrait:inset-x-2 max-lg:portrait:bottom-2 max-lg:portrait:top-[38%] max-lg:portrait:z-40 max-lg:portrait:h-auto" />}
+            {showFriends && <FriendsPanel call={call} onClose={closeFriends} className="h-full shadow-2xl max-lg:portrait:fixed max-lg:portrait:inset-x-2 max-lg:portrait:bottom-2 max-lg:portrait:top-[38%] max-lg:portrait:z-40 max-lg:portrait:h-auto" />}
             {chatOpen && (
               <ChatPanel
                 variant="meet"

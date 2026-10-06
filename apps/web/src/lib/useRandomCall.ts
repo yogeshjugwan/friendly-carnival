@@ -17,6 +17,8 @@ import {
   type CallAnswer,
   type CallRequestResult,
   type IncomingCall,
+  type Friend,
+  type FriendState,
   type PartnerInfo,
   type PartnerLeftReason,
   type RelayChunk,
@@ -128,6 +130,10 @@ export function useRandomCall() {
     setReactions((r) => [...r.slice(-11), { id, emoji, mine, x }]);
     window.setTimeout(() => setReactions((r) => r.filter((e) => e.id !== id)), 2_600);
   }, []);
+  /** Friendship with the current partner (❤️ Add friend). */
+  const [friendState, setFriendState] = useState<FriendState>('none');
+  /** What "browse" was opened for: the Plus Online list or the Friends list. */
+  const [browseFor, setBrowseFor] = useState<'online' | 'friends' | null>(null);
   /** A Plus member asked to chat with this user. */
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
   /** This (Plus) user's open request from the Online list. */
@@ -420,6 +426,7 @@ export function useRandomCall() {
       // A new partner ends any open call request either way.
       setOutgoingCall(null);
       setIncomingCall(null);
+      setFriendState('none');
       if (pcRef.current || matchRef.current) setHasPrevious(true);
       closePeer();
       matchRef.current = { id: match.matchId, startedAt: Date.now(), reported: false };
@@ -473,6 +480,7 @@ export function useRandomCall() {
     const onBlocked = () => flash('Blocked. You will not be matched with them again.');
     const onPlusRequired = () => setPlusRequired(true);
     const onReaction = (emoji: string) => showReaction(emoji, false);
+    const onFriendState = (st: FriendState) => setFriendState(st);
     const onIncomingCall = (c: IncomingCall) => setIncomingCall(c);
     const onIncomingCancelled = (id: string) => setIncomingCall((c) => (c?.requestId === id ? null : c));
     const onCallAnswered = (a: CallAnswer) => {
@@ -527,6 +535,7 @@ export function useRandomCall() {
     socket.on('relay:start', onRelayStart);
     socket.on('relay:chunk', onRelayChunk);
     socket.on('reaction', onReaction);
+    socket.on('friend:state', onFriendState);
     socket.on('call:incoming', onIncomingCall);
     socket.on('call:incoming-cancelled', onIncomingCancelled);
     socket.on('call:answered', onCallAnswered);
@@ -536,6 +545,7 @@ export function useRandomCall() {
     socket.on('limit:ad-rejected', onAdRejected);
     return () => {
       socket.off('reaction', onReaction);
+      socket.off('friend:state', onFriendState);
       socket.off('call:incoming', onIncomingCall);
       socket.off('call:incoming-cancelled', onIncomingCancelled);
       socket.off('call:answered', onCallAnswered);
@@ -662,7 +672,7 @@ export function useRandomCall() {
   );
 
   const start = useCallback(
-    async (join: Omit<JoinPayload, 'mode' | 'hideCountry'>, chatMode: ChatMode = 'video', browse = false) => {
+    async (join: Omit<JoinPayload, 'mode' | 'hideCountry'>, chatMode: ChatMode = 'video', browse: false | 'online' | 'friends' = false) => {
       const saved = loadSettings();
       const payload: JoinPayload = { ...join, mode: chatMode, hideCountry: saved.hideCountry, filters: saved.filters };
       setFiltering(hasFilters(saved.filters));
@@ -698,8 +708,9 @@ export function useRandomCall() {
       }
 
       activeRef.current = true;
+      setBrowseFor(browse || null);
       if (browse) {
-        // Plus: online for direct calls, but not in the random queue until Next.
+        // Online for direct calls (Plus Online list, or friends), but not in the random queue until Next.
         setStatus('browsing');
         getSocket().emit('queue:join', { ...payload, browse: true });
         return;
@@ -733,6 +744,43 @@ export function useRandomCall() {
       showReaction(emoji, true);
     },
     [showReaction],
+  );
+
+  /** ❤️ Add friend with the current partner. */
+  const addFriend = useCallback(() => {
+    if (!matchRef.current) return;
+    getSocket().emit('friend:add');
+  }, []);
+
+  /** My friends (null when not logged in). */
+  const listFriends = useCallback(
+    () => new Promise<Friend[] | null>((resolve) => getSocket().timeout(8_000).emit('friends:list', (err, list) => resolve(err ? [] : list))),
+    [],
+  );
+
+  const callFriend = useCallback(
+    (id: string) =>
+      new Promise<CallRequestResult>((resolve) =>
+        getSocket()
+          .timeout(8_000)
+          .emit('friends:call', id, (err, result) => {
+            const r: CallRequestResult = err ? { ok: false, reason: 'gone' } : result;
+            if (r.ok) setOutgoingCall({ publicId: `friend:${id}`, expiresAt: r.expiresAt });
+            resolve(r);
+          }),
+      ),
+    [],
+  );
+
+  const removeFriend = useCallback(
+    (id: string) => new Promise<boolean>((resolve) => getSocket().timeout(8_000).emit('friends:remove', id, (err, ok) => resolve(!err && ok))),
+    [],
+  );
+
+  const renameFriend = useCallback(
+    (id: string, nickname: string) =>
+      new Promise<boolean>((resolve) => getSocket().timeout(8_000).emit('friends:rename', id, nickname, (err, ok) => resolve(!err && ok))),
+    [],
   );
 
   /** Plus: people online now, or null without Plus. */
@@ -1074,6 +1122,13 @@ export function useRandomCall() {
     setBackground,
     incomingCall,
     outgoingCall,
+    friendState,
+    browseFor,
+    addFriend,
+    listFriends,
+    callFriend,
+    removeFriend,
+    renameFriend,
     listUsers,
     callUser,
     cancelCall,

@@ -97,7 +97,25 @@ export interface AccountStore {
   setStripeCustomer(userId: string, customerId: string): Promise<void>;
   userByStripeCustomer(customerId: string): Promise<User | null>;
   setPlus(userId: string, plus: StoredPlus): Promise<void>;
+
+  /** One direction of a friendship: what `userId` saw of `friendId`, plus their nickname for them. */
+  addFriend(userId: string, friendId: string, seen: { gender: string | null; country: string | null }): Promise<void>;
+  listFriends(userId: string): Promise<StoredFriend[]>;
+  isFriend(userId: string, friendId: string): Promise<boolean>;
+  /** Removes both directions. */
+  removeFriendship(a: string, b: string): Promise<void>;
+  renameFriend(userId: string, friendId: string, nickname: string | null): Promise<void>;
 }
+
+export interface StoredFriend {
+  friendId: string;
+  nickname: string | null;
+  gender: string | null;
+  country: string | null;
+  createdAt: number;
+}
+
+export const MAX_FRIENDS = 200;
 
 interface TokenRow {
   userId: string;
@@ -108,6 +126,7 @@ interface TokenRow {
 export class MemoryAccountStore implements AccountStore {
   private users = new Map<string, User>();
   private tokens = new Map<string, TokenRow>();
+  private friends = new Map<string, Map<string, StoredFriend>>();
 
   async init() {}
 
@@ -155,6 +174,8 @@ export class MemoryAccountStore implements AccountStore {
   async deleteUser(id: string) {
     this.users.delete(id);
     await this.deleteTokensFor(id);
+    for (const other of this.friends.get(id)?.keys() ?? []) this.friends.get(other)?.delete(id);
+    this.friends.delete(id);
   }
 
   async createToken(userId: string, kind: TokenKind) {
@@ -193,6 +214,30 @@ export class MemoryAccountStore implements AccountStore {
     const u = this.users.get(userId);
     if (u) u.plus = { ...plus };
   }
+
+  async addFriend(userId: string, friendId: string, seen: { gender: string | null; country: string | null }) {
+    if (!this.friends.has(userId)) this.friends.set(userId, new Map());
+    const mine = this.friends.get(userId)!;
+    if (!mine.has(friendId)) mine.set(friendId, { friendId, nickname: null, ...seen, createdAt: Date.now() });
+  }
+
+  async listFriends(userId: string) {
+    return [...(this.friends.get(userId)?.values() ?? [])].sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  async isFriend(userId: string, friendId: string) {
+    return !!this.friends.get(userId)?.has(friendId);
+  }
+
+  async removeFriendship(a: string, b: string) {
+    this.friends.get(a)?.delete(b);
+    this.friends.get(b)?.delete(a);
+  }
+
+  async renameFriend(userId: string, friendId: string, nickname: string | null) {
+    const f = this.friends.get(userId)?.get(friendId);
+    if (f) f.nickname = nickname;
+  }
 }
 
 const ACCOUNT_SCHEMA = `
@@ -215,6 +260,15 @@ CREATE INDEX IF NOT EXISTS auth_tokens_user_idx ON auth_tokens (user_id);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS plus TEXT;
 CREATE INDEX IF NOT EXISTS users_stripe_customer_idx ON users (stripe_customer_id);
+CREATE TABLE IF NOT EXISTS friends (
+  user_id TEXT NOT NULL,
+  friend_id TEXT NOT NULL,
+  nickname TEXT,
+  gender TEXT,
+  country TEXT,
+  created_at BIGINT NOT NULL,
+  PRIMARY KEY (user_id, friend_id)
+);
 `;
 
 const toUser = (r: Record<string, unknown>): User => ({
@@ -274,6 +328,7 @@ export class PostgresAccountStore implements AccountStore {
 
   async deleteUser(id: string) {
     await this.pool.query('DELETE FROM auth_tokens WHERE user_id = $1', [id]);
+    await this.pool.query('DELETE FROM friends WHERE user_id = $1 OR friend_id = $1', [id]);
     await this.pool.query('DELETE FROM users WHERE id = $1', [id]);
   }
 
@@ -321,5 +376,39 @@ export class PostgresAccountStore implements AccountStore {
 
   async setPlus(userId: string, plus: StoredPlus) {
     await this.pool.query('UPDATE users SET plus = $2 WHERE id = $1', [userId, JSON.stringify(plus)]);
+  }
+
+  async addFriend(userId: string, friendId: string, seen: { gender: string | null; country: string | null }) {
+    await this.pool.query(
+      'INSERT INTO friends (user_id, friend_id, gender, country, created_at) VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING',
+      [userId, friendId, seen.gender, seen.country, Date.now()],
+    );
+  }
+
+  async listFriends(userId: string) {
+    const { rows } = await this.pool.query(
+      'SELECT friend_id, nickname, gender, country, created_at FROM friends WHERE user_id = $1 ORDER BY created_at DESC',
+      [userId],
+    );
+    return rows.map((r) => ({
+      friendId: r.friend_id as string,
+      nickname: (r.nickname as string | null) ?? null,
+      gender: (r.gender as string | null) ?? null,
+      country: (r.country as string | null) ?? null,
+      createdAt: Number(r.created_at),
+    }));
+  }
+
+  async isFriend(userId: string, friendId: string) {
+    const { rowCount } = await this.pool.query('SELECT 1 FROM friends WHERE user_id = $1 AND friend_id = $2', [userId, friendId]);
+    return (rowCount ?? 0) > 0;
+  }
+
+  async removeFriendship(a: string, b: string) {
+    await this.pool.query('DELETE FROM friends WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)', [a, b]);
+  }
+
+  async renameFriend(userId: string, friendId: string, nickname: string | null) {
+    await this.pool.query('UPDATE friends SET nickname = $3 WHERE user_id = $1 AND friend_id = $2', [userId, friendId, nickname]);
   }
 }

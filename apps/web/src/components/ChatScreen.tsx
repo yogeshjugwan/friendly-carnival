@@ -9,7 +9,7 @@ import { loadSettings } from '@/lib/settings';
 import type { RandomCall } from '@/lib/useRandomCall';
 import { AdSlot } from './AdSlot';
 import { DraggablePip, type Corner } from './DraggablePip';
-import { ChatIcon, PeopleIcon, VideoIcon } from './icons';
+import { VideoIcon } from './icons';
 import { CallControls, ReactionLayer } from './CallControls';
 import { FilterBar } from './FilterBar';
 import { LimitModal } from './LimitModal';
@@ -157,10 +157,10 @@ export function ChatScreen({ call }: { call: RandomCall }) {
             <FilterBar />
           </div>
           <span className="mr-auto sm:hidden [@media(max-height:500px)]:hidden" aria-hidden />
-          {/* Online count and the Online list are Plus-only. On wide video screens this lives in the bottom bar (like Meet's People). */}
+          {/* Online count and the Online list are Plus-only. */}
           <button
             onClick={() => (isPlus ? setShowOnline(true) : setOnlineUpsell(true))}
-            className={`flex items-center gap-1.5 rounded-full bg-[#3c4043] px-3 py-2 text-sm font-medium text-slate-100 hover:bg-[#4a4e52] ${isText ? '' : 'sm:hidden'}`}
+            className={`flex items-center gap-1.5 rounded-full bg-[#3c4043] px-3 py-2 text-sm font-medium text-slate-100 hover:bg-[#4a4e52]`}
             title={isPlus ? 'See who is online and call them' : 'See who is online (Plus)'}
           >
             <span aria-hidden>👥</span>
@@ -328,13 +328,13 @@ export function ChatScreen({ call }: { call: RandomCall }) {
           </div>
         )}
 
-        {/* Meet-style bottom bar under the video: clock · controls · chat & people */}
+        {/* Meet-style bottom bar under the video: clock | your name · controls */}
         {!isText && (
           <div className="grid shrink-0 grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_auto_1fr]">
             <div className="hidden items-center gap-3 truncate pl-1 text-[15px] text-slate-200 sm:flex">
               <Clock />
               <span className="text-slate-500">|</span>
-              <span className="truncate">{matched ? 'In a chat' : call.status === 'browsing' ? 'Browsing' : 'randomCall'}</span>
+              <span className="truncate" title={user ? user.email : 'Not logged in'}>{user ? user.email.split('@')[0] : 'Guest'}</span>
             </div>
             <div className="flex justify-center">
               <CallControls
@@ -348,33 +348,8 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                 onToggleFullscreen={toggleFullscreen}
               />
             </div>
-            <div className="hidden items-center justify-end gap-1 pr-1 sm:flex">
-              <button
-                onClick={() => (isPlus ? setShowOnline(true) : setOnlineUpsell(true))}
-                title={isPlus ? 'People online' : 'People online (Plus)'}
-                aria-label={isPlus && call.online !== null ? `People online: ${Math.max(0, call.online - 1)}` : 'People online (Plus)'}
-                className="relative flex h-12 w-12 items-center justify-center rounded-full text-slate-200 hover:bg-white/10"
-              >
-                <PeopleIcon />
-                <span className="absolute -right-0.5 top-0.5 rounded-full bg-[#3c4043] px-1.5 text-[11px] font-semibold text-slate-100">
-                  {isPlus && call.online !== null ? Math.max(0, call.online - 1) : '👑'}
-                </span>
-              </button>
-              <button
-                onClick={() => setChatOpen((o) => !o)}
-                aria-label={unread ? `Chat, ${unread} new` : 'Chat'}
-                aria-pressed={chatOpen}
-                title="Chat"
-                className={`relative flex h-12 w-12 items-center justify-center rounded-full transition ${chatOpen ? 'bg-sky-200 text-slate-900' : 'text-slate-200 hover:bg-white/10'}`}
-              >
-                <ChatIcon />
-                {unread > 0 && !chatOpen && (
-                  <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-bold text-white">
-                    {unread > 9 ? '9+' : unread}
-                  </span>
-                )}
-              </button>
-            </div>
+            {/* Keeps the controls centred, like Meet. */}
+            <div className="hidden sm:block" aria-hidden />
           </div>
         )}
       </div>

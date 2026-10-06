@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { MAX_INTERESTS, type ChatMode, type Gender, type JoinPayload } from '@rc/shared';
+import { TOPICS, MAX_INTERESTS, type ChatMode, type Gender, type JoinPayload } from '@rc/shared';
 import { useAuth } from '@/lib/auth';
 import { loadSettings, onSettingsChange } from '@/lib/settings';
 import { SiteFooter, SiteHeader } from './SiteHeader';
@@ -17,6 +17,24 @@ export function Landing({ online, onStart }: Props) {
   const isPlus = !!user?.plus.active;
   const [gender, setGender] = useState<Gender>('male');
   const [interestText, setInterestText] = useState('');
+  // Topic room (optional), remembered in this browser.
+  const [topic, setTopic] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      setTopic(window.localStorage.getItem('rc.topic'));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const pickTopic = (id: string | null) => {
+    setTopic(id);
+    try {
+      if (id) window.localStorage.setItem('rc.topic', id);
+      else window.localStorage.removeItem('rc.topic');
+    } catch {
+      /* ignore */
+    }
+  };
   const [agreed, setAgreed] = useState(false);
 
   // Prefill from saved settings (the account's, when logged in).
@@ -40,7 +58,7 @@ export function Landing({ online, onStart }: Props) {
     if (!agreed) return;
     // Remember the choices for next time; don't block the chat on the network.
     void saveSettings({ ...loadSettings(), gender, interests }).catch(() => undefined);
-    onStart({ gender, interests }, mode, browse);
+    onStart({ gender, interests, topic }, mode, browse);
   };
 
   return (
@@ -91,6 +109,29 @@ export function Landing({ online, onStart }: Props) {
             placeholder="music, travel, cricket"
             className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base"
           />
+
+          <p className="mt-4 text-sm font-medium text-slate-600">
+            Topic <span className="font-normal text-slate-400">(optional — meet people into the same thing)</span>
+          </p>
+          <div className="mt-1.5 flex flex-wrap gap-1.5" role="radiogroup" aria-label="Topic">
+            {TOPICS.map((t) => {
+              const on = topic === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => pickTopic(on ? null : t.id)}
+                  className={`rounded-full border px-3 py-1 text-sm transition ${
+                    on ? 'border-brand bg-brand text-white' : 'border-slate-300 text-slate-700 hover:border-brand'
+                  }`}
+                >
+                  {t.emoji} {t.label}
+                </button>
+              );
+            })}
+          </div>
 
           <label className="mt-5 flex items-start gap-2 text-sm text-slate-600">
             <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 h-4 w-4" />

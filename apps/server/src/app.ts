@@ -305,6 +305,7 @@ export function createApp(opts: AppOptions = {}): App {
       locationHidden: s.hideCountry,
       plus: s.plus,
       sharedInterests,
+      topic: a.topic && a.topic === b.topic ? a.topic : null,
     });
     io.to(a.id).emit('match:found', { ...base, initiator: false, partner: info(b) });
     io.to(b.id).emit('match:found', { ...base, initiator: true, partner: info(a) });
@@ -348,7 +349,7 @@ export function createApp(opts: AppOptions = {}): App {
       if (hasFilters(join.filters) && !socket.data.plus) socket.emit('plus:required');
       // Plus members browse the Online list; any logged-in user can wait for friends.
       const browsing = !!join.browse && (socket.data.plus || !!socket.data.userId);
-      const pairing = matchmaker.join(socket.id, join.gender, join.interests, join.mode, join.hideCountry, join.filters, browsing);
+      const pairing = matchmaker.join(socket.id, join.gender, join.interests, join.mode, join.hideCountry, join.filters, browsing, join.topic ?? null);
       if (pairing) announce(pairing);
       else if (!browsing) socket.emit('queue:waiting');
     });

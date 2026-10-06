@@ -1,4 +1,5 @@
 import {
+  TOPICS,
   MAX_INTEREST_LENGTH,
   MAX_INTERESTS,
   MAX_MESSAGE_LENGTH,
@@ -35,7 +36,9 @@ export function parseJoin(input: unknown): JoinPayload | null {
   const hideCountry = (input as Record<string, unknown>).hideCountry === true;
   const filters = parseFilters((input as Record<string, unknown>).filters) ?? undefined;
   const browse = (input as Record<string, unknown>).browse === true;
-  return { gender: gender as Gender, interests: cleaned, mode: chatMode, hideCountry, filters, browse };
+  const rawTopic = (input as Record<string, unknown>).topic;
+  const topic = typeof rawTopic === 'string' && TOPICS.some((t) => t.id === rawTopic) ? rawTopic : null;
+  return { gender: gender as Gender, interests: cleaned, mode: chatMode, hideCountry, filters, browse, topic };
 }
 
 export function parseSignal(input: unknown): SignalMessage | null {

@@ -24,7 +24,22 @@ export interface JoinPayload {
   filters?: MatchFilters;
   /** Plus: go online to browse the Online list without being matched at random yet. */
   browse?: boolean;
+  /** Topic room (one of TOPICS): matched with the same topic first. */
+  topic?: string | null;
 }
+
+/** Topic rooms people can pick; matching prefers the same topic. */
+export const TOPICS = [
+  { id: 'music', label: 'Music', emoji: '🎵' },
+  { id: 'gaming', label: 'Gaming', emoji: '🎮' },
+  { id: 'movies', label: 'Movies', emoji: '🎬' },
+  { id: 'sports', label: 'Sports', emoji: '🏏' },
+  { id: 'travel', label: 'Travel', emoji: '✈️' },
+  { id: 'language', label: 'Language exchange', emoji: '🗣️' },
+  { id: 'study', label: 'Study', emoji: '📚' },
+  { id: 'chill', label: 'Just chatting', emoji: '💬' },
+] as const;
+export type TopicId = (typeof TOPICS)[number]['id'];
 
 export interface PartnerInfo {
   gender: Gender;
@@ -35,6 +50,8 @@ export interface PartnerInfo {
   /** The partner has Plus. */
   plus?: boolean;
   sharedInterests: string[];
+  /** Set when you both picked the same topic room. */
+  topic?: string | null;
 }
 
 /** Someone on the Plus "Online now" list (no names, ids or exact location). */

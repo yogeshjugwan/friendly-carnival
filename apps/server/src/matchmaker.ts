@@ -7,6 +7,8 @@ export interface Session {
   publicId: string;
   /** Has joined the call screen (queue or browse) at least once, so their profile is set. */
   joined: boolean;
+  /** Topic room picked on the home page, if any. */
+  topic: string | null;
   gender: Gender;
   interests: string[];
   mode: ChatMode;
@@ -89,6 +91,7 @@ export class Matchmaker {
       id,
       publicId: randomUUID().replace(/-/g, '').slice(0, 16),
       joined: false,
+      topic: null,
       gender: 'male',
       interests: [],
       mode: 'video',
@@ -177,10 +180,12 @@ export class Matchmaker {
     hideCountry = false,
     filters: MatchFilters = NO_FILTERS,
     browse = false,
+    topic: string | null = null,
   ): Pairing | null {
     const session = this.sessions.get(id);
     if (!session || session.partnerId) return null;
     session.joined = true;
+    session.topic = topic;
     session.gender = gender;
     session.interests = interests;
     session.mode = mode;
@@ -347,7 +352,10 @@ export class Matchmaker {
       if (recent && (relaxedAt === undefined || relaxedAt - (this.queuedAt.get(otherId) ?? relaxedAt) < this.relaxAfterMs)) continue;
       if (isBlocked(session, other)) continue;
       if (!wants(session, other) || !wants(other, session)) continue;
-      const score = sharedInterests(session.interests, other.interests).length;
+      // Topic rooms: a different topic only after both have waited (in a sweep).
+      const sameTopic = session.topic === other.topic;
+      if (!sameTopic && (relaxedAt === undefined || relaxedAt - (this.queuedAt.get(otherId) ?? relaxedAt) < this.relaxAfterMs)) continue;
+      const score = sharedInterests(session.interests, other.interests).length + (sameTopic && session.topic ? 10 : 0);
       // Queue is oldest-first, so strict ">" keeps the longest waiter on ties.
       if (score > bestScore) {
         best = otherId;

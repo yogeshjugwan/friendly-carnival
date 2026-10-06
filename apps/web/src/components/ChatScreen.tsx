@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { NO_FILTERS } from '@rc/shared';
+import { NO_FILTERS, TOPICS } from '@rc/shared';
 import { useAuth } from '@/lib/auth';
 import { countryName, flagEmoji, GENDER_ICON, GENDER_LABEL } from '@/lib/format';
 import { loadSettings } from '@/lib/settings';
@@ -48,6 +48,11 @@ function PartnerBadge({ call }: { call: RandomCall }) {
       {partner.plus && (
         <span title="Plus member" aria-label="Plus member">
           👑
+        </span>
+      )}
+      {partner.topic && (
+        <span className="rounded-full bg-brand/80 px-2 py-0.5 text-[11px] font-semibold text-white">
+          {TOPICS.find((t) => t.id === partner.topic)?.emoji} #{TOPICS.find((t) => t.id === partner.topic)?.label}
         </span>
       )}
       {partner.sharedInterests.length > 0 && (

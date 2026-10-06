@@ -12,6 +12,7 @@ import {
 import { hashPassword, publicPlus, verifyPassword, type AccountStore, type User } from './accounts.ts';
 import { bearer, cors, RateLimiter, readJson, sendJson } from './http.ts';
 import { linkEmail, type Mailer } from './mailer.ts';
+import { isPushSubscription, type PushService } from './push.ts';
 import { parseSettings } from './validate.ts';
 
 export interface AuthDeps {
@@ -22,6 +23,7 @@ export interface AuthDeps {
   origins: (string | RegExp)[];
   /** Rate-limit key for the caller (hashed IP). */
   clientKey: (req: IncomingMessage) => string;
+  push?: PushService;
 }
 
 /** An invite link can be attached up to a day after sign-up. */
@@ -143,6 +145,11 @@ export function createAuthHandler(deps: AuthDeps) {
         return sendJson(res, 200, { ok: true }), true;
       }
 
+      if (route === 'GET /auth/push/key') {
+        const publicKey = deps.push ? await deps.push.publicKey() : null;
+        return publicKey ? (sendJson(res, 200, { publicKey }), true) : fail(503, 'Notifications are not available');
+      }
+
       // Everything below needs a logged-in user.
       const user = await currentUser(req);
       if (!user) return fail(401, 'Please log in');
@@ -164,6 +171,22 @@ export function createAuthHandler(deps: AuthDeps) {
         if (!settings) return fail(400, 'Invalid settings');
         await accounts.updateSettings(user.id, settings);
         return sendJson(res, 200, publicUser({ ...user, settings })), true;
+      }
+
+      if (route === 'POST /auth/push/subscribe') {
+        const { subscription } = await readJson(req);
+        if (!isPushSubscription(subscription)) return fail(400, 'Invalid subscription');
+        if ((await accounts.pushSubscriptions(user.id)).length >= 10) return fail(409, 'Too many devices have notifications on');
+        await accounts.addPushSubscription(user.id, subscription);
+        return sendJson(res, 200, { ok: true }), true;
+      }
+
+      if (route === 'POST /auth/push/unsubscribe') {
+        const { endpoint } = await readJson(req);
+        if (typeof endpoint !== 'string') return fail(400, 'Invalid request');
+        const mine = await accounts.pushSubscriptions(user.id);
+        if (mine.some((s) => s.endpoint === endpoint)) await accounts.removePushSubscription(endpoint);
+        return sendJson(res, 200, { ok: true }), true;
       }
 
       if (route === 'GET /auth/referral') {

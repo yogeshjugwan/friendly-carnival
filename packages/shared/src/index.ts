@@ -384,6 +384,22 @@ export const BOOST = { coins: 100, minutes: 30 } as const;
  * chat, you both get a free Plus day (or coins if you already pay for Plus).
  */
 export const REFERRAL = { plusDays: 1, coins: 100, maxRewards: 30 } as const;
+/** What a push notification carries (shown by the service worker). */
+export interface PushPayload {
+  title: string;
+  body: string;
+  /** Path to open when tapped. */
+  url: string;
+  /** Same tag replaces an earlier notification instead of stacking. */
+  tag?: string;
+}
+
+/** A browser push subscription, as PushSubscription.toJSON() gives it. */
+export interface PushSubscriptionJSON {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+}
+
 export type ReferralReward = { kind: 'plus'; days: number } | { kind: 'coins'; coins: number };
 export interface ReferralInfo {
   code: string;

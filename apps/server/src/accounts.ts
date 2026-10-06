@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import type { Pool } from 'pg';
-import { NO_FILTERS, type PendingVerification, type PlusPlan, type PlusStatus, type UserSettings, type VerifyGestureId } from '@rc/shared';
+import { NO_FILTERS, type PendingVerification, type PushSubscriptionJSON, type PlusPlan, type PlusStatus, type UserSettings, type VerifyGestureId } from '@rc/shared';
 
 const scrypt = promisify(scryptCb) as (password: string, salt: Buffer, keylen: number, opts: object) => Promise<Buffer>;
 const SCRYPT = { N: 16_384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
@@ -136,6 +136,13 @@ export interface AccountStore {
   /** Marks the invite reward paid; false if it already was (so it pays once). */
   markReferralRewarded(userId: string): Promise<boolean>;
   referralCounts(referrerId: string): Promise<{ invited: number; rewarded: number }>;
+  /** Small server-wide secrets (e.g. the Web Push keys). */
+  appSecret(key: string): Promise<string | null>;
+  /** Stores a secret unless one exists; returns the stored value either way. */
+  initAppSecret(key: string, value: string): Promise<string>;
+  addPushSubscription(userId: string, sub: PushSubscriptionJSON): Promise<void>;
+  removePushSubscription(endpoint: string): Promise<void>;
+  pushSubscriptions(userId: string): Promise<PushSubscriptionJSON[]>;
   /** Totals and per-day sign-ups / coin purchases since a time, for admin analytics. */
   accountStats(since: number): Promise<AccountStats>;
   /** One direction of a friendship: what `userId` saw of `friendId`, plus their nickname for them. */
@@ -233,6 +240,7 @@ export class MemoryAccountStore implements AccountStore {
   async deleteUser(id: string) {
     this.users.delete(id);
     this.selfies.delete(id);
+    for (const [endpoint, p] of this.pushSubs) if (p.userId === id) this.pushSubs.delete(endpoint);
     await this.deleteTokensFor(id);
     for (const other of this.friends.get(id)?.keys() ?? []) this.friends.get(other)?.delete(id);
     this.friends.delete(id);
@@ -289,6 +297,29 @@ export class MemoryAccountStore implements AccountStore {
   }
 
   private purchases: { at: number; coins: number }[] = [];
+  private secrets = new Map<string, string>();
+  private pushSubs = new Map<string, { userId: string; sub: PushSubscriptionJSON }>();
+
+  async appSecret(key: string) {
+    return this.secrets.get(key) ?? null;
+  }
+
+  async initAppSecret(key: string, value: string) {
+    if (!this.secrets.has(key)) this.secrets.set(key, value);
+    return this.secrets.get(key)!;
+  }
+
+  async addPushSubscription(userId: string, sub: PushSubscriptionJSON) {
+    this.pushSubs.set(sub.endpoint, { userId, sub });
+  }
+
+  async removePushSubscription(endpoint: string) {
+    this.pushSubs.delete(endpoint);
+  }
+
+  async pushSubscriptions(userId: string) {
+    return [...this.pushSubs.values()].filter((p) => p.userId === userId).map((p) => p.sub);
+  }
 
   async accountStats(since: number): Promise<AccountStats> {
     const all = [...this.users.values()];
@@ -433,6 +464,18 @@ CREATE TABLE IF NOT EXISTS verifications (
   photo TEXT NOT NULL,
   created_at BIGINT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS app_secrets (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  endpoint TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  created_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS push_subscriptions_user_idx ON push_subscriptions (user_id);
 CREATE TABLE IF NOT EXISTS friends (
   user_id TEXT NOT NULL,
   friend_id TEXT NOT NULL,
@@ -510,6 +553,7 @@ export class PostgresAccountStore implements AccountStore {
     await this.pool.query('DELETE FROM friends WHERE user_id = $1 OR friend_id = $1', [id]);
     await this.pool.query('DELETE FROM coin_ledger WHERE user_id = $1', [id]);
     await this.pool.query('DELETE FROM verifications WHERE user_id = $1', [id]);
+    await this.pool.query('DELETE FROM push_subscriptions WHERE user_id = $1', [id]);
     await this.pool.query('DELETE FROM users WHERE id = $1', [id]);
   }
 
@@ -664,6 +708,40 @@ export class PostgresAccountStore implements AccountStore {
       [userId],
     );
     return !!rowCount;
+  }
+
+  async appSecret(key: string) {
+    const { rows } = await this.pool.query('SELECT value FROM app_secrets WHERE key = $1', [key]);
+    return (rows[0]?.value as string | undefined) ?? null;
+  }
+
+  async initAppSecret(key: string, value: string) {
+    try {
+      await this.pool.query('INSERT INTO app_secrets (key, value) VALUES ($1, $2)', [key, value]);
+    } catch {
+      // Another instance stored one first; use theirs.
+    }
+    return (await this.appSecret(key))!;
+  }
+
+  async addPushSubscription(userId: string, sub: PushSubscriptionJSON) {
+    await this.pool.query('DELETE FROM push_subscriptions WHERE endpoint = $1', [sub.endpoint]);
+    await this.pool.query('INSERT INTO push_subscriptions (endpoint, user_id, p256dh, auth, created_at) VALUES ($1,$2,$3,$4,$5)', [
+      sub.endpoint,
+      userId,
+      sub.keys.p256dh,
+      sub.keys.auth,
+      Date.now(),
+    ]);
+  }
+
+  async removePushSubscription(endpoint: string) {
+    await this.pool.query('DELETE FROM push_subscriptions WHERE endpoint = $1', [endpoint]);
+  }
+
+  async pushSubscriptions(userId: string) {
+    const { rows } = await this.pool.query('SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = $1', [userId]);
+    return rows.map((r) => ({ endpoint: r.endpoint as string, keys: { p256dh: r.p256dh as string, auth: r.auth as string } }));
   }
 
   async accountStats(since: number): Promise<AccountStats> {

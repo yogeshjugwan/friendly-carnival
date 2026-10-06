@@ -9,6 +9,7 @@ import { errorText, Field, FormError, FormNote, Submit } from '@/components/form
 import { api, useAuth } from '@/lib/auth';
 import { loadSettings } from '@/lib/settings';
 import { BlockedList } from '@/components/BlockedList';
+import { InstallButton, NotificationsToggle } from '@/components/Pwa';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -159,6 +160,13 @@ export default function SettingsPage() {
             >
               Log out
             </button>
+          </Section>
+          <Section title="Notifications & app">
+            <p className="mt-3 text-sm text-slate-600">Get a notification when a friend comes online, your badge is approved or an invite pays off.</p>
+            <div className="mt-3 flex flex-wrap items-start gap-3">
+              <NotificationsToggle />
+              <InstallButton className="[&_button]:bg-slate-800 [&_p]:text-slate-600" />
+            </div>
           </Section>
           <Section title="Invite friends">
             <p className="mt-3 text-sm text-slate-600">

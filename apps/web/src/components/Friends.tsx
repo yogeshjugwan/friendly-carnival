@@ -6,6 +6,7 @@ import { MAX_FRIEND_NICKNAME, type Friend } from '@rc/shared';
 import { countryName, flagEmoji, GENDER_ICON, GENDER_LABEL } from '@/lib/format';
 import type { RandomCall } from '@/lib/useRandomCall';
 import { FAIL_TEXT, useSecondsLeft } from './OnlineUsers';
+import { NotificationsToggle } from './Pwa';
 
 const REFRESH_MS = 5_000;
 
@@ -172,6 +173,11 @@ export function FriendsPanel({ call, onClose, className = '' }: { call: RandomCa
             <p className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-slate-400">All friends</p>
             <ul className="space-y-2">{others.map(row)}</ul>
           </>
+        )}
+        {Array.isArray(friends) && friends.length > 0 && (
+          <div className="mt-5">
+            <NotificationsToggle compact />
+          </div>
         )}
       </div>
       <p className="px-5 py-3 text-center text-xs text-slate-500">Friends can call you while you&apos;re in the call screen. Emails are never shown.</p>

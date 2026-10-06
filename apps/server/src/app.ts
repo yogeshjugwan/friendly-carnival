@@ -35,6 +35,7 @@ import {
 } from '@rc/shared';
 import type { AccountStore } from './accounts.ts';
 import { Analytics } from './analytics.ts';
+import { PushService, type PushSender } from './push.ts';
 import { isPlusActive, MAX_FRIENDS, MemoryAccountStore, NO_PLUS } from './accounts.ts';
 import type { BillingProvider } from './billing.ts';
 import { createBillingHandler } from './billing-http.ts';
@@ -113,6 +114,8 @@ export interface AppOptions {
   limits?: LimitOptions | null;
   /** Clock for the match limit (tests). */
   now?: () => number;
+  /** Replaces Web Push delivery (tests). */
+  pushSender?: PushSender;
   /** TURN provider (defaults to the environment); fetch is injectable for tests. */
   turn?: TurnConfig;
   turnFetch?: typeof fetch;
@@ -156,7 +159,10 @@ export function createApp(opts: AppOptions = {}): App {
     }
   });
 
+  const push = new PushService(accounts, opts.webUrl ?? config.webUrl, opts.pushSender);
+
   const handleAuth = createAuthHandler({
+    push,
     accounts,
     mailer: opts.mailer ?? new ConsoleMailer(),
     webUrl: opts.webUrl ?? config.webUrl,
@@ -225,6 +231,9 @@ export function createApp(opts: AppOptions = {}): App {
           onPlusChanged,
           onVerifiedChanged: (userId, verified) => {
             matchmaker.setVerified(userId, verified);
+            if (verified) {
+              void push.send(userId, { title: '✓ You are verified', body: 'Your blue badge is live — people now see you are real.', url: '/', tag: 'verified' });
+            }
             for (const s of io.sockets.sockets.values()) if (s.data.userId === userId) s.data.verified = verified;
           },
         })
@@ -371,10 +380,14 @@ export function createApp(opts: AppOptions = {}): App {
     if (paid) {
       await accounts.changeCoins(userId, REFERRAL.coins, 'referral', ref);
       io.to(socketsOfUser(userId)).emit('referral:rewarded', { kind: 'coins', coins: REFERRAL.coins });
+      void push.send(userId, { title: '🎁 Invite reward', body: `A friend you invited joined — you got ${REFERRAL.coins} coins!`, url: '/coins', tag: 'referral' });
     } else {
       const from = isPlusActive(u.plus) && u.plus.until ? u.plus.until : Date.now();
       await accounts.setPlus(userId, { ...NO_PLUS, status: 'admin', until: from + REFERRAL.plusDays * 86_400_000 });
       io.to(socketsOfUser(userId)).emit('referral:rewarded', { kind: 'plus', days: REFERRAL.plusDays });
+      if (!socketsOfUser(userId).length) {
+        void push.send(userId, { title: '🎁 You got free Plus', body: 'A friend you invited just had their first chat. Enjoy a free day of Plus!', url: '/', tag: 'referral' });
+      }
     }
     onPlusChanged(userId);
   };
@@ -398,6 +411,41 @@ export function createApp(opts: AppOptions = {}): App {
     await grantReferral(u.id, `referral:new:${u.id}`);
     const { rewarded } = await accounts.referralCounts(u.referredBy);
     if (rewarded <= REFERRAL.maxRewards) await grantReferral(u.referredBy, `referral:by:${u.id}`);
+  };
+
+  /**
+   * Push "your friend is online" to friends who aren't on the site. At most once
+   * per friend pair every 6 hours, and once per 30 minutes per person coming online.
+   */
+  /** Same opaque id the Friends list gives `friendId` when `viewer` looks at it. */
+  const friendHandleFor = (viewer: string, friendId: string) =>
+    createHash('sha256').update(`f:${viewer}:${friendId}`).digest('base64url').slice(0, 16);
+  const FRIEND_PAIR_MS = 6 * 60 * 60_000;
+  const FRIEND_SELF_MS = 30 * 60_000;
+  const lastFriendPush = new Map<string, number>();
+  const notifyFriendsOnline = async (userId: string) => {
+    const now = Date.now();
+    if (now - (lastFriendPush.get(userId) ?? 0) < FRIEND_SELF_MS) return;
+    lastFriendPush.set(userId, now);
+    if (lastFriendPush.size > 50_000) {
+      for (const [k, t] of lastFriendPush) if (now - t > FRIEND_PAIR_MS) lastFriendPush.delete(k);
+    }
+    for (const f of await accounts.listFriends(userId)) {
+      if (socketsOfUser(f.friendId).length) continue;
+      const pair = `${f.friendId}<${userId}`;
+      if (now - (lastFriendPush.get(pair) ?? 0) < FRIEND_PAIR_MS) continue;
+      const subs = await accounts.pushSubscriptions(f.friendId);
+      if (!subs.length) continue;
+      lastFriendPush.set(pair, now);
+      const theirs = (await accounts.listFriends(f.friendId)).find((x) => x.friendId === userId);
+      const name = theirs?.nickname || 'Your friend';
+      await push.send(f.friendId, {
+        title: '❤️ A friend is online',
+        body: `${name} is on randomCall now — call them before they go!`,
+        url: '/?friends=1',
+        tag: `friend-online-${friendHandleFor(f.friendId, userId)}`,
+      });
+    }
   };
 
   const announce = (pairing: Pairing) => {
@@ -460,6 +508,10 @@ export function createApp(opts: AppOptions = {}): App {
     });
     socket.emit('stats', { online: matchmaker.onlineCount });
     analytics.visit(socket.data.userId ? `u:${socket.data.userId}` : socket.data.deviceId);
+    const onlineUser = socket.data.userId;
+    if (onlineUser && [...io.sockets.sockets.values()].filter((x) => x.data.userId === onlineUser).length === 1) {
+      void notifyFriendsOnline(onlineUser).catch((e) => console.error('[push]', e));
+    }
     analytics.peak('peakOnline', matchmaker.onlineCount);
     if (limits) socket.emit('limit:status', limits.status(limitKey(socket.data), plus));
     if (userId) void pushWallet(userId).catch(() => undefined);

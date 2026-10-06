@@ -6,6 +6,7 @@ import { TOPICS, MAX_INTERESTS, type ChatMode, type Gender, type JoinPayload } f
 import { useAuth } from '@/lib/auth';
 import { loadSettings, onSettingsChange } from '@/lib/settings';
 import { SiteFooter, SiteHeader } from './SiteHeader';
+import { InstallButton } from './Pwa';
 
 interface Props {
   online: number | null;
@@ -36,6 +37,9 @@ export function Landing({ online, onStart }: Props) {
     }
   };
   const [agreed, setAgreed] = useState(false);
+  // Opened from a "your friend is online" notification.
+  const [friendOnline, setFriendOnline] = useState(false);
+  useEffect(() => setFriendOnline(new URLSearchParams(window.location.search).has('friends')), []);
 
   // Prefill from saved settings (the account's, when logged in).
   useEffect(() => {
@@ -155,12 +159,15 @@ export function Landing({ online, onStart }: Props) {
           >
             Start Chat
           </button>
+          {user && friendOnline && (
+            <p className="mt-3 text-center text-sm font-medium text-pink-600">❤️ A friend is online — tick the box above, then call them.</p>
+          )}
           {user && (
             <button
               type="button"
               disabled={!agreed}
               onClick={() => begin('video', 'friends')}
-              className="mt-2 w-full rounded-lg border-2 border-pink-300 py-2.5 font-semibold text-pink-600 transition hover:bg-pink-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className={`mt-2 w-full rounded-lg border-2 border-pink-300 ${friendOnline ? 'ring-4 ring-pink-300/60' : ''} py-2.5 font-semibold text-pink-600 transition hover:bg-pink-50 disabled:cursor-not-allowed disabled:opacity-50`}
             >
               ❤️ Call a friend
             </button>
@@ -184,6 +191,7 @@ export function Landing({ online, onStart }: Props) {
             Don&apos;t want your camera on? Start Text Chat
           </button>
         </form>
+        <InstallButton className="mt-4 text-center" />
       </section>
 
       <SiteFooter />

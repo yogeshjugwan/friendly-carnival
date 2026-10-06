@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { NO_PLUS, type AccountStore } from './accounts.ts';
 import { cors, readJson } from './http.ts';
+import { dayOf, type Analytics } from './analytics.ts';
 import type { Safety } from './safety.ts';
 import type { SafetyStore } from './store.ts';
 
@@ -16,6 +17,7 @@ export interface AdminDeps {
   accounts?: AccountStore;
   onPlusChanged?: (userId: string) => void;
   onVerifiedChanged?: (userId: string, verified: boolean) => void;
+  analytics?: Analytics;
 }
 
 const sameToken = (given: string, expected: string) => {
@@ -59,6 +61,44 @@ export async function handleAdmin(req: IncomingMessage, res: ServerResponse, dep
           activeBans: bans.length,
           openAppeals: appeals.length,
           online: deps.online(),
+        }),
+        true
+      );
+    }
+
+    // Daily numbers for the dashboard: ?days=30 (max 365).
+    if (req.method === 'GET' && resource === 'analytics' && deps.analytics) {
+      const n = Math.min(365, Math.max(1, Number(url.searchParams.get('days')) || 30));
+      const now = Date.now();
+      const days = Array.from({ length: n }, (_, i) => dayOf(now - (n - 1 - i) * 24 * HOUR));
+      const since = now - n * 24 * HOUR;
+      const [stored, today, acc] = await Promise.all([
+        store.listStats(days[0]),
+        deps.analytics.today(),
+        deps.accounts?.accountStats(since) ?? Promise.resolve(null),
+      ]);
+      const byDay = new Map(stored.map((d) => [d.day, d.values]));
+      byDay.set(today.day, today.values);
+      const extra = new Map<string, Record<string, number>>();
+      const add = (day: string, metric: string, by: number) => {
+        if (!extra.has(day)) extra.set(day, {});
+        const e = extra.get(day)!;
+        e[metric] = (e[metric] ?? 0) + by;
+      };
+      for (const t of acc?.signups ?? []) add(dayOf(t), 'signups', 1);
+      for (const p of acc?.purchases ?? []) {
+        add(dayOf(p.at), 'coinPurchases', 1);
+        add(dayOf(p.at), 'coinsSold', p.coins);
+      }
+      return (
+        send(200, {
+          days: days.map((day) => ({ day, values: { ...(byDay.get(day) ?? {}), ...(extra.get(day) ?? {}) } })),
+          totals: {
+            users: acc?.users ?? null,
+            plusActive: acc?.plusActive ?? null,
+            verified: acc?.verified ?? null,
+            online: deps.online(),
+          },
         }),
         true
       );

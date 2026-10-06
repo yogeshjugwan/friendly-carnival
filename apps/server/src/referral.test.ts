@@ -79,7 +79,7 @@ test('referrals: invite link, one reward each after the first chat, Plus day or 
     assert.deepEqual(((await call('/auth/referral', inviter.token)).body as unknown as ReferralInfo).rewarded, 1);
 
     // A paying inviter gets coins instead; an unconfirmed email gets nothing yet.
-    await accounts.setPlus(inviter.id, { ...NO_PLUS, status: 'active', plan: 'monthly', until: Date.now() + 30 * 86_400_000 });
+    await accounts.setPlus(inviter.id, { ...NO_PLUS, status: 'active', plan: 'month', until: Date.now() + 30 * 86_400_000 });
     const second = await user('second@example.com');
     const unconfirmed = await user('unconfirmed@example.com', false);
     await call('/auth/referral', second.token, { code: info.code });

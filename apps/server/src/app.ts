@@ -34,6 +34,7 @@ import {
   type ServerToClientEvents,
 } from '@rc/shared';
 import type { AccountStore } from './accounts.ts';
+import { Analytics } from './analytics.ts';
 import { isPlusActive, MAX_FRIENDS, MemoryAccountStore, NO_PLUS } from './accounts.ts';
 import type { BillingProvider } from './billing.ts';
 import { createBillingHandler } from './billing-http.ts';
@@ -220,6 +221,7 @@ export function createApp(opts: AppOptions = {}): App {
           origins,
           online: () => matchmaker.onlineCount,
           accounts,
+          analytics,
           onPlusChanged,
           onVerifiedChanged: (userId, verified) => {
             matchmaker.setVerified(userId, verified);
@@ -322,6 +324,9 @@ export function createApp(opts: AppOptions = {}): App {
       });
   });
 
+  const analytics = new Analytics(store, opts.now);
+  analytics.start();
+
   const turn = new TurnCredentials(config.iceServers, opts.turn ?? config.turn, opts.turnFetch);
   void turn.start();
 
@@ -334,6 +339,7 @@ export function createApp(opts: AppOptions = {}): App {
   const mayMatch = (socket: { data: SocketData; emit: IO['emit'] }) => {
     if (!limits || limits.canMatch(limitKey(socket.data), socket.data.plus)) return true;
     socket.emit('limit:reached', limits.status(limitKey(socket.data), false));
+    analytics.count('limitHits');
     return false;
   };
 
@@ -388,6 +394,7 @@ export function createApp(opts: AppOptions = {}): App {
     if (io.sockets.sockets.get(partnerId)?.data.userId === u.referredBy) return;
     if (!(await accounts.markReferralRewarded(u.id))) return;
     d.referralDone = true;
+    analytics.count('referrals');
     await grantReferral(u.id, `referral:new:${u.id}`);
     const { rewarded } = await accounts.referralCounts(u.referredBy);
     if (rewarded <= REFERRAL.maxRewards) await grantReferral(u.referredBy, `referral:by:${u.id}`);
@@ -409,6 +416,8 @@ export function createApp(opts: AppOptions = {}): App {
       }
     }
     for (const [x, y] of [[a.id, b.id], [b.id, a.id]]) void checkReferral(x, y).catch((e) => console.error('[referral]', e));
+    analytics.count('matches');
+    analytics.count(b.mode === 'video' ? 'videoMatches' : 'textMatches');
     const base = { matchId, mode: b.mode, reconnected, iceServers: turn.current() };
     // b just joined (or pressed Back) and initiates, so a is ready to answer.
     const info = (s: Pairing['a']) => ({
@@ -450,6 +459,8 @@ export function createApp(opts: AppOptions = {}): App {
       boostUntil: socket.data.boostUntil ?? null,
     });
     socket.emit('stats', { online: matchmaker.onlineCount });
+    analytics.visit(socket.data.userId ? `u:${socket.data.userId}` : socket.data.deviceId);
+    analytics.peak('peakOnline', matchmaker.onlineCount);
     if (limits) socket.emit('limit:status', limits.status(limitKey(socket.data), plus));
     if (userId) void pushWallet(userId).catch(() => undefined);
     if (socket.data.ban) socket.emit('banned', socket.data.ban);
@@ -536,6 +547,7 @@ export function createApp(opts: AppOptions = {}): App {
         }
         socket.emit('gift', { giftId: gift.id, from: 'me', earned });
         io.to(partner.id).emit('gift', { giftId: gift.id, from: 'them', earned });
+        analytics.count('gifts');
         done(r);
       } catch (e) {
         console.error('[gift]', e);
@@ -553,6 +565,7 @@ export function createApp(opts: AppOptions = {}): App {
         const current = (await accounts.userById(me))?.boostUntil ?? 0;
         const until = Math.max(Date.now(), current) + BOOST.minutes * 60_000;
         await accounts.setBoost(me, until);
+        analytics.count('boosts');
         matchmaker.setBoost(me, until);
         const w = (await pushWallet(me))!;
         done({ ok: true, wallet: w });
@@ -781,8 +794,10 @@ export function createApp(opts: AppOptions = {}): App {
       if (!limits) return;
       const key = limitKey(socket.data);
       const result = limits.finishAd(key);
-      if (result === 'ok') socket.emit('limit:granted', limits.status(key, socket.data.plus));
-      else socket.emit('limit:ad-rejected', result);
+      if (result === 'ok') {
+        socket.emit('limit:granted', limits.status(key, socket.data.plus));
+        analytics.count('adsWatched');
+      } else socket.emit('limit:ad-rejected', result);
     });
 
     socket.on('settings:reconnect', (allow) => {
@@ -824,6 +839,7 @@ export function createApp(opts: AppOptions = {}): App {
 
       try {
         await safety.report({ deviceId, ipHash, userId }, target, report);
+        analytics.count('reports');
         // People you report are never matched with you again.
         if (report.source === 'user') {
           await store.addBlock(deviceId, target.deviceId);
@@ -991,6 +1007,7 @@ export function createApp(opts: AppOptions = {}): App {
       turn.stop();
       for (const r of callRequests.values()) clearTimeout(r.timer);
       clearInterval(purgeTimer);
+      await analytics.stop();
       await io.close();
     },
   };

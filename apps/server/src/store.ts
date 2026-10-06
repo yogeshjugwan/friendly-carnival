@@ -94,6 +94,13 @@ export interface SafetyStore {
 
   /** Drop report snapshots older than the retention window. */
   purgeSnapshots(olderThan: number): Promise<number>;
+
+  /** Daily counters for admin analytics (day = 'YYYY-MM-DD'). */
+  loadStats(day: string): Promise<Record<string, number>>;
+  /** Replaces the counters stored for a day. */
+  saveStats(day: string, values: Record<string, number>): Promise<void>;
+  /** Days on or after `fromDay`, oldest first. */
+  listStats(fromDay: string): Promise<{ day: string; values: Record<string, number> }[]>;
 }
 
 const isActive = (b: Ban, now: number) => !b.liftedAt && (b.expiresAt === null || b.expiresAt > now);
@@ -112,8 +119,24 @@ export class MemoryStore implements SafetyStore {
   private bans = new Map<string, Ban>();
   private appeals = new Map<string, Appeal>();
   private blocks = new Map<string, Map<string, { info: BlockInfo; createdAt: number }>>();
+  private stats = new Map<string, Record<string, number>>();
 
   async init() {}
+
+  async loadStats(day: string) {
+    return { ...(this.stats.get(day) ?? {}) };
+  }
+
+  async saveStats(day: string, values: Record<string, number>) {
+    this.stats.set(day, { ...values });
+  }
+
+  async listStats(fromDay: string) {
+    return [...this.stats.entries()]
+      .filter(([day]) => day >= fromDay)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([day, values]) => ({ day, values: { ...values } }));
+  }
 
   async addReport(input: NewReport): Promise<Report> {
     const report: Report = { ...input, id: randomUUID(), status: 'open', createdAt: Date.now(), resolvedAt: null, resolution: null };

@@ -136,6 +136,8 @@ export interface AccountStore {
   /** Marks the invite reward paid; false if it already was (so it pays once). */
   markReferralRewarded(userId: string): Promise<boolean>;
   referralCounts(referrerId: string): Promise<{ invited: number; rewarded: number }>;
+  /** Totals and per-day sign-ups / coin purchases since a time, for admin analytics. */
+  accountStats(since: number): Promise<AccountStats>;
   /** One direction of a friendship: what `userId` saw of `friendId`, plus their nickname for them. */
   addFriend(userId: string, friendId: string, seen: { gender: string | null; country: string | null }): Promise<void>;
   listFriends(userId: string): Promise<StoredFriend[]>;
@@ -143,6 +145,16 @@ export interface AccountStore {
   /** Removes both directions. */
   removeFriendship(a: string, b: string): Promise<void>;
   renameFriend(userId: string, friendId: string, nickname: string | null): Promise<void>;
+}
+
+export interface AccountStats {
+  users: number;
+  plusActive: number;
+  verified: number;
+  /** Sign-up times since `since` (ms). */
+  signups: number[];
+  /** Coin purchases since `since`: when and how many coins. */
+  purchases: { at: number; coins: number }[];
 }
 
 export interface StoredFriend {
@@ -263,7 +275,7 @@ export class MemoryAccountStore implements AccountStore {
     if (u) u.plus = { ...plus };
   }
 
-  async changeCoins(userId: string, delta: number, _reason: string, ref?: string) {
+  async changeCoins(userId: string, delta: number, reason: string, ref?: string) {
     const u = this.users.get(userId);
     if (!u) return null;
     if (ref) {
@@ -272,7 +284,21 @@ export class MemoryAccountStore implements AccountStore {
     if (u.coins + delta < 0) return null;
     if (ref) this.coinRefs.add(ref);
     u.coins += delta;
+    if (reason === 'purchase') this.purchases.push({ at: Date.now(), coins: delta });
     return u.coins;
+  }
+
+  private purchases: { at: number; coins: number }[] = [];
+
+  async accountStats(since: number): Promise<AccountStats> {
+    const all = [...this.users.values()];
+    return {
+      users: all.length,
+      plusActive: all.filter((u) => isPlusActive(u.plus)).length,
+      verified: all.filter((u) => u.verifiedAt).length,
+      signups: all.map((u) => u.createdAt).filter((t) => t >= since),
+      purchases: this.purchases.filter((p) => p.at >= since),
+    };
   }
 
   async setBoost(userId: string, until: number | null) {
@@ -638,6 +664,21 @@ export class PostgresAccountStore implements AccountStore {
       [userId],
     );
     return !!rowCount;
+  }
+
+  async accountStats(since: number): Promise<AccountStats> {
+    const [users, ledger] = await Promise.all([
+      this.pool.query('SELECT created_at, plus, verified_at FROM users'),
+      this.pool.query("SELECT delta, created_at FROM coin_ledger WHERE reason = 'purchase' AND created_at >= $1", [since]),
+    ]);
+    const plusOf = (raw: unknown) => ({ ...NO_PLUS, ...(JSON.parse((raw as string) || '{}') as Partial<StoredPlus>) });
+    return {
+      users: users.rows.length,
+      plusActive: users.rows.filter((r) => isPlusActive(plusOf(r.plus))).length,
+      verified: users.rows.filter((r) => r.verified_at != null).length,
+      signups: users.rows.map((r) => Number(r.created_at)).filter((t) => t >= since),
+      purchases: ledger.rows.map((r) => ({ at: Number(r.created_at), coins: Number(r.delta) })),
+    };
   }
 
   async referralCounts(referrerId: string) {

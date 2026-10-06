@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { VERIFY_GESTURES, type PendingVerification } from '@rc/shared';
+import { AdminAnalytics } from '@/components/AdminAnalytics';
 
 const API = process.env.NEXT_PUBLIC_SIGNALING_URL ?? 'http://localhost:4100';
 const TOKEN_KEY = 'rc.adminToken';
@@ -43,7 +44,7 @@ interface Appeal {
   createdAt: number;
 }
 
-type Tab = 'reports' | 'verify' | 'bans' | 'appeals' | 'history';
+type Tab = 'reports' | 'verify' | 'bans' | 'appeals' | 'history' | 'analytics';
 
 const ago = (t: number) => {
   const m = Math.round((Date.now() - t) / 60_000);
@@ -231,8 +232,8 @@ export default function AdminPage() {
       <GivePlus api={api} />
       <GiveCoins api={api} />
 
-      <nav className="mt-5 flex gap-2 border-b border-slate-700">
-        {(['reports', 'verify', 'appeals', 'bans', 'history'] as Tab[]).map((t) => (
+      <nav className="mt-5 flex gap-2 overflow-x-auto border-b border-slate-700">
+        {(['reports', 'verify', 'appeals', 'bans', 'history', 'analytics'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -327,6 +328,8 @@ export default function AdminPage() {
           ))}
         </section>
       )}
+
+      {tab === 'analytics' && <AdminAnalytics api={api} />}
 
       {tab === 'verify' && (
         <section className="mt-4 grid gap-3 md:grid-cols-2">

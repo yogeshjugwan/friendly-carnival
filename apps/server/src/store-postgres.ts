@@ -4,6 +4,12 @@ import type { ReportSource } from '@rc/shared';
 import { longestBan, type Appeal, type Ban, type BlockInfo, type NewBan, type NewReport, type Report, type SafetyStore } from './store.ts';
 
 const SCHEMA = `
+CREATE TABLE IF NOT EXISTS daily_stats (
+  day TEXT NOT NULL,
+  metric TEXT NOT NULL,
+  value BIGINT NOT NULL,
+  PRIMARY KEY (day, metric)
+);
 CREATE TABLE IF NOT EXISTS reports (
   id TEXT PRIMARY KEY,
   reporter_device TEXT NOT NULL,
@@ -106,6 +112,34 @@ export class PostgresStore implements SafetyStore {
 
   async init() {
     await this.pool.query(SCHEMA);
+  }
+
+  async loadStats(day: string) {
+    const { rows } = await this.pool.query('SELECT metric, value FROM daily_stats WHERE day = $1', [day]);
+    return Object.fromEntries(rows.map((r) => [r.metric as string, Number(r.value)]));
+  }
+
+  async saveStats(day: string, values: Record<string, number>) {
+    const entries = Object.entries(values);
+    await this.pool.query('DELETE FROM daily_stats WHERE day = $1', [day]);
+    if (!entries.length) return;
+    const params: (string | number)[] = [day];
+    const tuples = entries.map(([metric, value], i) => {
+      params.push(metric, Math.round(value));
+      return `($1, $${i * 2 + 2}, $${i * 2 + 3})`;
+    });
+    await this.pool.query(`INSERT INTO daily_stats (day, metric, value) VALUES ${tuples.join(', ')}`, params);
+  }
+
+  async listStats(fromDay: string) {
+    const { rows } = await this.pool.query('SELECT day, metric, value FROM daily_stats WHERE day >= $1 ORDER BY day', [fromDay]);
+    const byDay = new Map<string, Record<string, number>>();
+    for (const r of rows) {
+      const day = r.day as string;
+      if (!byDay.has(day)) byDay.set(day, {});
+      byDay.get(day)![r.metric as string] = Number(r.value);
+    }
+    return [...byDay.entries()].map(([day, values]) => ({ day, values }));
   }
 
   async addReport(input: NewReport): Promise<Report> {

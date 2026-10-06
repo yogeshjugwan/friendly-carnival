@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import type { Pool } from 'pg';
-import { NO_FILTERS, type PlusPlan, type PlusStatus, type UserSettings } from '@rc/shared';
+import { NO_FILTERS, type PendingVerification, type PlusPlan, type PlusStatus, type UserSettings, type VerifyGestureId } from '@rc/shared';
 
 const scrypt = promisify(scryptCb) as (password: string, salt: Buffer, keylen: number, opts: object) => Promise<Buffer>;
 const SCRYPT = { N: 16_384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
@@ -61,6 +61,10 @@ export interface User {
   coins: number;
   /** Boost is on until this time (ms), else null. */
   boostUntil: number | null;
+  /** ✓ Verified since (ms), else null. */
+  verifiedAt: number | null;
+  /** A selfie is waiting for review, or the last one was rejected. */
+  verifyStatus: 'pending' | 'rejected' | null;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -109,6 +113,13 @@ export interface AccountStore {
    */
   changeCoins(userId: string, delta: number, reason: string, ref?: string): Promise<number | null>;
   setBoost(userId: string, until: number | null): Promise<void>;
+  /** Stores a verification selfie (replacing any earlier one) and marks the user pending. */
+  submitVerification(userId: string, gesture: VerifyGestureId, photo: string): Promise<void>;
+  listPendingVerifications(): Promise<PendingVerification[]>;
+  /** Approves or rejects a pending selfie and deletes the photo. False when none was pending. */
+  resolveVerification(userId: string, approve: boolean): Promise<boolean>;
+  /** Removes the badge (e.g. after abuse reports). */
+  revokeVerification(userId: string): Promise<void>;
   /** One direction of a friendship: what `userId` saw of `friendId`, plus their nickname for them. */
   addFriend(userId: string, friendId: string, seen: { gender: string | null; country: string | null }): Promise<void>;
   listFriends(userId: string): Promise<StoredFriend[]>;
@@ -139,6 +150,7 @@ export class MemoryAccountStore implements AccountStore {
   private tokens = new Map<string, TokenRow>();
   private friends = new Map<string, Map<string, StoredFriend>>();
   private coinRefs = new Set<string>();
+  private selfies = new Map<string, { gesture: VerifyGestureId; photo: string; createdAt: number }>();
 
   async init() {}
 
@@ -156,6 +168,8 @@ export class MemoryAccountStore implements AccountStore {
       plus: { ...NO_PLUS },
       coins: 0,
       boostUntil: null,
+      verifiedAt: null,
+      verifyStatus: null,
     };
     this.users.set(user.id, user);
     return user;
@@ -187,6 +201,7 @@ export class MemoryAccountStore implements AccountStore {
 
   async deleteUser(id: string) {
     this.users.delete(id);
+    this.selfies.delete(id);
     await this.deleteTokensFor(id);
     for (const other of this.friends.get(id)?.keys() ?? []) this.friends.get(other)?.delete(id);
     this.friends.delete(id);
@@ -246,6 +261,32 @@ export class MemoryAccountStore implements AccountStore {
     if (u) u.boostUntil = until;
   }
 
+  async submitVerification(userId: string, gesture: VerifyGestureId, photo: string) {
+    const u = this.users.get(userId);
+    if (!u) return;
+    this.selfies.set(userId, { gesture, photo, createdAt: Date.now() });
+    u.verifyStatus = 'pending';
+  }
+
+  async listPendingVerifications() {
+    return [...this.selfies.entries()]
+      .map(([userId, v]) => ({ userId, email: this.users.get(userId)?.email ?? '', ...v }))
+      .sort((a, b) => a.createdAt - b.createdAt);
+  }
+
+  async resolveVerification(userId: string, approve: boolean) {
+    const u = this.users.get(userId);
+    if (!u || !this.selfies.delete(userId)) return false;
+    u.verifyStatus = approve ? null : 'rejected';
+    if (approve) u.verifiedAt = Date.now();
+    return true;
+  }
+
+  async revokeVerification(userId: string) {
+    const u = this.users.get(userId);
+    if (u) u.verifiedAt = null;
+  }
+
   async addFriend(userId: string, friendId: string, seen: { gender: string | null; country: string | null }) {
     if (!this.friends.has(userId)) this.friends.set(userId, new Map());
     const mine = this.friends.get(userId)!;
@@ -302,6 +343,14 @@ CREATE TABLE IF NOT EXISTS coin_ledger (
   created_at BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS coin_ledger_user_idx ON coin_ledger (user_id);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS verified_at BIGINT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_status TEXT;
+CREATE TABLE IF NOT EXISTS verifications (
+  user_id TEXT PRIMARY KEY,
+  gesture TEXT NOT NULL,
+  photo TEXT NOT NULL,
+  created_at BIGINT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS friends (
   user_id TEXT NOT NULL,
   friend_id TEXT NOT NULL,
@@ -324,6 +373,8 @@ const toUser = (r: Record<string, unknown>): User => ({
   plus: { ...NO_PLUS, ...(JSON.parse((r.plus as string) || '{}') as Partial<StoredPlus>) },
   coins: Number(r.coins ?? 0),
   boostUntil: r.boost_until == null ? null : Number(r.boost_until),
+  verifiedAt: r.verified_at == null ? null : Number(r.verified_at),
+  verifyStatus: r.verify_status === 'pending' || r.verify_status === 'rejected' ? r.verify_status : null,
 });
 
 export class PostgresAccountStore implements AccountStore {
@@ -374,6 +425,7 @@ export class PostgresAccountStore implements AccountStore {
     await this.pool.query('DELETE FROM auth_tokens WHERE user_id = $1', [id]);
     await this.pool.query('DELETE FROM friends WHERE user_id = $1 OR friend_id = $1', [id]);
     await this.pool.query('DELETE FROM coin_ledger WHERE user_id = $1', [id]);
+    await this.pool.query('DELETE FROM verifications WHERE user_id = $1', [id]);
     await this.pool.query('DELETE FROM users WHERE id = $1', [id]);
   }
 
@@ -461,6 +513,37 @@ export class PostgresAccountStore implements AccountStore {
 
   async setBoost(userId: string, until: number | null) {
     await this.pool.query('UPDATE users SET boost_until = $2 WHERE id = $1', [userId, until]);
+  }
+
+  async submitVerification(userId: string, gesture: VerifyGestureId, photo: string) {
+    await this.pool.query('DELETE FROM verifications WHERE user_id = $1', [userId]);
+    await this.pool.query('INSERT INTO verifications (user_id, gesture, photo, created_at) VALUES ($1,$2,$3,$4)', [userId, gesture, photo, Date.now()]);
+    await this.pool.query("UPDATE users SET verify_status = 'pending' WHERE id = $1", [userId]);
+  }
+
+  async listPendingVerifications() {
+    const { rows } = await this.pool.query(
+      'SELECT v.user_id, v.gesture, v.photo, v.created_at, u.email FROM verifications v JOIN users u ON u.id = v.user_id ORDER BY v.created_at LIMIT 100',
+    );
+    return rows.map((r) => ({
+      userId: r.user_id as string,
+      email: r.email as string,
+      gesture: r.gesture as VerifyGestureId,
+      photo: r.photo as string,
+      createdAt: Number(r.created_at),
+    }));
+  }
+
+  async resolveVerification(userId: string, approve: boolean) {
+    const { rowCount } = await this.pool.query('DELETE FROM verifications WHERE user_id = $1', [userId]);
+    if (!rowCount) return false;
+    if (approve) await this.pool.query('UPDATE users SET verified_at = $2, verify_status = NULL WHERE id = $1', [userId, Date.now()]);
+    else await this.pool.query("UPDATE users SET verify_status = 'rejected' WHERE id = $1", [userId]);
+    return true;
+  }
+
+  async revokeVerification(userId: string) {
+    await this.pool.query('UPDATE users SET verified_at = NULL WHERE id = $1', [userId]);
   }
 
   async addFriend(userId: string, friendId: string, seen: { gender: string | null; country: string | null }) {

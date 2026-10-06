@@ -21,6 +21,7 @@ import { ChatPanel } from './ChatPanel';
 import { SafetyMenu } from './SafetyMenu';
 import { SettingsMenu } from './SettingsMenu';
 import { VideoTile } from './VideoTile';
+import { VerifiedBadge } from './VerifiedBadge';
 
 const STATUS_TEXT: Record<string, string> = {
   searching: 'Looking for someone to chat with…',
@@ -46,6 +47,7 @@ function PartnerBadge({ call }: { call: RandomCall }) {
       <span title={GENDER_LABEL[partner.gender]}>{GENDER_ICON[partner.gender]}</span>
       <span>{partner.locationHidden ? '📍' : flagEmoji(partner.country)}</span>
       <span className="truncate">{partner.locationHidden ? 'Hidden' : countryName(partner.country)}</span>
+      {partner.verified && <VerifiedBadge />}
       {partner.plus && (
         <span title="Plus member" aria-label="Plus member">
           👑

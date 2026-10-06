@@ -56,6 +56,8 @@ interface SocketData {
   userId: string | null;
   /** Sign-up time of that account. */
   accountCreatedAt?: number | null;
+  /** The account has the ✓ Verified badge. */
+  verified?: boolean;
   /** Active Plus subscription at handshake time (updated live by webhooks). */
   plus: boolean;
   ipHash: string | null;
@@ -216,6 +218,10 @@ export function createApp(opts: AppOptions = {}): App {
           online: () => matchmaker.onlineCount,
           accounts,
           onPlusChanged,
+          onVerifiedChanged: (userId, verified) => {
+            matchmaker.setVerified(userId, verified);
+            for (const s of io.sockets.sockets.values()) if (s.data.userId === userId) s.data.verified = verified;
+          },
         })
       )
         return;
@@ -289,6 +295,7 @@ export function createApp(opts: AppOptions = {}): App {
       .then((user) => {
         socket.data.userId = user?.id ?? null;
         socket.data.accountCreatedAt = user?.createdAt ?? null;
+        socket.data.verified = !!user?.verifiedAt;
         socket.data.plus = !!user && isPlusActive(user.plus);
         socket.data.boostUntil = user?.boostUntil ?? null;
         return Promise.all([
@@ -366,6 +373,7 @@ export function createApp(opts: AppOptions = {}): App {
       locationHidden: s.hideCountry,
       plus: s.plus,
       isNew: isNewUser(s.id),
+      verified: s.verified,
       sharedInterests,
       topic: a.topic && a.topic === b.topic ? a.topic : null,
     });
@@ -387,8 +395,16 @@ export function createApp(opts: AppOptions = {}): App {
   };
 
   io.on('connection', (socket) => {
-    const { deviceId, ipHash, blocked, userId, plus } = socket.data;
-    matchmaker.connect(socket.id, countryFromHeaders(socket.handshake.headers), { deviceId, ipHash, userId, plus, blocked, boostUntil: socket.data.boostUntil ?? null });
+    const { deviceId, ipHash, blocked, userId, plus, verified } = socket.data;
+    matchmaker.connect(socket.id, countryFromHeaders(socket.handshake.headers), {
+      deviceId,
+      ipHash,
+      userId,
+      plus,
+      verified,
+      blocked,
+      boostUntil: socket.data.boostUntil ?? null,
+    });
     socket.emit('stats', { online: matchmaker.onlineCount });
     if (limits) socket.emit('limit:status', limits.status(limitKey(socket.data), plus));
     if (userId) void pushWallet(userId).catch(() => undefined);
@@ -572,6 +588,7 @@ export function createApp(opts: AppOptions = {}): App {
           locationHidden: me.hideCountry,
           plus: me.plus,
           isNew: isNewUser(socket.id),
+          verified: me.verified,
           sharedInterests: me.interests.filter((i) => target.interests.includes(i)),
         },
       });

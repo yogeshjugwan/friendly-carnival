@@ -9,10 +9,13 @@ export interface MatchFilters {
   gender: Gender | 'any';
   /** ISO 3166-1 alpha-2 country code, or 'any'. */
   country: string | 'any';
+  /** Only people with the ✓ Verified badge. */
+  verifiedOnly?: boolean;
 }
 
 export const NO_FILTERS: MatchFilters = { gender: 'any', country: 'any' };
-export const hasFilters = (f: MatchFilters | undefined | null) => !!f && (f.gender !== 'any' || f.country !== 'any');
+export const hasFilters = (f: MatchFilters | undefined | null) =>
+  !!f && (f.gender !== 'any' || f.country !== 'any' || !!f.verifiedOnly);
 
 export interface JoinPayload {
   gender: Gender;
@@ -51,6 +54,8 @@ export interface PartnerInfo {
   plus?: boolean;
   /** Brand-new account or device: their video starts hidden for you. */
   isNew?: boolean;
+  /** ✓ Verified: a moderator matched their selfie to a live gesture. */
+  verified?: boolean;
   sharedInterests: string[];
   /** Set when you both picked the same topic room. */
   topic?: string | null;
@@ -66,6 +71,7 @@ export interface ActiveUser {
   locationHidden: boolean;
   interests: string[];
   plus: boolean;
+  verified?: boolean;
   mode: ChatMode;
   /** 'waiting' people can be called; 'in-call' are busy. */
   state: 'waiting' | 'in-call';
@@ -450,6 +456,32 @@ export interface PublicUser {
   settings: UserSettings;
   plus: PlusStatus;
   wallet: Wallet;
+  verification: VerificationStatus;
+}
+
+/** ✓ Verified badge: a selfie with a random gesture, checked by a moderator. */
+export type VerificationStatus = 'none' | 'pending' | 'verified' | 'rejected';
+
+export const VERIFY_GESTURES = [
+  { id: 'peace', emoji: '✌️', text: 'Make a peace sign next to your face' },
+  { id: 'thumbs', emoji: '👍', text: 'Give a thumbs up next to your face' },
+  { id: 'palm', emoji: '✋', text: 'Hold an open hand next to your face' },
+  { id: 'point', emoji: '☝️', text: 'Point one finger up next to your face' },
+  { id: 'ok', emoji: '👌', text: 'Make an OK sign next to your face' },
+  { id: 'three', emoji: '🤟', text: 'Hold up three fingers next to your face' },
+] as const;
+export type VerifyGestureId = (typeof VERIFY_GESTURES)[number]['id'];
+
+/** Largest selfie the server accepts (JPEG data URL length). */
+export const MAX_VERIFY_PHOTO = 400_000;
+
+/** A selfie waiting for a moderator (admin API). */
+export interface PendingVerification {
+  userId: string;
+  email: string;
+  gesture: VerifyGestureId;
+  photo: string;
+  createdAt: number;
 }
 
 export const MIN_PASSWORD_LENGTH = 8;

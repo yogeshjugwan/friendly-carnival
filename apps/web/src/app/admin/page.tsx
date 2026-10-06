@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { VERIFY_GESTURES, type PendingVerification } from '@rc/shared';
 
 const API = process.env.NEXT_PUBLIC_SIGNALING_URL ?? 'http://localhost:4100';
 const TOKEN_KEY = 'rc.adminToken';
@@ -42,7 +43,7 @@ interface Appeal {
   createdAt: number;
 }
 
-type Tab = 'reports' | 'bans' | 'appeals' | 'history';
+type Tab = 'reports' | 'verify' | 'bans' | 'appeals' | 'history';
 
 const ago = (t: number) => {
   const m = Math.round((Date.now() - t) / 60_000);
@@ -74,6 +75,7 @@ export default function AdminPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [bans, setBans] = useState<Ban[]>([]);
   const [appeals, setAppeals] = useState<Appeal[]>([]);
+  const [verifications, setVerifications] = useState<PendingVerification[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [banIp, setBanIp] = useState<Set<string>>(new Set());
@@ -111,16 +113,18 @@ export default function AdminPage() {
   const load = useCallback(async () => {
     if (!token) return;
     try {
-      const [s, r, b, a] = await Promise.all([
+      const [s, r, b, a, v] = await Promise.all([
         api<Summary>('/admin/summary'),
         api<Report[]>(tab === 'history' ? '/admin/reports' : '/admin/reports?status=open'),
         api<Ban[]>('/admin/bans?active=1'),
         api<Appeal[]>('/admin/appeals?status=open'),
+        api<PendingVerification[]>('/admin/verifications').catch(() => []),
       ]);
       setSummary(s);
       setReports(r);
       setBans(b);
       setAppeals(a);
+      setVerifications(v);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load');
@@ -228,13 +232,19 @@ export default function AdminPage() {
       <GiveCoins api={api} />
 
       <nav className="mt-5 flex gap-2 border-b border-slate-700">
-        {(['reports', 'appeals', 'bans', 'history'] as Tab[]).map((t) => (
+        {(['reports', 'verify', 'appeals', 'bans', 'history'] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`-mb-px border-b-2 px-3 py-2 text-sm capitalize ${tab === t ? 'border-brand text-white' : 'border-transparent text-slate-400'}`}
           >
-            {t === 'reports' ? `Reports (${summary?.openReports ?? 0})` : t === 'appeals' ? `Appeals (${appeals.length})` : t}
+            {t === 'reports'
+              ? `Reports (${summary?.openReports ?? 0})`
+              : t === 'verify'
+                ? `✓ Verify (${verifications.length})`
+                : t === 'appeals'
+                  ? `Appeals (${appeals.length})`
+                  : t}
           </button>
         ))}
       </nav>
@@ -315,6 +325,42 @@ export default function AdminPage() {
               </div>
             </article>
           ))}
+        </section>
+      )}
+
+      {tab === 'verify' && (
+        <section className="mt-4 grid gap-3 md:grid-cols-2">
+          {verifications.length === 0 && <p className="text-slate-400">No selfies waiting.</p>}
+          {verifications.map((v) => {
+            const g = VERIFY_GESTURES.find((x) => x.id === v.gesture);
+            return (
+              <article key={v.userId} className="rounded-xl bg-white p-4 text-sm text-ink">
+                <p className="text-slate-500">
+                  {ago(v.createdAt)} · {v.email}
+                </p>
+                <p className="mt-2 text-base font-semibold">
+                  Asked for: <span className="text-2xl align-middle">{g?.emoji}</span> {g?.text ?? v.gesture}
+                </p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={v.photo} alt="Verification selfie" className="mt-2 w-full rounded-lg bg-slate-900 object-contain" />
+                <p className="mt-2 text-xs text-slate-500">Approve only if a real face is clearly visible and the hand gesture matches.</p>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => void act(`/admin/verifications/${encodeURIComponent(v.userId)}/resolve`, { approve: true })}
+                    className="rounded-md bg-emerald-600 px-3 py-1.5 font-semibold text-white"
+                  >
+                    ✓ Approve
+                  </button>
+                  <button
+                    onClick={() => void act(`/admin/verifications/${encodeURIComponent(v.userId)}/resolve`, { approve: false })}
+                    className="rounded-md bg-slate-200 px-3 py-1.5 font-semibold"
+                  >
+                    Reject
+                  </button>
+                </div>
+              </article>
+            );
+          })}
         </section>
       )}
 

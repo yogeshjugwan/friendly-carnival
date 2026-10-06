@@ -160,6 +160,20 @@ export default function SettingsPage() {
               Log out
             </button>
           </Section>
+          <Section title="Verified badge">
+            <p className="mt-3 text-sm text-slate-600">
+              {user.verification === 'verified'
+                ? '✓ You are verified — partners see the blue badge.'
+                : user.verification === 'pending'
+                  ? '⏳ Your selfie is being reviewed.'
+                  : 'Show strangers you are a real person with a quick selfie.'}{' '}
+              {user.verification !== 'verified' && user.verification !== 'pending' && (
+                <Link href="/get-verified" className="font-medium text-brand">
+                  Get verified
+                </Link>
+              )}
+            </p>
+          </Section>
           <Section title="Plus">
             {user.plus.active ? (
               <p className="mt-3 text-sm">

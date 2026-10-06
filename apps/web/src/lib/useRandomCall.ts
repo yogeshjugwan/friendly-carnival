@@ -80,7 +80,9 @@ const FILTER_PATIENCE_MS = 15_000;
 const FORCE_RELAY = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('relay');
 
 const sameFilters = (a: MatchFilters | undefined, b: MatchFilters | undefined) =>
-  (a?.gender ?? 'any') === (b?.gender ?? 'any') && (a?.country ?? 'any') === (b?.country ?? 'any');
+  (a?.gender ?? 'any') === (b?.gender ?? 'any') &&
+  (a?.country ?? 'any') === (b?.country ?? 'any') &&
+  !!a?.verifiedOnly === !!b?.verifiedOnly;
 
 const BACK_TEXT: Record<BackUnavailableReason, string> = {
   'no-previous': 'There is no previous partner to go back to.',

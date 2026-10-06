@@ -121,5 +121,6 @@ export function parseFilters(input: unknown): MatchFilters | null {
   const gender = f.gender === 'any' || GENDERS.includes(f.gender as Gender) ? (f.gender as MatchFilters['gender']) : null;
   const country =
     f.country === 'any' ? 'any' : typeof f.country === 'string' && /^[A-Za-z]{2}$/.test(f.country) ? f.country.toUpperCase() : null;
-  return gender && country ? { gender, country } : null;
+  if (!gender || !country) return null;
+  return f.verifiedOnly === true ? { gender, country, verifiedOnly: true } : { gender, country };
 }

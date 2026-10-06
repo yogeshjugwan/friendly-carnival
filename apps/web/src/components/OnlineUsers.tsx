@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { ActiveUser, CallRequestResult } from '@rc/shared';
 import { countryName, flagEmoji, GENDER_ICON, GENDER_LABEL } from '@/lib/format';
 import type { RandomCall } from '@/lib/useRandomCall';
+import { VerifiedBadge } from './VerifiedBadge';
 
 const REFRESH_MS = 5_000;
 
@@ -69,6 +70,7 @@ export function OnlineUsersPanel({ call, onClose, className = '' }: { call: Rand
           <p className="flex items-center gap-1.5 text-sm font-medium text-slate-100">
             <span>{u.locationHidden ? '📍' : flagEmoji(u.country)}</span>
             <span className="truncate">{u.locationHidden ? 'Location hidden' : countryName(u.country)}</span>
+            {u.verified && <VerifiedBadge />}
             {u.plus && <span title="Plus member">👑</span>}
             {u.mode === 'text' && <span className="rounded bg-white/10 px-1.5 text-[10px] font-semibold uppercase text-slate-300">text</span>}
           </p>
@@ -159,6 +161,7 @@ export function IncomingCallModal({ call }: { call: RandomCall }) {
         <p className="mt-2 flex items-center justify-center gap-1.5 text-slate-600">
           <span title={GENDER_LABEL[from.gender]}>{GENDER_ICON[from.gender]}</span>
           <span>{from.locationHidden ? '📍 Location hidden' : `${flagEmoji(from.country)} ${countryName(from.country)}`}</span>
+          {from.verified && <VerifiedBadge />}
         </p>
         {from.sharedInterests.length > 0 && <p className="mt-1 text-sm text-slate-500">You both like {from.sharedInterests.join(', ')}</p>}
         <div className="mt-6 flex gap-3">

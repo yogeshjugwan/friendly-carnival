@@ -80,6 +80,15 @@ export function FilterBar() {
           [{ value: 'any', label: 'All countries' }, ...countries.map((c) => ({ value: c.code, label: c.name }))],
           true,
         )}
+        {pill(
+          'Verified filter',
+          isPlus && filters.verifiedOnly ? 'verified' : 'all',
+          (v) => change({ verifiedOnly: v === 'verified' }),
+          [
+            { value: 'all', label: '✓ Anyone' },
+            { value: 'verified', label: '✓ Verified only' },
+          ],
+        )}
       </div>
       {upsell && <PlusUpsell onClose={() => setUpsell(false)} />}
     </>

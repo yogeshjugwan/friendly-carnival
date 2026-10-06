@@ -15,6 +15,7 @@ export interface AdminDeps {
   online: () => number;
   accounts?: AccountStore;
   onPlusChanged?: (userId: string) => void;
+  onVerifiedChanged?: (userId: string, verified: boolean) => void;
 }
 
 const sameToken = (given: string, expected: string) => {
@@ -121,6 +122,29 @@ export async function handleAdmin(req: IncomingMessage, res: ServerResponse, dep
       if (balance === null) return send(409, { error: 'That would make the balance negative' }), true;
       deps.onPlusChanged?.(user.id);
       return send(200, { email: user.email, coins: balance }), true;
+    }
+
+    // ✓ Verified badge review: selfies with the requested gesture.
+    if (req.method === 'GET' && resource === 'verifications' && deps.accounts) {
+      return send(200, await deps.accounts.listPendingVerifications()), true;
+    }
+
+    if (req.method === 'POST' && resource === 'verifications' && id && action === 'resolve' && deps.accounts) {
+      const body = await readJson(req);
+      if (typeof body.approve !== 'boolean') return send(400, { error: 'approve must be a boolean' }), true;
+      if (!(await deps.accounts.resolveVerification(id, body.approve))) return send(404, { error: 'Nothing pending for this user' }), true;
+      if (body.approve) deps.onVerifiedChanged?.(id, true);
+      return send(200, { ok: true }), true;
+    }
+
+    // Take the badge away: { email }.
+    if (req.method === 'POST' && resource === 'unverify' && deps.accounts) {
+      const body = await readJson(req);
+      const user = typeof body.email === 'string' ? await deps.accounts.userByEmail(body.email) : null;
+      if (!user) return send(404, { error: 'No account with that email' }), true;
+      await deps.accounts.revokeVerification(user.id);
+      deps.onVerifiedChanged?.(user.id, false);
+      return send(200, { ok: true }), true;
     }
 
     if (req.method === 'GET' && resource === 'bans') {

@@ -1,5 +1,6 @@
+import { randomInt } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, type PublicUser } from '@rc/shared';
+import { MAX_PASSWORD_LENGTH, MAX_VERIFY_PHOTO, MIN_PASSWORD_LENGTH, VERIFY_GESTURES, type PublicUser, type VerifyGestureId } from '@rc/shared';
 import { hashPassword, publicPlus, verifyPassword, type AccountStore, type User } from './accounts.ts';
 import { bearer, cors, RateLimiter, readJson, sendJson } from './http.ts';
 import { linkEmail, type Mailer } from './mailer.ts';
@@ -27,6 +28,7 @@ export const publicUser = (u: User): PublicUser => ({
   settings: u.settings,
   plus: publicPlus(u.plus),
   wallet: { coins: u.coins, boostUntil: u.boostUntil && u.boostUntil > Date.now() ? u.boostUntil : null },
+  verification: u.verifiedAt ? 'verified' : (u.verifyStatus ?? 'none'),
 });
 
 const passwordProblem = (p: unknown): string | null => {
@@ -40,6 +42,10 @@ export function createAuthHandler(deps: AuthDeps) {
   const { accounts, mailer } = deps;
   // Credential endpoints: 20 attempts per 10 minutes per IP.
   const strict = new RateLimiter(20, 10 * 60_000);
+  // Verification: the gesture is picked here, so an old photo can't be reused.
+  const challenges = new Map<string, { gesture: VerifyGestureId; expiresAt: number }>();
+  const CHALLENGE_MS = 10 * 60_000;
+  const selfieLimit = new RateLimiter(5, 60 * 60_000);
 
   const sendVerification = async (user: User) => {
     await accounts.deleteTokensFor(user.id, 'verify');
@@ -147,6 +153,29 @@ export function createAuthHandler(deps: AuthDeps) {
         if (!settings) return fail(400, 'Invalid settings');
         await accounts.updateSettings(user.id, settings);
         return sendJson(res, 200, publicUser({ ...user, settings })), true;
+      }
+
+      if (route === 'POST /auth/verification/challenge') {
+        if (user.verifiedAt) return fail(409, 'You are already verified');
+        const now = Date.now();
+        for (const [id, c] of challenges) if (c.expiresAt < now) challenges.delete(id);
+        const g = VERIFY_GESTURES[randomInt(VERIFY_GESTURES.length)];
+        challenges.set(user.id, { gesture: g.id, expiresAt: now + CHALLENGE_MS });
+        return sendJson(res, 200, { gesture: g.id, expiresAt: now + CHALLENGE_MS }), true;
+      }
+
+      if (route === 'POST /auth/verification') {
+        if (user.verifiedAt) return fail(409, 'You are already verified');
+        if (!selfieLimit.allow(user.id)) return fail(429, 'Too many tries. Try again later.');
+        const challenge = challenges.get(user.id);
+        if (!challenge || challenge.expiresAt < Date.now()) return fail(400, 'That took too long. Start again.');
+        const { photo } = await readJson(req, MAX_VERIFY_PHOTO + 1024);
+        if (typeof photo !== 'string' || !/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(photo) || photo.length > MAX_VERIFY_PHOTO) {
+          return fail(400, 'Invalid photo');
+        }
+        challenges.delete(user.id);
+        await accounts.submitVerification(user.id, challenge.gesture, photo);
+        return sendJson(res, 200, publicUser({ ...user, verifyStatus: 'pending' })), true;
       }
 
       if (route === 'POST /auth/password') {

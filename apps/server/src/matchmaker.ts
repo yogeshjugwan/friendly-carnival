@@ -21,6 +21,8 @@ export interface Session {
   userId: string | null;
   /** Active Plus subscription. */
   plus: boolean;
+  /** Has the ✓ Verified badge. */
+  verified: boolean;
   /** Plus match filters (always NO_FILTERS without Plus). */
   filters: MatchFilters;
   /** Persistent browser id (from the handshake); falls back to the socket id. */
@@ -80,7 +82,15 @@ export class Matchmaker {
   connect(
     id: string,
     country: string | null,
-    identity: { deviceId?: string; ipHash?: string | null; userId?: string | null; plus?: boolean; blocked?: Set<string>; boostUntil?: number | null } = {},
+    identity: {
+      deviceId?: string;
+      ipHash?: string | null;
+      userId?: string | null;
+      plus?: boolean;
+      verified?: boolean;
+      blocked?: Set<string>;
+      boostUntil?: number | null;
+    } = {},
   ): Session {
     const deviceId = identity.deviceId ?? id;
     const ipHash = identity.ipHash ?? null;
@@ -101,6 +111,7 @@ export class Matchmaker {
       hideCountry: false,
       userId,
       plus: identity.plus ?? false,
+      verified: identity.verified ?? false,
       boostUntil: identity.boostUntil ?? null,
       filters: { ...NO_FILTERS },
       deviceId,
@@ -139,6 +150,10 @@ export class Matchmaker {
   /** Update Plus on every live session of an account (after a payment or cancellation). */
   setBoost(userId: string, until: number | null): void {
     for (const s of this.sessions.values()) if (s.userId === userId) s.boostUntil = until;
+  }
+
+  setVerified(userId: string, verified: boolean): void {
+    for (const s of this.sessions.values()) if (s.userId === userId) s.verified = verified;
   }
 
   setPlus(userId: string, plus: boolean): void {
@@ -247,6 +262,7 @@ export class Matchmaker {
       locationHidden: s.hideCountry,
       interests: s.interests,
       plus: s.plus,
+      verified: s.verified,
       mode: s.mode,
       state,
     });
@@ -398,7 +414,8 @@ export class Matchmaker {
 /** Does `a`'s filter accept `b`? Hidden-country users never match a country filter. */
 const wants = (a: Session, b: Session) =>
   (a.filters.gender === 'any' || a.filters.gender === b.gender) &&
-  (a.filters.country === 'any' || (!b.hideCountry && b.country === a.filters.country));
+  (a.filters.country === 'any' || (!b.hideCountry && b.country === a.filters.country)) &&
+  (!a.filters.verifiedOnly || b.verified);
 
 const isBlocked = (a: Session, b: Session) => a.blocked.has(b.deviceId) || b.blocked.has(a.deviceId);
 

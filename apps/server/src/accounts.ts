@@ -57,6 +57,10 @@ export interface User {
   settings: UserSettings;
   stripeCustomerId: string | null;
   plus: StoredPlus;
+  /** Coin balance. */
+  coins: number;
+  /** Boost is on until this time (ms), else null. */
+  boostUntil: number | null;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -98,6 +102,13 @@ export interface AccountStore {
   userByStripeCustomer(customerId: string): Promise<User | null>;
   setPlus(userId: string, plus: StoredPlus): Promise<void>;
 
+  /**
+   * Adds (or with a negative delta, spends) coins. Returns the new balance, or
+   * null when there aren't enough coins. With `ref` (e.g. a Stripe checkout id)
+   * the change happens at most once.
+   */
+  changeCoins(userId: string, delta: number, reason: string, ref?: string): Promise<number | null>;
+  setBoost(userId: string, until: number | null): Promise<void>;
   /** One direction of a friendship: what `userId` saw of `friendId`, plus their nickname for them. */
   addFriend(userId: string, friendId: string, seen: { gender: string | null; country: string | null }): Promise<void>;
   listFriends(userId: string): Promise<StoredFriend[]>;
@@ -127,6 +138,7 @@ export class MemoryAccountStore implements AccountStore {
   private users = new Map<string, User>();
   private tokens = new Map<string, TokenRow>();
   private friends = new Map<string, Map<string, StoredFriend>>();
+  private coinRefs = new Set<string>();
 
   async init() {}
 
@@ -142,6 +154,8 @@ export class MemoryAccountStore implements AccountStore {
       settings: { ...DEFAULT_SETTINGS },
       stripeCustomerId: null,
       plus: { ...NO_PLUS },
+      coins: 0,
+      boostUntil: null,
     };
     this.users.set(user.id, user);
     return user;
@@ -215,6 +229,23 @@ export class MemoryAccountStore implements AccountStore {
     if (u) u.plus = { ...plus };
   }
 
+  async changeCoins(userId: string, delta: number, _reason: string, ref?: string) {
+    const u = this.users.get(userId);
+    if (!u) return null;
+    if (ref) {
+      if (this.coinRefs.has(ref)) return u.coins;
+    }
+    if (u.coins + delta < 0) return null;
+    if (ref) this.coinRefs.add(ref);
+    u.coins += delta;
+    return u.coins;
+  }
+
+  async setBoost(userId: string, until: number | null) {
+    const u = this.users.get(userId);
+    if (u) u.boostUntil = until;
+  }
+
   async addFriend(userId: string, friendId: string, seen: { gender: string | null; country: string | null }) {
     if (!this.friends.has(userId)) this.friends.set(userId, new Map());
     const mine = this.friends.get(userId)!;
@@ -260,6 +291,17 @@ CREATE INDEX IF NOT EXISTS auth_tokens_user_idx ON auth_tokens (user_id);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS plus TEXT;
 CREATE INDEX IF NOT EXISTS users_stripe_customer_idx ON users (stripe_customer_id);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS coins INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS boost_until BIGINT;
+CREATE TABLE IF NOT EXISTS coin_ledger (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  delta INTEGER NOT NULL,
+  reason TEXT NOT NULL,
+  ref TEXT UNIQUE,
+  created_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS coin_ledger_user_idx ON coin_ledger (user_id);
 CREATE TABLE IF NOT EXISTS friends (
   user_id TEXT NOT NULL,
   friend_id TEXT NOT NULL,
@@ -280,6 +322,8 @@ const toUser = (r: Record<string, unknown>): User => ({
   settings: { ...DEFAULT_SETTINGS, ...(JSON.parse((r.settings as string) || '{}') as Partial<UserSettings>) },
   stripeCustomerId: (r.stripe_customer_id as string | null) ?? null,
   plus: { ...NO_PLUS, ...(JSON.parse((r.plus as string) || '{}') as Partial<StoredPlus>) },
+  coins: Number(r.coins ?? 0),
+  boostUntil: r.boost_until == null ? null : Number(r.boost_until),
 });
 
 export class PostgresAccountStore implements AccountStore {
@@ -329,6 +373,7 @@ export class PostgresAccountStore implements AccountStore {
   async deleteUser(id: string) {
     await this.pool.query('DELETE FROM auth_tokens WHERE user_id = $1', [id]);
     await this.pool.query('DELETE FROM friends WHERE user_id = $1 OR friend_id = $1', [id]);
+    await this.pool.query('DELETE FROM coin_ledger WHERE user_id = $1', [id]);
     await this.pool.query('DELETE FROM users WHERE id = $1', [id]);
   }
 
@@ -376,6 +421,46 @@ export class PostgresAccountStore implements AccountStore {
 
   async setPlus(userId: string, plus: StoredPlus) {
     await this.pool.query('UPDATE users SET plus = $2 WHERE id = $1', [userId, JSON.stringify(plus)]);
+  }
+
+  async changeCoins(userId: string, delta: number, reason: string, ref?: string) {
+    if (ref) {
+      // The unique ref makes a repeated Stripe event a no-op.
+      try {
+        await this.pool.query('INSERT INTO coin_ledger (id, user_id, delta, reason, ref, created_at) VALUES ($1,$2,$3,$4,$5,$6)', [
+          randomUUID(),
+          userId,
+          delta,
+          reason,
+          ref,
+          Date.now(),
+        ]);
+      } catch (e) {
+        const err = e as { code?: string; message?: string };
+        if (err.code === '23505' || /duplicate|unique/i.test(err.message ?? '')) {
+          const { rows } = await this.pool.query('SELECT coins FROM users WHERE id = $1', [userId]);
+          return rows[0] ? Number(rows[0].coins) : null;
+        }
+        throw e;
+      }
+    }
+    // Atomic: never goes below zero.
+    const { rows } = await this.pool.query('UPDATE users SET coins = coins + $2 WHERE id = $1 AND coins + $2 >= 0 RETURNING coins', [userId, delta]);
+    if (!rows[0]) return null;
+    if (!ref) {
+      await this.pool.query('INSERT INTO coin_ledger (id, user_id, delta, reason, ref, created_at) VALUES ($1,$2,$3,$4,NULL,$5)', [
+        randomUUID(),
+        userId,
+        delta,
+        reason,
+        Date.now(),
+      ]);
+    }
+    return Number(rows[0].coins);
+  }
+
+  async setBoost(userId: string, until: number | null) {
+    await this.pool.query('UPDATE users SET boost_until = $2 WHERE id = $1', [userId, until]);
   }
 
   async addFriend(userId: string, friendId: string, seen: { gender: string | null; country: string | null }) {

@@ -9,6 +9,8 @@ export interface Session {
   joined: boolean;
   /** Topic room picked on the home page, if any. */
   topic: string | null;
+  /** Boost (paid with coins): picked first by newcomers until this time. */
+  boostUntil: number | null;
   gender: Gender;
   interests: string[];
   mode: ChatMode;
@@ -78,7 +80,7 @@ export class Matchmaker {
   connect(
     id: string,
     country: string | null,
-    identity: { deviceId?: string; ipHash?: string | null; userId?: string | null; plus?: boolean; blocked?: Set<string> } = {},
+    identity: { deviceId?: string; ipHash?: string | null; userId?: string | null; plus?: boolean; blocked?: Set<string>; boostUntil?: number | null } = {},
   ): Session {
     const deviceId = identity.deviceId ?? id;
     const ipHash = identity.ipHash ?? null;
@@ -99,6 +101,7 @@ export class Matchmaker {
       hideCountry: false,
       userId,
       plus: identity.plus ?? false,
+      boostUntil: identity.boostUntil ?? null,
       filters: { ...NO_FILTERS },
       deviceId,
       ipHash,
@@ -134,6 +137,10 @@ export class Matchmaker {
   }
 
   /** Update Plus on every live session of an account (after a payment or cancellation). */
+  setBoost(userId: string, until: number | null): void {
+    for (const s of this.sessions.values()) if (s.userId === userId) s.boostUntil = until;
+  }
+
   setPlus(userId: string, plus: boolean): void {
     for (const s of this.sessions.values()) {
       if (s.userId !== userId) continue;
@@ -355,7 +362,8 @@ export class Matchmaker {
       // Topic rooms: a different topic only after both have waited (in a sweep).
       const sameTopic = session.topic === other.topic;
       if (!sameTopic && (relaxedAt === undefined || relaxedAt - (this.queuedAt.get(otherId) ?? relaxedAt) < this.relaxAfterMs)) continue;
-      const score = sharedInterests(session.interests, other.interests).length + (sameTopic && session.topic ? 10 : 0);
+      const boosted = other.boostUntil !== null && other.boostUntil > Date.now();
+      const score = sharedInterests(session.interests, other.interests).length + (sameTopic && session.topic ? 10 : 0) + (boosted ? 5 : 0);
       // Queue is oldest-first, so strict ">" keeps the longest waiter on ties.
       if (score > bestScore) {
         best = otherId;

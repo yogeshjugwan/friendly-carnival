@@ -234,6 +234,10 @@ export interface ClientToServerEvents {
   'blocks:list': (ack: (blocked: BlockedUser[]) => void) => void;
   /** Unblock one of them. */
   'blocks:remove': (id: string, ack: (ok: boolean) => void) => void;
+  /** Coins: send a gift to the partner, buy Boost, or buy matches. */
+  'gift:send': (giftId: string, ack: (r: SpendResult) => void) => void;
+  'boost:buy': (ack: (r: SpendResult) => void) => void;
+  'limit:buy': (ack: (r: SpendResult) => void) => void;
   /** Ask for an icebreaker question (shown to both people). */
   icebreaker: () => void;
   /** Send a reaction emoji to the current partner (one of REACTIONS). */
@@ -267,6 +271,10 @@ export interface ServerToClientEvents {
   'plus:required': () => void;
   /** Friendship with the current partner changed. */
   'friend:state': (state: FriendState) => void;
+  /** My coins and Boost (logged-in users; on connect and after changes). */
+  wallet: (wallet: Wallet) => void;
+  /** A gift was sent in this chat. */
+  gift: (gift: GiftEvent) => void;
   /** An icebreaker question for both people in this chat. */
   icebreaker: (question: string) => void;
   /** The partner sent a reaction. */
@@ -334,6 +342,47 @@ export const ICEBREAKERS = [
   "What's one thing on your bucket list?",
 ] as const;
 
+/** Coin packs (one-time Stripe payments; prices in US cents). */
+export const COIN_PACKS = [
+  { id: 'small', coins: 100, cents: 99, tag: null },
+  { id: 'medium', coins: 550, cents: 499, tag: '+10% bonus' },
+  { id: 'large', coins: 1200, cents: 999, tag: 'Best value' },
+] as const;
+export type CoinPackId = (typeof COIN_PACKS)[number]['id'];
+
+/** Gifts sent during a call; the receiver gets GIFT_SHARE of the coins. */
+export const GIFTS = [
+  { id: 'rose', emoji: '🌹', name: 'Rose', coins: 10 },
+  { id: 'heart', emoji: '💖', name: 'Heart', coins: 20 },
+  { id: 'gift', emoji: '🎁', name: 'Gift box', coins: 50 },
+  { id: 'diamond', emoji: '💎', name: 'Diamond', coins: 100 },
+  { id: 'crown', emoji: '👑', name: 'Crown', coins: 200 },
+] as const;
+export type GiftId = (typeof GIFTS)[number]['id'];
+export const GIFT_SHARE = 0.5;
+
+/** Boost: matched first for a while. */
+export const BOOST = { coins: 100, minutes: 30 } as const;
+/** Out of free matches: spend coins instead of watching a video. */
+export const MATCHES_FOR_COINS = { coins: 30, matches: 10 } as const;
+
+/** Coins and Boost of a logged-in user. */
+export interface Wallet {
+  coins: number;
+  /** Epoch ms while Boost is on, else null. */
+  boostUntil: number | null;
+}
+
+export type SpendResult = { ok: true; wallet: Wallet } | { ok: false; reason: 'login' | 'coins' | 'no-partner' | 'invalid' };
+
+/** A gift shown on both screens. */
+export interface GiftEvent {
+  giftId: GiftId;
+  from: 'me' | 'them';
+  /** Coins the receiver got (0 for guests). */
+  earned: number;
+}
+
 export const MAX_INTERESTS = 10;
 export const MAX_INTEREST_LENGTH = 24;
 export const MAX_MESSAGE_LENGTH = 500;
@@ -393,6 +442,7 @@ export interface PublicUser {
   createdAt: number;
   settings: UserSettings;
   plus: PlusStatus;
+  wallet: Wallet;
 }
 
 export const MIN_PASSWORD_LENGTH = 8;

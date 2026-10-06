@@ -98,6 +98,9 @@ class FakeBilling implements BillingProvider {
   async portalUrl(customerId: string) {
     return `https://billing.stripe.test/${customerId}`;
   }
+  async coinCheckoutUrl(_customerId: string, _user: User, pack: string) {
+    return `https://checkout.stripe.test/coins-${pack}`;
+  }
   parseWebhook(raw: Buffer, signature: string): BillingEvent {
     return this.real.parseWebhook(raw, signature);
   }
@@ -148,6 +151,38 @@ describe('Plus over HTTP and sockets', () => {
     const res = await post('/billing/checkout', { plan: 'halfyear' }, token);
     assert.deepEqual(await res.json(), { url: 'https://checkout.stripe.test/halfyear' });
     assert.equal((await post('/billing/portal', {}, token)).status, 200, 'customer was saved at checkout');
+  });
+
+  test('coin packs: checkout needs login; a paid checkout credits coins exactly once', async () => {
+    assert.equal((await post('/billing/coins', { pack: 'small' })).status, 401);
+    const { token, userId } = await signup();
+    assert.equal((await post('/billing/coins', { pack: 'huge' }, token)).status, 400);
+    assert.deepEqual(await (await post('/billing/coins', { pack: 'medium' }, token)).json(), { url: 'https://checkout.stripe.test/coins-medium' });
+    assert.equal((await me(token)).wallet.coins, 0);
+
+    const paid = signed('checkout.session.completed', {
+      id: 'cs_coins_1',
+      object: 'checkout.session',
+      mode: 'payment',
+      payment_status: 'paid',
+      client_reference_id: userId,
+      metadata: { kind: 'coins', userId, coins: '550', pack: 'medium' },
+    });
+    for (let i = 0; i < 2; i++) {
+      // Stripe can deliver the same event twice.
+      assert.equal((await post('/billing/webhook', paid.payload, undefined, { 'stripe-signature': paid.header })).status, 200);
+    }
+    assert.equal((await me(token)).wallet.coins, 550, 'credited once');
+
+    const unpaid = signed('checkout.session.completed', {
+      id: 'cs_coins_2',
+      object: 'checkout.session',
+      mode: 'payment',
+      payment_status: 'unpaid',
+      metadata: { kind: 'coins', userId, coins: '100' },
+    });
+    await post('/billing/webhook', unpaid.payload, undefined, { 'stripe-signature': unpaid.header });
+    assert.equal((await me(token)).wallet.coins, 550, 'unpaid checkouts add nothing');
   });
 
   test('signed webhooks turn Plus on, keep it through cancel-at-period-end, and off on deletion', async () => {

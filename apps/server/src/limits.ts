@@ -72,6 +72,11 @@ export class MatchLimits {
     return e.used < this.opts.daily + e.bonus;
   }
 
+  /** Extra matches for today (bought with coins). */
+  addBonus(key: string, matches: number) {
+    this.entry(key).bonus += matches;
+  }
+
   /** Records one match. */
   count(key: string) {
     this.entry(key).used++;

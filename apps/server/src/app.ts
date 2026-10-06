@@ -2,7 +2,11 @@ import { createHash, randomUUID } from 'node:crypto';
 import { createServer, type IncomingHttpHeaders, type Server as HttpServer } from 'node:http';
 import { Server } from 'socket.io';
 import {
+  BOOST,
   CALL_REQUEST_MS,
+  GIFTS,
+  GIFT_SHARE,
+  MATCHES_FOR_COINS,
   ICEBREAKERS,
   MAX_FRIEND_NICKNAME,
   REACTIONS,
@@ -17,6 +21,8 @@ import {
   type BlockedUser,
   type CallAnswer,
   type CallRequestResult,
+  type SpendResult,
+  type Wallet,
   type Friend,
   type CallResult,
   type ClientToServerEvents,
@@ -41,6 +47,8 @@ import { parseCallResult, parseChatText, parseJoin, parseSignal } from './valida
 
 interface SocketData {
   deviceId: string;
+  /** Boost end time from the account, at handshake. */
+  boostUntil?: number | null;
   /** Logged-in account, from the handshake token. */
   userId: string | null;
   /** Active Plus subscription at handshake time (updated live by webhooks). */
@@ -152,6 +160,20 @@ export function createApp(opts: AppOptions = {}): App {
   });
 
   // A payment, renewal or cancellation landed: refresh Plus on the user's live sessions.
+  const walletOf = (u: { coins: number; boostUntil: number | null }): Wallet => ({
+    coins: u.coins,
+    boostUntil: u.boostUntil && u.boostUntil > Date.now() ? u.boostUntil : null,
+  });
+  /** Sends the latest coins/Boost to every open tab of the user. */
+  const pushWallet = async (userId: string) => {
+    const u = await accounts.userById(userId);
+    if (!u) return null;
+    const w = walletOf(u);
+    for (const s of io.sockets.sockets.values()) if (s.data.userId === userId) s.emit('wallet', w);
+    return w;
+  };
+
+  // A payment, coin purchase, renewal or cancellation landed: refresh live sessions.
   const onPlusChanged = (userId: string) => {
     void accounts
       .userById(userId)
@@ -159,6 +181,7 @@ export function createApp(opts: AppOptions = {}): App {
         const active = !!u && isPlusActive(u.plus);
         matchmaker.setPlus(userId, active);
         for (const s of io.sockets.sockets.values()) if (s.data.userId === userId) s.data.plus = active;
+        return pushWallet(userId);
       })
       .catch((e) => console.error('[plus]', e));
   };
@@ -234,6 +257,7 @@ export function createApp(opts: AppOptions = {}): App {
       .then((user) => {
         socket.data.userId = user?.id ?? null;
         socket.data.plus = !!user && isPlusActive(user.plus);
+        socket.data.boostUntil = user?.boostUntil ?? null;
         return Promise.all([
           safety.checkBan({ deviceId: socket.data.deviceId, ipHash: socket.data.ipHash, userId: socket.data.userId }),
           store.blocksFor(socket.data.deviceId),
@@ -327,9 +351,10 @@ export function createApp(opts: AppOptions = {}): App {
 
   io.on('connection', (socket) => {
     const { deviceId, ipHash, blocked, userId, plus } = socket.data;
-    matchmaker.connect(socket.id, countryFromHeaders(socket.handshake.headers), { deviceId, ipHash, userId, plus, blocked });
+    matchmaker.connect(socket.id, countryFromHeaders(socket.handshake.headers), { deviceId, ipHash, userId, plus, blocked, boostUntil: socket.data.boostUntil ?? null });
     socket.emit('stats', { online: matchmaker.onlineCount });
     if (limits) socket.emit('limit:status', limits.status(limitKey(socket.data), plus));
+    if (userId) void pushWallet(userId).catch(() => undefined);
     if (socket.data.ban) socket.emit('banned', socket.data.ban);
     const sentAt: number[] = [];
 
@@ -383,6 +408,77 @@ export function createApp(opts: AppOptions = {}): App {
       // Leaving a live match to go back: the person being left sees a normal "next".
       if (current && current.id !== result.a.id) notifyLeft(current.id, 'next');
       announce(result);
+    });
+
+    // ---- Coins: gifts, Boost, matches ----
+    /** Spends coins from my account; replies with the new wallet or why not. */
+    const spend = async (coins: number, reason: string): Promise<SpendResult> => {
+      const me = socket.data.userId;
+      if (!me) return { ok: false, reason: 'login' };
+      const balance = await accounts.changeCoins(me, -coins, reason);
+      if (balance === null) return { ok: false, reason: 'coins' };
+      const w = (await pushWallet(me)) ?? { coins: balance, boostUntil: null };
+      return { ok: true, wallet: w };
+    };
+
+    socket.on('gift:send', async (giftId, ack) => {
+      const done = typeof ack === 'function' ? ack : () => undefined;
+      const gift = GIFTS.find((g) => g.id === giftId);
+      if (!gift) return done({ ok: false, reason: 'invalid' });
+      const partner = matchmaker.partnerOf(socket.id);
+      if (!partner) return done({ ok: false, reason: 'no-partner' });
+      try {
+        const r = await spend(gift.coins, `gift:${gift.id}`);
+        if (!r.ok) return done(r);
+        // The receiver earns a share if they have an account.
+        const theirId = io.sockets.sockets.get(partner.id)?.data.userId;
+        const earned = theirId ? Math.floor(gift.coins * GIFT_SHARE) : 0;
+        if (theirId && earned) {
+          await accounts.changeCoins(theirId, earned, `gift-received:${gift.id}`);
+          void pushWallet(theirId);
+        }
+        socket.emit('gift', { giftId: gift.id, from: 'me', earned });
+        io.to(partner.id).emit('gift', { giftId: gift.id, from: 'them', earned });
+        done(r);
+      } catch (e) {
+        console.error('[gift]', e);
+        done({ ok: false, reason: 'invalid' });
+      }
+    });
+
+    socket.on('boost:buy', async (ack) => {
+      const done = typeof ack === 'function' ? ack : () => undefined;
+      try {
+        const r = await spend(BOOST.coins, 'boost');
+        if (!r.ok) return done(r);
+        const me = socket.data.userId!;
+        // Extends an active Boost.
+        const current = (await accounts.userById(me))?.boostUntil ?? 0;
+        const until = Math.max(Date.now(), current) + BOOST.minutes * 60_000;
+        await accounts.setBoost(me, until);
+        matchmaker.setBoost(me, until);
+        const w = (await pushWallet(me))!;
+        done({ ok: true, wallet: w });
+      } catch (e) {
+        console.error('[boost]', e);
+        done({ ok: false, reason: 'invalid' });
+      }
+    });
+
+    socket.on('limit:buy', async (ack) => {
+      const done = typeof ack === 'function' ? ack : () => undefined;
+      if (!limits) return done({ ok: false, reason: 'invalid' });
+      try {
+        const r = await spend(MATCHES_FOR_COINS.coins, 'matches');
+        if (!r.ok) return done(r);
+        const key = limitKey(socket.data);
+        limits.addBonus(key, MATCHES_FOR_COINS.matches);
+        socket.emit('limit:granted', limits.status(key, socket.data.plus));
+        done(r);
+      } catch (e) {
+        console.error('[limit:buy]', e);
+        done({ ok: false, reason: 'invalid' });
+      }
     });
 
     let lastIcebreaker = 0;

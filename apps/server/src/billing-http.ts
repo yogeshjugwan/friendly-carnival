@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { PLUS_PLANS, type PlusPlan } from '@rc/shared';
+import { COIN_PACKS, PLUS_PLANS, type CoinPackId, type PlusPlan } from '@rc/shared';
 import type { AccountStore } from './accounts.ts';
 import { applyBillingEvent, type BillingProvider } from './billing.ts';
 import { bearer, cors, readJson, sendJson } from './http.ts';
@@ -87,6 +87,15 @@ export function createBillingHandler(deps: BillingDeps) {
           `${deps.webUrl}/plus?success=1`,
           `${deps.webUrl}/plus?canceled=1`,
         );
+        return sendJson(res, 200, { url: checkout }), true;
+      }
+
+      if (route === 'POST /billing/coins') {
+        const { pack } = await readJson(req);
+        if (!COIN_PACKS.some((p) => p.id === pack)) return fail(400, 'Unknown coin pack');
+        const customerId = await billing.ensureCustomer(user);
+        if (customerId !== user.stripeCustomerId) await accounts.setStripeCustomer(user.id, customerId);
+        const checkout = await billing.coinCheckoutUrl(customerId, user, pack as CoinPackId, `${deps.webUrl}/coins?success=1`, `${deps.webUrl}/coins?canceled=1`);
         return sendJson(res, 200, { url: checkout }), true;
       }
 

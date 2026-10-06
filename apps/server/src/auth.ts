@@ -26,6 +26,7 @@ export const publicUser = (u: User): PublicUser => ({
   createdAt: u.createdAt,
   settings: u.settings,
   plus: publicPlus(u.plus),
+  wallet: { coins: u.coins, boostUntil: u.boostUntil && u.boostUntil > Date.now() ? u.boostUntil : null },
 });
 
 const passwordProblem = (p: unknown): string | null => {

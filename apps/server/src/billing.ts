@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import { PLUS_PLANS, type PlanPrice, type PlusPlan } from '@rc/shared';
+import { COIN_PACKS, PLUS_PLANS, type CoinPackId, type PlanPrice, type PlusPlan } from '@rc/shared';
 import { NO_PLUS, type AccountStore, type StoredPlus, type User } from './accounts.ts';
 
 /** The pieces of a Stripe subscription we care about, provider-neutral. */
@@ -17,6 +17,7 @@ export interface SubscriptionInfo {
 export type BillingEvent =
   | { type: 'checkout.completed'; userId: string | null; customerId: string | null; subscriptionId: string | null }
   | { type: 'subscription.changed'; subscription: SubscriptionInfo }
+  | { type: 'coins.purchased'; userId: string; coins: number; checkoutId: string }
   | { type: 'ignored'; name: string };
 
 export interface BillingProvider {
@@ -25,6 +26,8 @@ export interface BillingProvider {
   ensureCustomer(user: User): Promise<string>;
   checkoutUrl(customerId: string, user: User, plan: PlusPlan, successUrl: string, cancelUrl: string): Promise<string>;
   portalUrl(customerId: string, returnUrl: string): Promise<string>;
+  /** One-time Checkout for a coin pack. */
+  coinCheckoutUrl(customerId: string, user: User, pack: CoinPackId, successUrl: string, cancelUrl: string): Promise<string>;
   /** Verifies the signature and normalizes the event. Throws on a bad signature. */
   parseWebhook(rawBody: Buffer, signature: string): BillingEvent;
   getSubscription(id: string): Promise<SubscriptionInfo>;
@@ -49,6 +52,12 @@ export function toStoredPlus(sub: SubscriptionInfo, prices: Record<PlusPlan, str
  */
 export async function applyBillingEvent(event: BillingEvent, billing: BillingProvider, accounts: AccountStore): Promise<string | null> {
   if (event.type === 'ignored') return null;
+
+  if (event.type === 'coins.purchased') {
+    // The checkout id makes a repeated delivery a no-op.
+    const balance = await accounts.changeCoins(event.userId, event.coins, 'purchase', `stripe:${event.checkoutId}`);
+    return balance === null ? null : event.userId;
+  }
 
   if (event.type === 'checkout.completed') {
     if (!event.userId || !event.customerId) return null;
@@ -139,6 +148,31 @@ export class StripeBilling implements BillingProvider {
     return session.url;
   }
 
+  async coinCheckoutUrl(customerId: string, user: User, packId: CoinPackId, successUrl: string, cancelUrl: string) {
+    const pack = COIN_PACKS.find((p) => p.id === packId);
+    if (!pack) throw new Error('Unknown coin pack');
+    const session = await this.stripe.checkout.sessions.create({
+      mode: 'payment',
+      customer: customerId,
+      client_reference_id: user.id,
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: 'usd',
+            unit_amount: pack.cents,
+            product_data: { name: `${pack.coins} randomCall coins`, description: 'Send gifts, Boost and extra matches.' },
+          },
+        },
+      ],
+      metadata: { kind: 'coins', userId: user.id, coins: String(pack.coins), pack: pack.id },
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+    });
+    if (!session.url) throw new Error('Stripe did not return a checkout URL');
+    return session.url;
+  }
+
   async portalUrl(customerId: string, returnUrl: string) {
     const session = await this.stripe.billingPortal.sessions.create({ customer: customerId, return_url: returnUrl });
     return session.url;
@@ -158,6 +192,12 @@ export function normalizeStripeEvent(event: Stripe.Event): BillingEvent {
   switch (event.type) {
     case 'checkout.session.completed': {
       const s = event.data.object;
+      if (s.mode === 'payment' && s.metadata?.kind === 'coins') {
+        const coins = Number(s.metadata.coins);
+        const userId = s.metadata.userId ?? s.client_reference_id;
+        if (s.payment_status !== 'paid' || !userId || !Number.isInteger(coins) || coins <= 0) return { type: 'ignored', name: event.type };
+        return { type: 'coins.purchased', userId, coins, checkoutId: s.id };
+      }
       if (s.mode !== 'subscription') return { type: 'ignored', name: event.type };
       return {
         type: 'checkout.completed',

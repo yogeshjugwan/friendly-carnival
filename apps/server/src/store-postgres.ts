@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import type { ReportSource } from '@rc/shared';
-import { longestBan, type Appeal, type Ban, type NewBan, type NewReport, type Report, type SafetyStore } from './store.ts';
+import { longestBan, type Appeal, type Ban, type BlockInfo, type NewBan, type NewReport, type Report, type SafetyStore } from './store.ts';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS reports (
@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS blocks (
   PRIMARY KEY (blocker, blocked)
 );
 CREATE INDEX IF NOT EXISTS blocks_blocked_idx ON blocks (blocked);
+ALTER TABLE blocks ADD COLUMN IF NOT EXISTS gender TEXT;
+ALTER TABLE blocks ADD COLUMN IF NOT EXISTS country TEXT;
 
 ALTER TABLE reports ADD COLUMN IF NOT EXISTS target_user_id TEXT;
 ALTER TABLE bans ADD COLUMN IF NOT EXISTS user_id TEXT;
@@ -202,11 +204,24 @@ export class PostgresStore implements SafetyStore {
     return rows[0] ? toBan(rows[0]) : null;
   }
 
-  async addBlock(blocker: string, blocked: string) {
+  async addBlock(blocker: string, blocked: string, info: BlockInfo = { gender: null, country: null }) {
     await this.pool.query(
-      'INSERT INTO blocks (blocker, blocked, created_at) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
-      [blocker, blocked, Date.now()],
+      'INSERT INTO blocks (blocker, blocked, created_at, gender, country) VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING',
+      [blocker, blocked, Date.now(), info.gender, info.country],
     );
+  }
+
+  async listBlocks(blocker: string) {
+    const { rows } = await this.pool.query(
+      'SELECT blocked, gender, country, created_at FROM blocks WHERE blocker = $1 ORDER BY created_at DESC',
+      [blocker],
+    );
+    return rows.map((r) => ({ blocked: r.blocked as string, gender: r.gender ?? null, country: r.country ?? null, createdAt: Number(r.created_at) }));
+  }
+
+  async removeBlock(blocker: string, blocked: string) {
+    const { rowCount } = await this.pool.query('DELETE FROM blocks WHERE blocker = $1 AND blocked = $2', [blocker, blocked]);
+    return (rowCount ?? 0) > 0;
   }
 
   async blocksFor(deviceId: string) {

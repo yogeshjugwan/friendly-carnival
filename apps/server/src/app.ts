@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createServer, type IncomingHttpHeaders, type Server as HttpServer } from 'node:http';
 import { Server } from 'socket.io';
 import {
@@ -12,6 +12,7 @@ import {
   RELAY_BYTES_PER_SECOND,
   hasFilters,
   type BanInfo,
+  type BlockedUser,
   type CallAnswer,
   type CallResult,
   type ClientToServerEvents,
@@ -502,7 +503,10 @@ export function createApp(opts: AppOptions = {}): App {
       const targetId = targetSocketId(which);
       const target = targetId ? matchmaker.identityOf(targetId) : undefined;
       if (!target) return;
-      await store.addBlock(deviceId, target.deviceId).catch((e) => console.error('[block]', e));
+      // Remember what the blocker saw, for their Blocked list.
+      const seen = targetId ? matchmaker.get(targetId) : undefined;
+      const info = { gender: seen?.gender ?? null, country: seen && !seen.hideCountry ? seen.country : null };
+      await store.addBlock(deviceId, target.deviceId, info).catch((e) => console.error('[block]', e));
       matchmaker.block(deviceId, target.deviceId);
       socket.emit('user:blocked');
       if (which === 'current' && matchmaker.get(socket.id)?.partnerId === targetId) {
@@ -510,6 +514,41 @@ export function createApp(opts: AppOptions = {}): App {
         const pairing = matchmaker.rejoin(socket.id);
         if (pairing) announce(pairing);
         else socket.emit('queue:waiting');
+      }
+    });
+
+    /** Opaque handle for a block, so the other device's id never reaches the browser. */
+    const blockHandle = (blocked: string) => createHash('sha256').update(`${deviceId}:${blocked}`).digest('base64url').slice(0, 16);
+
+    socket.on('blocks:list', async (ack) => {
+      if (typeof ack !== 'function') return;
+      const list = await store.listBlocks(deviceId).catch(() => []);
+      ack(
+        list.map((b) => ({
+          id: blockHandle(b.blocked),
+          gender: (b.gender as BlockedUser['gender']) ?? null,
+          country: b.country,
+          createdAt: b.createdAt,
+        })),
+      );
+    });
+
+    socket.on('blocks:remove', async (id, ack) => {
+      const done = typeof ack === 'function' ? ack : () => undefined;
+      if (typeof id !== 'string') return done(false);
+      try {
+        const match = (await store.listBlocks(deviceId)).find((b) => blockHandle(b.blocked) === id);
+        if (!match || !(await store.removeBlock(deviceId, match.blocked))) return done(false);
+        // Refresh both sides' live block lists (they may still block each other the other way).
+        for (const dev of [deviceId, match.blocked]) {
+          const set = await store.blocksFor(dev);
+          matchmaker.setBlocked(dev, set);
+          for (const s of io.sockets.sockets.values()) if (s.data.deviceId === dev) s.data.blocked = set;
+        }
+        done(true);
+      } catch (e) {
+        console.error('[unblock]', e);
+        done(false);
       }
     });
 

@@ -1,6 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import type { ReportReason, ReportSource } from '@rc/shared';
 
+export interface BlockInfo {
+  gender: string | null;
+  country: string | null;
+}
+
+export interface StoredBlock extends BlockInfo {
+  blocked: string;
+  createdAt: number;
+}
+
 export interface Report {
   id: string;
   reporterDevice: string;
@@ -69,9 +79,13 @@ export interface SafetyStore {
   listBans(activeOnly: boolean, now?: number): Promise<Ban[]>;
   liftBan(id: string): Promise<Ban | null>;
 
-  addBlock(blocker: string, blocked: string): Promise<void>;
+  /** `info` is what the blocker saw (gender, country), shown in their Blocked list. */
+  addBlock(blocker: string, blocked: string, info?: BlockInfo): Promise<void>;
   /** Devices this device blocked, plus devices that blocked it. */
   blocksFor(deviceId: string): Promise<Set<string>>;
+  /** Blocks made by this device, newest first. */
+  listBlocks(blocker: string): Promise<StoredBlock[]>;
+  removeBlock(blocker: string, blocked: string): Promise<boolean>;
 
   addAppeal(banId: string, deviceId: string, message: string): Promise<Appeal>;
   listAppeals(status?: Appeal['status']): Promise<Appeal[]>;
@@ -97,7 +111,7 @@ export class MemoryStore implements SafetyStore {
   private reports = new Map<string, Report>();
   private bans = new Map<string, Ban>();
   private appeals = new Map<string, Appeal>();
-  private blocks = new Map<string, Set<string>>();
+  private blocks = new Map<string, Map<string, { info: BlockInfo; createdAt: number }>>();
 
   async init() {}
 
@@ -174,13 +188,24 @@ export class MemoryStore implements SafetyStore {
     return b;
   }
 
-  async addBlock(blocker: string, blocked: string) {
-    if (!this.blocks.has(blocker)) this.blocks.set(blocker, new Set());
-    this.blocks.get(blocker)!.add(blocked);
+  async addBlock(blocker: string, blocked: string, info: BlockInfo = { gender: null, country: null }) {
+    if (!this.blocks.has(blocker)) this.blocks.set(blocker, new Map());
+    const mine = this.blocks.get(blocker)!;
+    if (!mine.has(blocked)) mine.set(blocked, { info, createdAt: Date.now() });
+  }
+
+  async listBlocks(blocker: string) {
+    return [...(this.blocks.get(blocker) ?? new Map()).entries()]
+      .map(([blocked, b]) => ({ blocked, ...b.info, createdAt: b.createdAt }))
+      .sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  async removeBlock(blocker: string, blocked: string) {
+    return this.blocks.get(blocker)?.delete(blocked) ?? false;
   }
 
   async blocksFor(deviceId: string) {
-    const out = new Set(this.blocks.get(deviceId) ?? []);
+    const out = new Set(this.blocks.get(deviceId)?.keys() ?? []);
     for (const [blocker, set] of this.blocks) if (set.has(deviceId)) out.add(blocker);
     return out;
   }

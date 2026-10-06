@@ -5,6 +5,7 @@ import type { RandomCall } from '@/lib/useRandomCall';
 import { BACKGROUND_OPTIONS } from '@/lib/backgroundEffect';
 import { CONTACT_EMAIL } from './LegalPage';
 import { BackIcon, MoreVerticalIcon } from './icons';
+import { BlockedList } from './BlockedList';
 import { SettingsContent } from './SettingsMenu';
 
 type IconProps = { className?: string };
@@ -50,6 +51,12 @@ const AbuseIcon = svg(
     <path d="M12 8v4M12 16h.01" />
   </>,
 );
+const BlockIcon = svg(
+  <>
+    <circle cx="12" cy="12" r="9" />
+    <path d="m5.7 5.7 12.6 12.6" />
+  </>,
+);
 const HelpIcon = svg(
   <>
     <circle cx="11" cy="11" r="7" />
@@ -74,7 +81,7 @@ interface Props {
 
 /** The ⋮ "More options" menu, laid out like Google Meet's. */
 export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen }: Props) {
-  const [view, setView] = useState<'closed' | 'menu' | 'settings' | 'effects'>('closed');
+  const [view, setView] = useState<'closed' | 'menu' | 'settings' | 'effects' | 'blocked'>('closed');
   const [fullscreen, setFullscreen] = useState(false);
   useEffect(() => {
     const sync = () => setFullscreen(!!document.fullscreenElement);
@@ -140,6 +147,14 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
                 window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('randomCall: problem report')}`;
               })}
               {item(AbuseIcon, 'Report abuse', () => window.dispatchEvent(new Event('rc:report')))}
+              <button
+                role="menuitem"
+                onClick={() => setView('blocked')}
+                className="flex w-full items-center gap-4 px-4 py-3 text-left text-[15px] text-slate-100 hover:bg-white/10"
+              >
+                <BlockIcon className="h-5 w-5 shrink-0 text-slate-300" />
+                <span>Blocked people</span>
+              </button>
               {item(HelpIcon, 'Troubleshooting & help', () => window.open('/help', '_blank', 'noopener'))}
               <button
                 role="menuitem"
@@ -149,6 +164,16 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
                 <GearIcon className="h-5 w-5 shrink-0 text-slate-300" />
                 <span>Settings</span>
               </button>
+            </div>
+          ) : view === 'blocked' ? (
+            <div className="absolute bottom-full right-0 z-40 mb-3 max-h-[70dvh] w-80 max-w-[90vw] overflow-y-auto rounded-xl bg-[#2a2b2e] p-4 shadow-2xl sm:-right-20">
+              <div className="mb-2 flex items-center gap-2">
+                <button onClick={() => setView('menu')} aria-label="Back to menu" className="rounded-full p-1 text-slate-300 hover:bg-white/10">
+                  <BackIcon className="h-4 w-4" />
+                </button>
+                <p className="font-semibold text-slate-100">Blocked people</p>
+              </div>
+              <BlockedList tone="dark" />
             </div>
           ) : view === 'effects' ? (
             <div className="absolute bottom-full right-0 z-40 mb-3 w-80 max-w-[90vw] rounded-xl bg-[#2a2b2e] p-4 text-slate-100 shadow-2xl sm:-right-20">

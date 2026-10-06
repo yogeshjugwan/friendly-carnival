@@ -68,6 +68,15 @@ export type CallAnswer = { accepted: true } | { accepted: false; reason: 'declin
 
 export const CALL_REQUEST_MS = 20_000;
 
+/** Someone you blocked, as you saw them (their device id never leaves the server). */
+export interface BlockedUser {
+  /** Opaque handle for unblocking. */
+  id: string;
+  gender: Gender | null;
+  country: string | null;
+  createdAt: number;
+}
+
 export interface MatchFound {
   matchId: string;
   mode: ChatMode;
@@ -179,6 +188,10 @@ export interface ClientToServerEvents {
   'relay:start': () => void;
   'relay:chunk': (chunk: RelayChunk) => void;
   signal: (msg: SignalMessage) => void;
+  /** People this device blocked (ack gets the list). */
+  'blocks:list': (ack: (blocked: BlockedUser[]) => void) => void;
+  /** Unblock one of them. */
+  'blocks:remove': (id: string, ack: (ok: boolean) => void) => void;
   /** Send a reaction emoji to the current partner (one of REACTIONS). */
   reaction: (emoji: string) => void;
   /** Plus: who is online now (ack gets the list, or null without Plus). */

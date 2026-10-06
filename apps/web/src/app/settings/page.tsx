@@ -8,6 +8,7 @@ import { SiteFooter, SiteHeader } from '@/components/SiteHeader';
 import { errorText, Field, FormError, FormNote, Submit } from '@/components/forms/fields';
 import { api, useAuth } from '@/lib/auth';
 import { loadSettings } from '@/lib/settings';
+import { BlockedList } from '@/components/BlockedList';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -187,6 +188,11 @@ export default function SettingsPage() {
           />
         </>
       )}
+
+      <Section title="Blocked people">
+        <p className="mb-2 mt-1 text-sm text-slate-500">Blocks are saved on this device. Unblock someone to let them be matched with you again.</p>
+        <BlockedList />
+      </Section>
 
       <Section title="Privacy">
         <p className="mt-3 text-sm text-slate-600">

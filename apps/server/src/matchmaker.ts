@@ -144,6 +144,11 @@ export class Matchmaker {
     }
   }
 
+  /** Replaces the blocked set of every session on this device (after an unblock). */
+  setBlocked(deviceId: string, blocked: Set<string>): void {
+    for (const s of this.sessions.values()) if (s.deviceId === deviceId) s.blocked = new Set(blocked);
+  }
+
   /** Socket ids currently connected for a device or IP hash. */
   socketsFor(deviceId: string, ipHash: string | null, userId: string | null = null): string[] {
     return [...this.sessions.values()]

@@ -117,6 +117,16 @@ export function useRandomCall() {
   const [limitReached, setLimitReached] = useState(false);
   /** A rewarded video is playing; matches are added when it ends. */
   const [rewardAd, setRewardAd] = useState<{ endsAt: number } | null>(null);
+  /** Emoji reactions floating over the video (mine and the partner's). */
+  const [reactions, setReactions] = useState<{ id: number; emoji: string; mine: boolean; x: number }[]>([]);
+  const reactionId = useRef(0);
+  const showReaction = useCallback((emoji: string, mine: boolean) => {
+    const id = ++reactionId.current;
+    // Mine float up on the right, the partner's on the left.
+    const x = (mine ? 60 : 12) + Math.random() * 25;
+    setReactions((r) => [...r.slice(-11), { id, emoji, mine, x }]);
+    window.setTimeout(() => setReactions((r) => r.filter((e) => e.id !== id)), 2_600);
+  }, []);
   /** A Plus member asked to chat with this user. */
   const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
   /** This (Plus) user's open request from the Online list. */
@@ -461,6 +471,7 @@ export function useRandomCall() {
       );
     const onBlocked = () => flash('Blocked. You will not be matched with them again.');
     const onPlusRequired = () => setPlusRequired(true);
+    const onReaction = (emoji: string) => showReaction(emoji, false);
     const onIncomingCall = (c: IncomingCall) => setIncomingCall(c);
     const onIncomingCancelled = (id: string) => setIncomingCall((c) => (c?.requestId === id ? null : c));
     const onCallAnswered = (a: CallAnswer) => {
@@ -514,6 +525,7 @@ export function useRandomCall() {
     socket.on('plus:required', onPlusRequired);
     socket.on('relay:start', onRelayStart);
     socket.on('relay:chunk', onRelayChunk);
+    socket.on('reaction', onReaction);
     socket.on('call:incoming', onIncomingCall);
     socket.on('call:incoming-cancelled', onIncomingCancelled);
     socket.on('call:answered', onCallAnswered);
@@ -522,6 +534,7 @@ export function useRandomCall() {
     socket.on('limit:granted', onLimitGranted);
     socket.on('limit:ad-rejected', onAdRejected);
     return () => {
+      socket.off('reaction', onReaction);
       socket.off('call:incoming', onIncomingCall);
       socket.off('call:incoming-cancelled', onIncomingCancelled);
       socket.off('call:answered', onCallAnswered);
@@ -546,7 +559,7 @@ export function useRandomCall() {
       socket.off('relay:start', onRelayStart);
       socket.off('relay:chunk', onRelayChunk);
     };
-  }, [startPeer, handleSignal, closePeer, requeue, addLine, flash, startAdBreak, startRelay]);
+  }, [startPeer, handleSignal, closePeer, requeue, addLine, flash, startAdBreak, startRelay, showReaction]);
 
   // Keep the server in sync with the "allow reconnect" setting (and on every reconnect).
   useEffect(() => {
@@ -638,6 +651,16 @@ export function useRandomCall() {
   }, [closePeer]);
 
   /** Plays a rewarded video; the server adds matches if it ran the full time. */
+  /** Sends a reaction to the partner and shows it here too. */
+  const sendReaction = useCallback(
+    (emoji: string) => {
+      if (!matchRef.current) return;
+      getSocket().emit('reaction', emoji);
+      showReaction(emoji, true);
+    },
+    [showReaction],
+  );
+
   /** Plus: people online now, or null without Plus. */
   const listUsers = useCallback(
     () => new Promise<ActiveUser[] | null>((resolve) => getSocket().timeout(8_000).emit('users:list', (err, users) => resolve(err ? [] : users))),
@@ -918,6 +941,8 @@ export function useRandomCall() {
     limitReached,
     rewardAd,
     watchRewardAd,
+    reactions,
+    sendReaction,
     incomingCall,
     outgoingCall,
     listUsers,

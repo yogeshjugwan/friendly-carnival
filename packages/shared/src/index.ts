@@ -179,6 +179,8 @@ export interface ClientToServerEvents {
   'relay:start': () => void;
   'relay:chunk': (chunk: RelayChunk) => void;
   signal: (msg: SignalMessage) => void;
+  /** Send a reaction emoji to the current partner (one of REACTIONS). */
+  reaction: (emoji: string) => void;
   /** Plus: who is online now (ack gets the list, or null without Plus). */
   'users:list': (ack: (users: ActiveUser[] | null) => void) => void;
   /** Plus: ask a waiting person to chat. */
@@ -206,6 +208,8 @@ export interface ServerToClientEvents {
   'ban:appealed': () => void;
   /** Filters were sent without an active Plus subscription and were ignored. */
   'plus:required': () => void;
+  /** The partner sent a reaction. */
+  reaction: (emoji: string) => void;
   /** Someone (a Plus member) wants to chat with you. */
   'call:incoming': (call: IncomingCall) => void;
   /** The incoming request was withdrawn or lapsed. */
@@ -241,6 +245,9 @@ export interface MatchLimitStatus {
   /** When the count resets (next midnight UTC), epoch ms. */
   resetsAt: number;
 }
+
+/** Reactions partners can send during a call (✋ = raise hand). */
+export const REACTIONS = ['💖', '👍', '🎉', '👏', '😂', '😮', '😢', '🤔', '👎', '✋'] as const;
 
 export const MAX_INTERESTS = 10;
 export const MAX_INTEREST_LENGTH = 24;

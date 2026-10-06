@@ -3,6 +3,7 @@ import { createServer, type IncomingHttpHeaders, type Server as HttpServer } fro
 import { Server } from 'socket.io';
 import {
   CALL_REQUEST_MS,
+  REACTIONS,
   CHAT_BURST,
   CHAT_WINDOW_MS,
   MAX_APPEAL_LENGTH,
@@ -359,6 +360,19 @@ export function createApp(opts: AppOptions = {}): App {
       // Leaving a live match to go back: the person being left sees a normal "next".
       if (current && current.id !== result.a.id) notifyLeft(current.id, 'next');
       announce(result);
+    });
+
+    const reactionsAt: number[] = [];
+    socket.on('reaction', (emoji) => {
+      if (!(REACTIONS as readonly string[]).includes(emoji)) return;
+      const partner = matchmaker.partnerOf(socket.id);
+      if (!partner) return;
+      // At most 8 reactions per 4 s.
+      const now = Date.now();
+      while (reactionsAt.length && now - reactionsAt[0] > 4_000) reactionsAt.shift();
+      if (reactionsAt.length >= 8) return;
+      reactionsAt.push(now);
+      io.to(partner.id).emit('reaction', emoji);
     });
 
     socket.on('users:list', (ack) => {

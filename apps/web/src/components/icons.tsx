@@ -57,3 +57,40 @@ export const ChevronDownIcon = ({ className }: P) => (
     <path d="m6 9 6 6 6-6" />
   </svg>
 );
+export const ChevronUpIcon = ({ className }: P) => (
+  <svg {...base(className ?? 'h-4 w-4')}>
+    <path d="m6 15 6-6 6 6" />
+  </svg>
+);
+export const MoreVerticalIcon = ({ className }: P) => (
+  <svg {...base(className)}>
+    <circle cx="12" cy="5" r="1" />
+    <circle cx="12" cy="12" r="1" />
+    <circle cx="12" cy="19" r="1" />
+  </svg>
+);
+export const SmileIcon = ({ className }: P) => (
+  <svg {...base(className)}>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+    <path d="M9 9h.01M15 9h.01" />
+  </svg>
+);
+export const HandIcon = ({ className }: P) => (
+  <svg {...base(className)}>
+    <path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8" />
+    <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
+  </svg>
+);
+/** Phone handset turned down: end call. */
+export const PhoneOffIcon = ({ className }: P) => (
+  <svg {...base(className)}>
+    <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91" />
+    <path d="m22 2-20 20" />
+  </svg>
+);
+export const SkipIcon = ({ className }: P) => (
+  <svg {...base(className)}>
+    <path d="m5 4 10 8-10 8V4zM19 5v14" />
+  </svg>
+);

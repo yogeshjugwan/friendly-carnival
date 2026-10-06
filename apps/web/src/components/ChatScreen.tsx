@@ -9,7 +9,8 @@ import { loadSettings } from '@/lib/settings';
 import type { RandomCall } from '@/lib/useRandomCall';
 import { AdSlot } from './AdSlot';
 import { DraggablePip, type Corner } from './DraggablePip';
-import { BackIcon, MicIcon, MicOffIcon, VideoIcon, VideoOffIcon } from './icons';
+import { VideoIcon } from './icons';
+import { CallControls, ReactionLayer } from './CallControls';
 import { FilterBar } from './FilterBar';
 import { LimitModal } from './LimitModal';
 import { IncomingCallModal, OnlineUsersPanel } from './OnlineUsers';
@@ -85,7 +86,6 @@ function WidenSearch() {
   );
 }
 
-const roundBtn = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white shadow-lg transition sm:h-12 sm:w-12';
 
 export function ChatScreen({ call }: { call: RandomCall }) {
   const matched = call.status === 'in-call' || call.status === 'connecting';
@@ -142,7 +142,8 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               </span>
             )}
           </button>
-          <SettingsMenu call={call} />
+          {/* Video calls have settings under ⋮ in the call bar. */}
+          {isText && <SettingsMenu call={call} />}
           {isPlus ? (
             <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-sm font-semibold text-amber-300" title="Your Plus membership">👑 Plus member</span>
           ) : (
@@ -266,40 +267,11 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                 )}
               </DraggablePip>
 
-              {/* Controls */}
-              <div className="absolute bottom-3 left-0 right-0 z-20 flex items-center justify-center gap-1.5 px-2 sm:bottom-4 sm:gap-3 max-lg:landscape:justify-start max-lg:landscape:pl-3">
-                <button
-                  onClick={call.toggleCamera}
-                  aria-label={call.cameraOn ? 'Turn camera off' : 'Turn camera on'}
-                  aria-pressed={!call.cameraOn}
-                  className={`${roundBtn} ${call.cameraOn ? 'bg-slate-600/90 hover:bg-slate-500' : 'bg-red-500 hover:bg-red-600'}`}
-                >
-                  {call.cameraOn ? <VideoIcon /> : <VideoOffIcon />}
-                </button>
-                <button
-                  onClick={call.toggleMic}
-                  aria-label={call.micOn ? 'Mute microphone' : 'Unmute microphone'}
-                  aria-pressed={!call.micOn}
-                  className={`${roundBtn} ${call.micOn ? 'bg-slate-600/90 hover:bg-slate-500' : 'bg-red-500 hover:bg-red-600'}`}
-                >
-                  {call.micOn ? <MicIcon /> : <MicOffIcon />}
-                </button>
-                {call.canGoBack && (
-                  <button
-                    onClick={call.back}
-                    aria-label="Back to the previous stranger"
-                    title="Back to the person you just skipped"
-                    className={`${roundBtn} bg-slate-600/90 hover:bg-slate-500`}
-                  >
-                    <BackIcon />
-                  </button>
-                )}
-                <button onClick={call.stop} className="shrink-0 rounded-full bg-red-500 px-5 py-2.5 font-semibold text-white shadow-lg hover:bg-red-600 sm:px-8 sm:py-3">
-                  Stop
-                </button>
-                <button onClick={call.next} className="shrink-0 rounded-full bg-brand px-5 py-2.5 font-semibold text-white shadow-lg hover:bg-brand-dark sm:px-8 sm:py-3">
-                  Next
-                </button>
+              <ReactionLayer call={call} />
+
+              {/* Call bar (Meet style): mic, camera, reactions, hand, ⋮ settings, end, Next */}
+              <div className="absolute bottom-3 left-0 right-0 z-30 flex justify-center px-2 sm:bottom-4 max-lg:landscape:justify-start max-lg:landscape:pl-3">
+                <CallControls call={call} matched={matched} />
               </div>
             </VideoTile>
 

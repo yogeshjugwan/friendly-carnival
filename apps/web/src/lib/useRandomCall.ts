@@ -590,6 +590,8 @@ export function useRandomCall() {
   }, []);
 
   /** Background effect (blur / virtual background) and the real camera track behind it. */
+  /** Hidden video used to float my own camera when nobody else is on screen. */
+  const selfPipRef = useRef<HTMLVideoElement | null>(null);
   const effectRef = useRef<BackgroundEffect | null>(null);
   const rawCameraRef = useRef<MediaStreamTrack | null>(null);
   const [background, setBackgroundState] = useState<BackgroundMode>('none');
@@ -839,19 +841,43 @@ export function useRandomCall() {
 
   const setPartnerVideo = useCallback((el: HTMLVideoElement | null) => {
     partnerVideoRef.current = el;
+    // If my own camera is floating and a stranger appears, float them instead.
+    el?.addEventListener('loadeddata', () => {
+      if (document.pictureInPictureElement && document.pictureInPictureElement === selfPipRef.current) {
+        void el.requestPictureInPicture().catch(() => undefined);
+      }
+    });
   }, []);
 
-  /** Opens the partner's video in a floating browser window (or closes it). */
+  /**
+   * Floats the call in a browser picture-in-picture window, like Meet: the
+   * stranger's video when there is one, otherwise my own camera.
+   */
   const togglePictureInPicture = useCallback(async () => {
-    const video = partnerVideoRef.current;
     try {
       if (document.pictureInPictureElement) return void (await document.exitPictureInPicture());
-      if (!video || !document.pictureInPictureEnabled || !video.srcObject && !video.src) {
-        return flash('Picture-in-picture is available once you are talking to someone, in Chrome, Edge or Safari.');
+      if (!document.pictureInPictureEnabled) {
+        return flash('This browser does not support picture-in-picture. Try Chrome, Edge or Safari.');
       }
-      await video.requestPictureInPicture();
+      const hasFrames = (v: HTMLVideoElement | null) => !!v && v.readyState >= 2 && v.videoWidth > 0;
+      let target = partnerVideoRef.current;
+      if (target && (target.srcObject || target.src) && !hasFrames(target)) {
+        // Stranger's video is still starting: give it a moment.
+        await new Promise((r) => setTimeout(r, 800));
+      }
+      if (!hasFrames(target)) {
+        // Nobody on screen yet: float my own camera instead.
+        const local = localRef.current;
+        if (!local || !local.getVideoTracks().length) return flash('Turn on your camera or start a chat to use picture-in-picture.');
+        const self = (selfPipRef.current ??= Object.assign(document.createElement('video'), { muted: true, playsInline: true }));
+        if (self.srcObject !== local) self.srcObject = local;
+        await self.play().catch(() => undefined);
+        if (self.readyState < 1) await new Promise((r) => self.addEventListener('loadedmetadata', r, { once: true }));
+        target = self;
+      }
+      await target!.requestPictureInPicture();
     } catch {
-      flash('This browser could not open picture-in-picture.');
+      flash('This browser could not open picture-in-picture. Click the button again, or try Chrome.');
     }
   }, [flash]);
 

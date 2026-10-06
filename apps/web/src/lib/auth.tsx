@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { PublicUser, UserSettings } from '@rc/shared';
 import { loadSettings, storeSettings } from './settings';
 import { setSessionToken } from './socket';
+import { claimInvite } from './referral';
 
 const API = process.env.NEXT_PUBLIC_SIGNALING_URL ?? 'http://localhost:4100';
 const TOKEN_KEY = 'rc.session';
@@ -16,6 +17,9 @@ export class ApiError extends Error {
     super(message);
   }
 }
+
+/** Window event: the account changed server-side; refetch it. */
+export const ACCOUNT_CHANGED = 'rc:account-changed';
 
 /** Base URL of the realtime/API server. */
 export const API_URL = API;
@@ -103,6 +107,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
       .finally(() => setLoading(false));
   }, [adopt]);
+
+  // Something changed the account elsewhere (e.g. an invite reward during a call).
+  useEffect(() => {
+    if (!token) return;
+    const refetch = () => void api<PublicUser>('/auth/me', undefined, token).then(setUser).catch(() => undefined);
+    window.addEventListener(ACCOUNT_CHANGED, refetch);
+    return () => window.removeEventListener(ACCOUNT_CHANGED, refetch);
+  }, [token]);
+
+  // Signed up from someone's invite link: tell the server who invited us.
+  useEffect(() => {
+    if (user && token) void claimInvite(user, (code) => api('/auth/referral', { code }, token));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, token]);
 
   const value = useMemo<AuthState>(
     () => ({

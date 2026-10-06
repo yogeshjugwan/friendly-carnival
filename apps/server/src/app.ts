@@ -3,6 +3,7 @@ import { createServer, type IncomingHttpHeaders, type Server as HttpServer } fro
 import { Server } from 'socket.io';
 import {
   BOOST,
+  REFERRAL,
   CALL_REQUEST_MS,
   NEW_ACCOUNT_MS,
   NEW_DEVICE_MS,
@@ -33,7 +34,7 @@ import {
   type ServerToClientEvents,
 } from '@rc/shared';
 import type { AccountStore } from './accounts.ts';
-import { isPlusActive, MAX_FRIENDS, MemoryAccountStore } from './accounts.ts';
+import { isPlusActive, MAX_FRIENDS, MemoryAccountStore, NO_PLUS } from './accounts.ts';
 import type { BillingProvider } from './billing.ts';
 import { createBillingHandler } from './billing-http.ts';
 import { handleAdmin } from './admin.ts';
@@ -58,6 +59,8 @@ interface SocketData {
   accountCreatedAt?: number | null;
   /** The account has the ✓ Verified badge. */
   verified?: boolean;
+  /** No invite reward can be due any more (checked on matches). */
+  referralDone?: boolean;
   /** Active Plus subscription at handshake time (updated live by webhooks). */
   plus: boolean;
   ipHash: string | null;
@@ -350,6 +353,46 @@ export function createApp(opts: AppOptions = {}): App {
     if (tellCallee) io.to(r.to).emit('call:incoming-cancelled', requestId);
   };
 
+  /**
+   * Invite rewards: the first time an invited (email-confirmed) account is
+   * matched with someone other than its inviter, both get a free Plus day —
+   * or coins when they already pay for Plus.
+   */
+  const grantReferral = async (userId: string, ref: string) => {
+    const u = await accounts.userById(userId);
+    if (!u) return;
+    const paid = isPlusActive(u.plus) && u.plus.status !== 'admin';
+    if (paid) {
+      await accounts.changeCoins(userId, REFERRAL.coins, 'referral', ref);
+      io.to(socketsOfUser(userId)).emit('referral:rewarded', { kind: 'coins', coins: REFERRAL.coins });
+    } else {
+      const from = isPlusActive(u.plus) && u.plus.until ? u.plus.until : Date.now();
+      await accounts.setPlus(userId, { ...NO_PLUS, status: 'admin', until: from + REFERRAL.plusDays * 86_400_000 });
+      io.to(socketsOfUser(userId)).emit('referral:rewarded', { kind: 'plus', days: REFERRAL.plusDays });
+    }
+    onPlusChanged(userId);
+  };
+  const socketsOfUser = (userId: string) => [...io.sockets.sockets.values()].filter((s) => s.data.userId === userId).map((s) => s.id);
+  const REFERRAL_WINDOW_MS = 24 * 60 * 60_000;
+  const checkReferral = async (socketId: string, partnerId: string) => {
+    const d = io.sockets.sockets.get(socketId)?.data;
+    if (!d?.userId || d.referralDone) return;
+    const u = await accounts.userById(d.userId);
+    if (!u) return;
+    if (u.referralRewarded || (!u.referredBy && Date.now() - u.createdAt > REFERRAL_WINDOW_MS)) {
+      d.referralDone = true;
+      return;
+    }
+    if (!u.referredBy || !u.emailVerified) return;
+    // Matching your own inviter doesn't count.
+    if (io.sockets.sockets.get(partnerId)?.data.userId === u.referredBy) return;
+    if (!(await accounts.markReferralRewarded(u.id))) return;
+    d.referralDone = true;
+    await grantReferral(u.id, `referral:new:${u.id}`);
+    const { rewarded } = await accounts.referralCounts(u.referredBy);
+    if (rewarded <= REFERRAL.maxRewards) await grantReferral(u.referredBy, `referral:by:${u.id}`);
+  };
+
   const announce = (pairing: Pairing) => {
     const { a, b, matchId, sharedInterests, reconnected } = pairing;
     // Matched some other way: any open call request involving them lapses.
@@ -365,6 +408,7 @@ export function createApp(opts: AppOptions = {}): App {
         s.emit('limit:status', limits.status(limitKey(s.data), false));
       }
     }
+    for (const [x, y] of [[a.id, b.id], [b.id, a.id]]) void checkReferral(x, y).catch((e) => console.error('[referral]', e));
     const base = { matchId, mode: b.mode, reconnected, iceServers: turn.current() };
     // b just joined (or pressed Back) and initiates, so a is ready to answer.
     const info = (s: Pairing['a']) => ({

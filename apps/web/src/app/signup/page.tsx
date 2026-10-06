@@ -8,6 +8,7 @@ import { AuthCard } from '@/components/SiteHeader';
 import { errorText, Field, FormError, Submit } from '@/components/forms/fields';
 import { Agreement, GoogleSignIn } from '@/components/forms/social';
 import { useAuth } from '@/lib/auth';
+import { pendingInviteCode } from '@/lib/referral';
 
 /** Only same-site paths, so ?next= can't send people to another website. */
 const safeNext = () => {
@@ -27,11 +28,20 @@ export default function SignupPage() {
   const [highlight, setHighlight] = useState(false);
   const [next, setNext] = useState<string | null>(null);
 
-  useEffect(() => setNext(safeNext()), []);
+  const [invited, setInvited] = useState(false);
+  useEffect(() => {
+    setNext(safeNext());
+    setInvited(!!pendingInviteCode());
+  }, []);
 
   return (
     <AuthCard title="Create an account">
       <p className="mt-1 text-sm text-slate-500">Optional — save your settings and keep them on every device.</p>
+      {invited && (
+        <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+          🎁 A friend invited you! Sign up, confirm your email and have your first chat — you both get a free day of 👑 Plus.
+        </p>
+      )}
       <GoogleSignIn
         agreed={adult && terms}
         next={next ?? '/settings?welcome=1'}

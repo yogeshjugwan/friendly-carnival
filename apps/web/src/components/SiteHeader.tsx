@@ -39,6 +39,9 @@ export function SiteHeader({ online }: { online?: number | null }) {
                 👑 Upgrade
               </Link>
             )}
+            <Link href="/invite" className="hidden rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-medium hover:bg-slate-600 sm:inline-block" title="Invite friends, get Plus free">
+              🎁 Invite
+            </Link>
             <CoinChip className="!py-1.5" />
             <Link href="/settings" className="rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-medium hover:bg-slate-600">
               {user.email.split('@')[0]} · Settings
@@ -79,6 +82,9 @@ export function SiteFooter() {
       </Link>
       <Link href="/privacy" className="hover:text-white">
         Privacy Policy
+      </Link>
+      <Link href="/invite" className="hover:text-white">
+        Invite friends
       </Link>
       <Link href="/help" className="hover:text-white">
         Help

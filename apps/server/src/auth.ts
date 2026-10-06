@@ -1,6 +1,14 @@
 import { randomInt } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { MAX_PASSWORD_LENGTH, MAX_VERIFY_PHOTO, MIN_PASSWORD_LENGTH, VERIFY_GESTURES, type PublicUser, type VerifyGestureId } from '@rc/shared';
+import {
+  MAX_PASSWORD_LENGTH,
+  MAX_VERIFY_PHOTO,
+  MIN_PASSWORD_LENGTH,
+  VERIFY_GESTURES,
+  type PublicUser,
+  type ReferralInfo,
+  type VerifyGestureId,
+} from '@rc/shared';
 import { hashPassword, publicPlus, verifyPassword, type AccountStore, type User } from './accounts.ts';
 import { bearer, cors, RateLimiter, readJson, sendJson } from './http.ts';
 import { linkEmail, type Mailer } from './mailer.ts';
@@ -15,6 +23,9 @@ export interface AuthDeps {
   /** Rate-limit key for the caller (hashed IP). */
   clientKey: (req: IncomingMessage) => string;
 }
+
+/** An invite link can be attached up to a day after sign-up. */
+const REFERRAL_WINDOW_MS = 24 * 60 * 60_000;
 
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
 /** Used to keep login timing similar whether or not the email exists. */
@@ -153,6 +164,22 @@ export function createAuthHandler(deps: AuthDeps) {
         if (!settings) return fail(400, 'Invalid settings');
         await accounts.updateSettings(user.id, settings);
         return sendJson(res, 200, publicUser({ ...user, settings })), true;
+      }
+
+      if (route === 'GET /auth/referral') {
+        const [code, counts] = await Promise.all([accounts.referralCode(user.id), accounts.referralCounts(user.id)]);
+        return sendJson(res, 200, { code, ...counts } satisfies ReferralInfo), true;
+      }
+
+      // Signed up with someone's invite link: only for new accounts, once.
+      if (route === 'POST /auth/referral') {
+        const { code } = await readJson(req);
+        if (typeof code !== 'string' || !/^[a-z0-9]{4,16}$/i.test(code)) return fail(400, 'Invalid invite code');
+        if (Date.now() - user.createdAt > REFERRAL_WINDOW_MS) return fail(409, 'Invite links only work for new accounts');
+        const referrer = await accounts.userByReferralCode(code);
+        if (!referrer || referrer.id === user.id) return fail(404, 'Invite link not found');
+        if (!(await accounts.setReferredBy(user.id, referrer.id))) return fail(409, 'You already used an invite link');
+        return sendJson(res, 200, { ok: true }), true;
       }
 
       if (route === 'POST /auth/verification/challenge') {

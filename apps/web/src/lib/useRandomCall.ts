@@ -27,7 +27,9 @@ import {
   type RelayChunk,
   type ReportReason,
   type SignalMessage,
+  type ReferralReward,
 } from '@rc/shared';
+import { ACCOUNT_CHANGED } from './auth';
 import { AD_BREAK_MS } from './ads';
 import { explicitScore, snapshot } from './nsfw';
 import { BackgroundEffect, backgroundEffectsSupported, type BackgroundMode } from './backgroundEffect';
@@ -505,6 +507,16 @@ export function useRandomCall() {
     const onPlusRequired = () => setPlusRequired(true);
     const onReaction = (emoji: string) => showReaction(emoji, false);
     const onWallet = (w: Wallet) => setWallet(w);
+    const onReferral = (r: ReferralReward) => {
+      addLine(
+        'system',
+        r.kind === 'plus'
+          ? `🎁 Invite reward: you got ${r.days} free day${r.days > 1 ? 's' : ''} of Plus!`
+          : `🎁 Invite reward: you got ${r.coins} coins!`,
+      );
+      // Let the account (Plus perks, coins) refresh everywhere.
+      window.dispatchEvent(new Event(ACCOUNT_CHANGED));
+    };
     const onGift = (g: GiftEvent) => {
       const id = ++giftId.current;
       setGifts((list) => [...list.slice(-3), { ...g, id }]);
@@ -572,6 +584,7 @@ export function useRandomCall() {
     socket.on('relay:chunk', onRelayChunk);
     socket.on('reaction', onReaction);
     socket.on('wallet', onWallet);
+    socket.on('referral:rewarded', onReferral);
     socket.on('gift', onGift);
     socket.on('icebreaker', onIcebreaker);
     socket.on('friend:state', onFriendState);
@@ -585,6 +598,7 @@ export function useRandomCall() {
     return () => {
       socket.off('reaction', onReaction);
       socket.off('wallet', onWallet);
+      socket.off('referral:rewarded', onReferral);
       socket.off('gift', onGift);
       socket.off('icebreaker', onIcebreaker);
       socket.off('friend:state', onFriendState);

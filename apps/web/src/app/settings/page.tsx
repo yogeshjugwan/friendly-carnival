@@ -160,6 +160,14 @@ export default function SettingsPage() {
               Log out
             </button>
           </Section>
+          <Section title="Invite friends">
+            <p className="mt-3 text-sm text-slate-600">
+              You and each friend who joins with your link get a free day of Plus.{' '}
+              <Link href="/invite" className="font-medium text-brand">
+                Get your link
+              </Link>
+            </p>
+          </Section>
           <Section title="Verified badge">
             <p className="mt-3 text-sm text-slate-600">
               {user.verification === 'verified'

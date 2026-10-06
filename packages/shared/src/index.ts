@@ -286,6 +286,8 @@ export interface ServerToClientEvents {
   'friend:state': (state: FriendState) => void;
   /** My coins and Boost (logged-in users; on connect and after changes). */
   wallet: (wallet: Wallet) => void;
+  /** A friend you invited (or who invited you) finished their first chat. */
+  'referral:rewarded': (reward: ReferralReward) => void;
   /** A gift was sent in this chat. */
   gift: (gift: GiftEvent) => void;
   /** An icebreaker question for both people in this chat. */
@@ -376,6 +378,20 @@ export const GIFT_SHARE = 0.5;
 
 /** Boost: matched first for a while. */
 export const BOOST = { coins: 100, minutes: 30 } as const;
+
+/**
+ * Invite friends: when someone signs up with your link and finishes their first
+ * chat, you both get a free Plus day (or coins if you already pay for Plus).
+ */
+export const REFERRAL = { plusDays: 1, coins: 100, maxRewards: 30 } as const;
+export type ReferralReward = { kind: 'plus'; days: number } | { kind: 'coins'; coins: number };
+export interface ReferralInfo {
+  code: string;
+  /** People who signed up with your link. */
+  invited: number;
+  /** …of whom finished a first chat (each gave you a reward). */
+  rewarded: number;
+}
 /** Out of free matches: spend coins instead of watching a video. */
 export const MATCHES_FOR_COINS = { coins: 30, matches: 10 } as const;
 

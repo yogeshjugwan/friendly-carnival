@@ -65,6 +65,10 @@ export interface User {
   verifiedAt: number | null;
   /** A selfie is waiting for review, or the last one was rejected. */
   verifyStatus: 'pending' | 'rejected' | null;
+  /** Account whose invite link this user signed up with. */
+  referredBy: string | null;
+  /** The invite reward for this user was paid out. */
+  referralRewarded: boolean;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -84,6 +88,10 @@ export async function verifyPassword(password: string, stored: string): Promise<
 /** Tokens are random; only their SHA-256 is stored, so a database leak exposes no usable tokens. */
 const newToken = () => randomBytes(32).toString('base64url');
 const hashToken = (raw: string) => createHash('sha256').update(raw).digest('hex');
+
+/** Short, unambiguous invite code (no 0/o/1/l). */
+const REF_ALPHABET = 'abcdefghijkmnpqrstuvwxyz23456789';
+const newRefCode = () => [...randomBytes(8)].map((b) => REF_ALPHABET[b % REF_ALPHABET.length]).join('');
 
 export const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
@@ -120,6 +128,14 @@ export interface AccountStore {
   resolveVerification(userId: string, approve: boolean): Promise<boolean>;
   /** Removes the badge (e.g. after abuse reports). */
   revokeVerification(userId: string): Promise<void>;
+  /** The user's invite code (created on first use). */
+  referralCode(userId: string): Promise<string>;
+  userByReferralCode(code: string): Promise<User | null>;
+  /** Records who invited the user; false if they already have a referrer. */
+  setReferredBy(userId: string, referrerId: string): Promise<boolean>;
+  /** Marks the invite reward paid; false if it already was (so it pays once). */
+  markReferralRewarded(userId: string): Promise<boolean>;
+  referralCounts(referrerId: string): Promise<{ invited: number; rewarded: number }>;
   /** One direction of a friendship: what `userId` saw of `friendId`, plus their nickname for them. */
   addFriend(userId: string, friendId: string, seen: { gender: string | null; country: string | null }): Promise<void>;
   listFriends(userId: string): Promise<StoredFriend[]>;
@@ -150,6 +166,7 @@ export class MemoryAccountStore implements AccountStore {
   private tokens = new Map<string, TokenRow>();
   private friends = new Map<string, Map<string, StoredFriend>>();
   private coinRefs = new Set<string>();
+  private refCodes = new Map<string, string>();
   private selfies = new Map<string, { gesture: VerifyGestureId; photo: string; createdAt: number }>();
 
   async init() {}
@@ -170,6 +187,8 @@ export class MemoryAccountStore implements AccountStore {
       boostUntil: null,
       verifiedAt: null,
       verifyStatus: null,
+      referredBy: null,
+      referralRewarded: false,
     };
     this.users.set(user.id, user);
     return user;
@@ -287,6 +306,38 @@ export class MemoryAccountStore implements AccountStore {
     if (u) u.verifiedAt = null;
   }
 
+  async referralCode(userId: string) {
+    for (const [code, id] of this.refCodes) if (id === userId) return code;
+    let code = newRefCode();
+    while (this.refCodes.has(code)) code = newRefCode();
+    this.refCodes.set(code, userId);
+    return code;
+  }
+
+  async userByReferralCode(code: string) {
+    const id = this.refCodes.get(code.toLowerCase());
+    return id ? (this.users.get(id) ?? null) : null;
+  }
+
+  async setReferredBy(userId: string, referrerId: string) {
+    const u = this.users.get(userId);
+    if (!u || u.referredBy) return false;
+    u.referredBy = referrerId;
+    return true;
+  }
+
+  async markReferralRewarded(userId: string) {
+    const u = this.users.get(userId);
+    if (!u || u.referralRewarded) return false;
+    u.referralRewarded = true;
+    return true;
+  }
+
+  async referralCounts(referrerId: string) {
+    const mine = [...this.users.values()].filter((u) => u.referredBy === referrerId);
+    return { invited: mine.length, rewarded: mine.filter((u) => u.referralRewarded).length };
+  }
+
   async addFriend(userId: string, friendId: string, seen: { gender: string | null; country: string | null }) {
     if (!this.friends.has(userId)) this.friends.set(userId, new Map());
     const mine = this.friends.get(userId)!;
@@ -345,6 +396,11 @@ CREATE TABLE IF NOT EXISTS coin_ledger (
 CREATE INDEX IF NOT EXISTS coin_ledger_user_idx ON coin_ledger (user_id);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS verified_at BIGINT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_status TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS ref_code TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_rewarded BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE UNIQUE INDEX IF NOT EXISTS users_ref_code_idx ON users (ref_code);
+CREATE INDEX IF NOT EXISTS users_referred_by_idx ON users (referred_by);
 CREATE TABLE IF NOT EXISTS verifications (
   user_id TEXT PRIMARY KEY,
   gesture TEXT NOT NULL,
@@ -375,6 +431,8 @@ const toUser = (r: Record<string, unknown>): User => ({
   boostUntil: r.boost_until == null ? null : Number(r.boost_until),
   verifiedAt: r.verified_at == null ? null : Number(r.verified_at),
   verifyStatus: r.verify_status === 'pending' || r.verify_status === 'rejected' ? r.verify_status : null,
+  referredBy: (r.referred_by as string | null) ?? null,
+  referralRewarded: !!r.referral_rewarded,
 });
 
 export class PostgresAccountStore implements AccountStore {
@@ -544,6 +602,47 @@ export class PostgresAccountStore implements AccountStore {
 
   async revokeVerification(userId: string) {
     await this.pool.query('UPDATE users SET verified_at = NULL WHERE id = $1', [userId]);
+  }
+
+  async referralCode(userId: string) {
+    const { rows } = await this.pool.query('SELECT ref_code FROM users WHERE id = $1', [userId]);
+    if (rows[0]?.ref_code) return rows[0].ref_code as string;
+    for (let tries = 0; ; tries++) {
+      const code = newRefCode();
+      try {
+        await this.pool.query('UPDATE users SET ref_code = $2 WHERE id = $1 AND ref_code IS NULL', [userId, code]);
+      } catch (e) {
+        // A code clash (23505): try another one.
+        if (tries < 5 && (e as { code?: string; message?: string }).code === '23505') continue;
+        if (tries < 5 && /duplicate|unique/i.test(String((e as Error).message))) continue;
+        throw e;
+      }
+      const again = await this.pool.query('SELECT ref_code FROM users WHERE id = $1', [userId]);
+      return again.rows[0].ref_code as string;
+    }
+  }
+
+  async userByReferralCode(code: string) {
+    const { rows } = await this.pool.query('SELECT * FROM users WHERE ref_code = $1', [code.toLowerCase()]);
+    return rows[0] ? toUser(rows[0]) : null;
+  }
+
+  async setReferredBy(userId: string, referrerId: string) {
+    const { rowCount } = await this.pool.query('UPDATE users SET referred_by = $2 WHERE id = $1 AND referred_by IS NULL', [userId, referrerId]);
+    return !!rowCount;
+  }
+
+  async markReferralRewarded(userId: string) {
+    const { rowCount } = await this.pool.query(
+      'UPDATE users SET referral_rewarded = TRUE WHERE id = $1 AND referral_rewarded = FALSE',
+      [userId],
+    );
+    return !!rowCount;
+  }
+
+  async referralCounts(referrerId: string) {
+    const { rows } = await this.pool.query('SELECT referral_rewarded FROM users WHERE referred_by = $1', [referrerId]);
+    return { invited: rows.length, rewarded: rows.filter((r) => r.referral_rewarded).length };
   }
 
   async addFriend(userId: string, friendId: string, seen: { gender: string | null; country: string | null }) {

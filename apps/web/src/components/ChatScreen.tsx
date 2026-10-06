@@ -123,10 +123,20 @@ export function ChatScreen({ call }: { call: RandomCall }) {
   }, []);
   const [onlineUpsell, setOnlineUpsell] = useState(false);
   const closeOnline = useCallback(() => setShowOnline(false), []);
+  // One side panel at a time, like Meet: People (Online now) or Chat.
+  const openOnline = useCallback(() => {
+    setChatOpen(false);
+    setShowOnline(true);
+  }, []);
+  const toggleChat = useCallback(() => {
+    setShowOnline(false);
+    setChatOpen((o) => !o);
+  }, []);
+  const sideOpen = chatOpen || showOnline;
   // "See who's online" from the home page opens the list straight away.
   useEffect(() => {
-    if (call.status === 'browsing') setShowOnline(true);
-  }, [call.status]);
+    if (call.status === 'browsing') openOnline();
+  }, [call.status, openOnline]);
   const [pipCorner, setPipCorner] = useState<Corner>('br');
   const pipOnTop = pipCorner[0] === 't';
 
@@ -159,7 +169,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
           <span className="mr-auto sm:hidden [@media(max-height:500px)]:hidden" aria-hidden />
           {/* Online count and the Online list are Plus-only. */}
           <button
-            onClick={() => (isPlus ? setShowOnline(true) : setOnlineUpsell(true))}
+            onClick={() => (isPlus ? (showOnline ? closeOnline() : openOnline()) : setOnlineUpsell(true))}
             className={`flex items-center gap-1.5 rounded-full bg-[#3c4043] px-3 py-2 text-sm font-medium text-slate-100 hover:bg-[#4a4e52]`}
             title={isPlus ? 'See who is online and call them' : 'See who is online (Plus)'}
           >
@@ -192,7 +202,8 @@ export function ChatScreen({ call }: { call: RandomCall }) {
 
         <LimitModal call={call} />
         <IncomingCallModal call={call} />
-        {showOnline && <OnlineUsersPanel call={call} onClose={closeOnline} />}
+        {/* Text chat has no side column, so the list floats on the right there. */}
+        {showOnline && isText && <OnlineUsersPanel call={call} onClose={closeOnline} className="fixed inset-y-2 right-2 z-40 w-[min(24rem,95vw)] shadow-2xl" />}
         {onlineUpsell && <PlusUpsell onClose={() => setOnlineUpsell(false)} reason="See who is online and call them with Plus" />}
         {!isPlus && call.limit && !call.limit.unlimited && call.limit.remaining <= 5 && call.status !== 'limited' && (
           <p className="-mt-1 text-xs text-amber-300">
@@ -241,7 +252,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
         ) : (
           <div
             className={`grid min-h-0 flex-1 grid-rows-1 gap-3 sm:gap-4 ${
-              chatOpen ? 'lg:grid-cols-[minmax(0,1fr)_360px] max-lg:landscape:grid-cols-[minmax(0,1fr)_minmax(15rem,42%)]' : ''
+              sideOpen ? 'lg:grid-cols-[minmax(0,1fr)_360px] max-lg:landscape:grid-cols-[minmax(0,1fr)_minmax(15rem,42%)]' : ''
             }`}
           >
             {/* Stage: partner video, your picture-in-picture, controls */}
@@ -310,6 +321,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
 
             </VideoTile>
 
+            {showOnline && <OnlineUsersPanel call={call} onClose={closeOnline} className="h-full shadow-2xl max-lg:portrait:fixed max-lg:portrait:inset-x-2 max-lg:portrait:bottom-2 max-lg:portrait:top-[38%] max-lg:portrait:z-40 max-lg:portrait:h-auto" />}
             {chatOpen && (
               <ChatPanel
                 variant="meet"
@@ -341,7 +353,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                 call={call}
                 matched={matched}
                 chatOpen={chatOpen}
-                onToggleChat={() => setChatOpen((o) => !o)}
+                onToggleChat={toggleChat}
                 unread={unread}
                 fit={fit}
                 onToggleFit={() => setFit((f) => !f)}

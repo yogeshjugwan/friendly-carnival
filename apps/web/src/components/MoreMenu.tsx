@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import type { RandomCall } from '@/lib/useRandomCall';
-import { BACKGROUND_OPTIONS } from '@/lib/backgroundEffect';
 import { CONTACT_EMAIL } from './LegalPage';
 import { BackIcon, MoreVerticalIcon } from './icons';
 import { BlockedList } from './BlockedList';
+import { EffectsGrid } from './Effects';
 import { SettingsContent } from './SettingsMenu';
 
 type IconProps = { className?: string };
@@ -184,31 +184,7 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
                 <p className="font-semibold">Backgrounds and effects</p>
                 {call.backgroundBusy && <span className="ml-auto h-4 w-4 animate-spin rounded-full border-2 border-slate-500 border-t-sky-300" aria-label="Loading" />}
               </div>
-              <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label="Background">
-                {BACKGROUND_OPTIONS.map((o) => {
-                  const active = call.background === o.mode;
-                  return (
-                    <button
-                      key={o.mode}
-                      role="radio"
-                      aria-checked={active}
-                      disabled={call.backgroundBusy}
-                      onClick={() => void call.setBackground(o.mode)}
-                      title={o.label}
-                      className={`flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border-2 text-[10px] leading-tight transition disabled:opacity-50 ${
-                        active ? 'border-sky-300' : 'border-transparent hover:border-white/30'
-                      }`}
-                      style={{ background: o.swatch === 'transparent' ? '#3c4043' : o.swatch }}
-                    >
-                      <span className="text-lg" aria-hidden>
-                        {o.mode === 'none' ? '⊘' : o.mode === 'slight-blur' ? '◌' : o.mode === 'blur' ? '◉' : ''}
-                      </span>
-                      <span className="px-0.5 text-center font-medium text-white drop-shadow">{o.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="mt-3 text-xs text-slate-400">Runs on your device. The first time takes a few seconds to load.</p>
+              <EffectsGrid call={call} />
             </div>
           ) : (
             <div className="absolute bottom-full right-0 z-40 mb-3 w-72 max-w-[88vw] rounded-xl bg-white p-4 text-ink shadow-2xl sm:-right-20">

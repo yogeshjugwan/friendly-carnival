@@ -16,6 +16,7 @@ import {
   VideoIcon,
   VideoOffIcon,
 } from './icons';
+import { EffectsButton } from './Effects';
 import { MoreMenu } from './MoreMenu';
 
 /** Meet-style round button: grey normally, red when "off", light blue when active. */
@@ -158,6 +159,12 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
           OnIcon={VideoIcon}
           OffIcon={VideoOffIcon}
         />
+        {call.mode === 'video' && (
+          // Phones reach effects through ⋮ to keep the bar narrow.
+          <div className="hidden sm:block [@media(max-height:500px)]:hidden">
+            <EffectsButton call={call} className={round()} />
+          </div>
+        )}
         <button
           onClick={() => setShowReactions((s) => !s)}
           aria-label="Reactions"

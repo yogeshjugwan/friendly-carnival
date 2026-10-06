@@ -28,7 +28,8 @@ const useSecondsLeft = (until: number | null) => {
 };
 
 /** Plus: live list of people searching or chatting, with "Call" for those waiting. */
-export function OnlineUsersPanel({ call, onClose }: { call: RandomCall; onClose: () => void }) {
+/** Plus "Online now" as a Meet-style side panel (same place as In-call messages). */
+export function OnlineUsersPanel({ call, onClose, className = '' }: { call: RandomCall; onClose: () => void; className?: string }) {
   const [users, setUsers] = useState<ActiveUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { listUsers, callUser, cancelCall, outgoingCall, mode } = call;
@@ -58,23 +59,23 @@ export function OnlineUsersPanel({ call, onClose }: { call: RandomCall; onClose:
     const calling = outgoingCall?.publicId === u.publicId;
     const sameMode = u.mode === mode;
     return (
-      <li key={u.publicId} className="flex items-center gap-3 rounded-xl bg-slate-50 px-3 py-2.5">
+      <li key={u.publicId} className="flex items-center gap-3 rounded-xl bg-[#2a2b2e] px-3 py-2.5">
         <span className="text-2xl" title={GENDER_LABEL[u.gender]} aria-label={GENDER_LABEL[u.gender]}>
           {GENDER_ICON[u.gender]}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1.5 text-sm font-medium">
+          <p className="flex items-center gap-1.5 text-sm font-medium text-slate-100">
             <span>{u.locationHidden ? '📍' : flagEmoji(u.country)}</span>
             <span className="truncate">{u.locationHidden ? 'Location hidden' : countryName(u.country)}</span>
             {u.plus && <span title="Plus member">👑</span>}
-            {u.mode === 'text' && <span className="rounded bg-slate-200 px-1.5 text-[10px] font-semibold uppercase text-slate-600">text</span>}
+            {u.mode === 'text' && <span className="rounded bg-white/10 px-1.5 text-[10px] font-semibold uppercase text-slate-300">text</span>}
           </p>
-          {u.interests.length > 0 && <p className="truncate text-xs text-slate-500">likes {u.interests.join(', ')}</p>}
+          {u.interests.length > 0 && <p className="truncate text-xs text-slate-400">likes {u.interests.join(', ')}</p>}
         </div>
         {u.state === 'in-call' ? (
-          <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs text-slate-600">In a chat</span>
+          <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs text-slate-300">In a chat</span>
         ) : calling ? (
-          <button onClick={cancelCall} className="rounded-full bg-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700">
+          <button onClick={cancelCall} className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-sky-300">
             Calling… {left}s · Cancel
           </button>
         ) : (
@@ -99,42 +100,40 @@ export function OnlineUsersPanel({ call, onClose }: { call: RandomCall; onClose:
   };
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="online-title" onClick={onClose}>
-      <div className="flex max-h-[85dvh] w-full max-w-md flex-col rounded-t-3xl bg-white text-ink shadow-2xl sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-          <div>
-            <h2 id="online-title" className="text-lg font-bold">
-              👥 Online now <span className="text-sm font-normal text-amber-600">👑 Plus</span>
-            </h2>
-            <p className="text-xs text-slate-500">
-              {users === null ? 'Loading…' : `${waiting.length} looking for a chat · ${busy.length} chatting`}
-            </p>
-          </div>
-          <button onClick={onClose} aria-label="Close" className="rounded-full p-1 text-2xl leading-none text-slate-500 hover:text-ink">
-            ×
-          </button>
+    <section className={`flex min-h-0 flex-col rounded-2xl bg-[#202124] text-slate-100 ${className}`} aria-labelledby="online-title">
+      <header className="flex items-center justify-between px-5 pb-2 pt-4">
+        <div>
+          <h2 id="online-title" className="text-lg">
+            Online now <span className="text-xs text-amber-300">👑 Plus</span>
+          </h2>
+          <p className="text-xs text-slate-400">
+            {users === null ? 'Loading…' : `${waiting.length} looking for a chat · ${busy.length} chatting`}
+          </p>
         </div>
-        {error && <p className="mx-5 mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">{error}</p>}
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-          {users !== null && users.length === 0 && <p className="py-8 text-center text-sm text-slate-500">Nobody else is online right now.</p>}
-          {waiting.length > 0 && (
-            <>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Looking for a chat</p>
-              <ul className="space-y-2">{waiting.map(row)}</ul>
-            </>
-          )}
-          {busy.length > 0 && (
-            <>
-              <p className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500">In a chat</p>
-              <ul className="space-y-2">{busy.map(row)}</ul>
-            </>
-          )}
-        </div>
-        <p className="border-t border-slate-200 px-5 py-3 text-center text-xs text-slate-400">
-          They decide whether to accept. Names and exact locations are never shown.
-        </p>
+        <button onClick={onClose} aria-label="Close" className="rounded-full p-2 text-slate-300 hover:bg-white/10 hover:text-white">
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </header>
+      {error && <p className="mx-4 mb-1 rounded-lg bg-amber-500/15 px-3 py-2 text-sm text-amber-200">{error}</p>}
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
+        {users !== null && users.length === 0 && <p className="py-10 text-center text-sm text-slate-400">Nobody else is online right now.</p>}
+        {waiting.length > 0 && (
+          <>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Looking for a chat</p>
+            <ul className="space-y-2">{waiting.map(row)}</ul>
+          </>
+        )}
+        {busy.length > 0 && (
+          <>
+            <p className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-slate-400">In a chat</p>
+            <ul className="space-y-2">{busy.map(row)}</ul>
+          </>
+        )}
       </div>
-    </div>
+      <p className="px-5 py-3 text-center text-xs text-slate-500">They decide whether to accept. Names and exact locations are never shown.</p>
+    </section>
   );
 }
 

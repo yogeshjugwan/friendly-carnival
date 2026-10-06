@@ -4,6 +4,8 @@ import { Server } from 'socket.io';
 import {
   BOOST,
   CALL_REQUEST_MS,
+  NEW_ACCOUNT_MS,
+  NEW_DEVICE_MS,
   GIFTS,
   GIFT_SHARE,
   MATCHES_FOR_COINS,
@@ -52,6 +54,8 @@ interface SocketData {
   boostUntil?: number | null;
   /** Logged-in account, from the handshake token. */
   userId: string | null;
+  /** Sign-up time of that account. */
+  accountCreatedAt?: number | null;
   /** Active Plus subscription at handshake time (updated live by webhooks). */
   plus: boolean;
   ipHash: string | null;
@@ -251,16 +255,40 @@ export function createApp(opts: AppOptions = {}): App {
     maxHttpBufferSize: Math.max(MAX_SNAPSHOT_BYTES, MAX_RELAY_CHUNK_BYTES) + 16 * 1024,
   });
 
+  // New-user protection. First sightings live in memory: devices that show up
+  // right after a restart were most likely just reconnecting, so they don't count.
+  const clock = opts.now ?? Date.now;
+  const bootAt = clock();
+  const BOOT_GRACE_MS = 2 * 60_000;
+  const MAX_DEVICES = 200_000;
+  const deviceFirstSeen = new Map<string, number>();
+  const seeDevice = (deviceId: string) => {
+    if (deviceId.startsWith('anon:') || deviceFirstSeen.has(deviceId)) return;
+    if (deviceFirstSeen.size >= MAX_DEVICES) deviceFirstSeen.delete(deviceFirstSeen.keys().next().value!);
+    deviceFirstSeen.set(deviceId, clock());
+  };
+  const isNewUser = (socketId: string) => {
+    const d = io.sockets.sockets.get(socketId)?.data;
+    if (!d) return false;
+    const now = clock();
+    if (d.userId) return !!d.accountCreatedAt && now - d.accountCreatedAt < NEW_ACCOUNT_MS;
+    if (d.deviceId.startsWith('anon:')) return true;
+    const first = deviceFirstSeen.get(d.deviceId) ?? now;
+    return first - bootAt > BOOT_GRACE_MS && now - first < NEW_DEVICE_MS;
+  };
+
   // Identify the browser and check bans before any event is handled.
   io.use((socket, next) => {
     const auth = (socket.handshake.auth ?? {}) as HandshakeAuth;
     socket.data.deviceId = isDeviceId(auth.deviceId) ? auth.deviceId.toLowerCase() : `anon:${socket.id}`;
+    seeDevice(socket.data.deviceId);
     socket.data.ipHash = hashIp(clientIp(socket.handshake.headers, socket.handshake.address), ipSalt);
     socket.data.reportsAt = [];
     const sessionUser = typeof auth.token === 'string' && auth.token ? accounts.useToken(auth.token, 'session') : Promise.resolve(null);
     sessionUser
       .then((user) => {
         socket.data.userId = user?.id ?? null;
+        socket.data.accountCreatedAt = user?.createdAt ?? null;
         socket.data.plus = !!user && isPlusActive(user.plus);
         socket.data.boostUntil = user?.boostUntil ?? null;
         return Promise.all([
@@ -337,6 +365,7 @@ export function createApp(opts: AppOptions = {}): App {
       country: s.hideCountry ? null : s.country,
       locationHidden: s.hideCountry,
       plus: s.plus,
+      isNew: isNewUser(s.id),
       sharedInterests,
       topic: a.topic && a.topic === b.topic ? a.topic : null,
     });
@@ -542,6 +571,7 @@ export function createApp(opts: AppOptions = {}): App {
           country: me.hideCountry ? null : me.country,
           locationHidden: me.hideCountry,
           plus: me.plus,
+          isNew: isNewUser(socket.id),
           sharedInterests: me.interests.filter((i) => target.interests.includes(i)),
         },
       });

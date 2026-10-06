@@ -49,6 +49,8 @@ export interface PartnerInfo {
   locationHidden?: boolean;
   /** The partner has Plus. */
   plus?: boolean;
+  /** Brand-new account or device: their video starts hidden for you. */
+  isNew?: boolean;
   sharedInterests: string[];
   /** Set when you both picked the same topic room. */
   topic?: string | null;
@@ -86,6 +88,11 @@ export type CallRequestResult =
 export type CallAnswer = { accepted: true } | { accepted: false; reason: 'declined' | 'timeout' | 'busy' | 'gone' };
 
 export const CALL_REQUEST_MS = 20_000;
+
+/** New-user protection: guests are "new" for this long after their device is first seen… */
+export const NEW_DEVICE_MS = 15 * 60_000;
+/** …and accounts for this long after sign-up. */
+export const NEW_ACCOUNT_MS = 24 * 60 * 60_000;
 
 /** Friend status with the current partner (both must be logged in; both tap ❤️). */
 export type FriendState = 'none' | 'requested' | 'they-requested' | 'friends' | 'login-required' | 'partner-guest' | 'full';

@@ -451,6 +451,8 @@ export function useRandomCall() {
       closePeer();
       matchRef.current = { id: match.matchId, startedAt: Date.now(), reported: false };
       setPartner(match.partner);
+      // New-user protection: a brand-new account's video starts hidden.
+      if (match.partner.isNew && match.mode === 'video') setPartnerHidden(true);
       setLastLeftReason(null);
       setMessages([]);
       // Every change of partner shows a fresh ad; Start/Next/partner-left start it

@@ -51,6 +51,11 @@ function PartnerBadge({ call }: { call: RandomCall }) {
           👑
         </span>
       )}
+      {partner.isNew && (
+        <span title="Joined in the last day" className="rounded-full bg-amber-500/80 px-2 py-0.5 text-[11px] font-semibold text-black">
+          New
+        </span>
+      )}
       {partner.topic && (
         <span className="rounded-full bg-brand/80 px-2 py-0.5 text-[11px] font-semibold text-white">
           {TOPICS.find((t) => t.id === partner.topic)?.emoji} #{TOPICS.find((t) => t.id === partner.topic)?.label}
@@ -311,7 +316,13 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               </div>
               {matched && (call.partnerHidden || call.aiHidden) && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
-                  <p className="font-medium">{call.aiHidden ? 'Video hidden: it may contain nudity' : 'Partner video hidden'}</p>
+                  <p className="font-medium">
+                    {call.aiHidden
+                      ? 'Video hidden: it may contain nudity'
+                      : call.partner?.isNew
+                        ? 'New user — video hidden for your safety'
+                        : 'Partner video hidden'}
+                  </p>
                   <button onClick={call.togglePartnerHidden} className="rounded-full bg-black/60 px-4 py-1.5 text-sm hover:bg-black/80">
                     Show anyway
                   </button>

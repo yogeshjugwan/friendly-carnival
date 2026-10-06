@@ -32,6 +32,7 @@ import { AD_BREAK_MS } from './ads';
 import { explicitScore, snapshot } from './nsfw';
 import { BackgroundEffect, backgroundEffectsSupported, type BackgroundMode } from './backgroundEffect';
 import { RelayReceiver, RelaySender, relaySupported } from './relay';
+import { GAM_REWARDED_UNIT, showRewardedAd } from './rewardedAd';
 import { loadSettings, onSettingsChange } from './settings';
 import { getSocket } from './socket';
 
@@ -876,13 +877,26 @@ export function useRandomCall() {
     [incomingCall],
   );
 
-  const watchRewardAd = useCallback(() => {
+  const watchRewardAd = useCallback(async () => {
     if (!limit || limit.adsLeft <= 0) return;
+    const startedAt = Date.now();
     getSocket().emit('limit:ad-start');
-    setRewardAd({ endsAt: Date.now() + limit.adMs });
     window.clearTimeout(timers.current.reward);
-    timers.current.reward = window.setTimeout(() => getSocket().emit('limit:ad-done'), limit.adMs);
-  }, [limit]);
+    // A real rewarded video (Google Ad Manager) when configured and filled…
+    if (GAM_REWARDED_UNIT) {
+      const result = await showRewardedAd();
+      if (result === 'granted') {
+        // The server also checks the time, so never report earlier than adMs.
+        const wait = Math.max(0, startedAt + limit.adMs - Date.now());
+        timers.current.reward = window.setTimeout(() => getSocket().emit('limit:ad-done'), wait);
+        return;
+      }
+      if (result === 'closed') return flash('Watch the whole video to unlock matches.');
+    }
+    // …otherwise our own ad with a countdown.
+    setRewardAd({ endsAt: Date.now() + limit.adMs });
+    timers.current.reward = window.setTimeout(() => getSocket().emit('limit:ad-done'), Math.max(limit.adMs, startedAt + limit.adMs - Date.now()));
+  }, [limit, flash]);
 
   const switchDevice = useCallback(
     async (kind: 'video' | 'audio', deviceId: string) => {

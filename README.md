@@ -218,6 +218,23 @@ Counts are per account, else per browser, reset at midnight UTC and live in memo
 (a restart only gives people more matches). Guests who clear their browser storage
 get a fresh allowance.
 
+## Coins, gifts and Boost
+
+- Coin packs (100 / 550 / 1,200 for $0.99 / $4.99 / $9.99) are one-time Stripe Checkout
+  payments with inline prices (no extra Stripe IDs). The existing webhook credits
+  coins once per checkout (`coin_ledger.ref`).
+- Gifts in calls cost 10–200 coins; the receiver (if logged in) gets half.
+- Boost (100 coins): picked first by newcomers for 30 minutes.
+- Out of free matches: 30 coins = 10 more matches today.
+- Admin: Give coins (`POST /admin/coins { email, coins }`) for support and testing.
+
+## Rewarded video ads (Google Ad Manager)
+
+"Watch video" uses a real rewarded ad when `NEXT_PUBLIC_GAM_REWARDED_UNIT` is set in
+Vercel (your Ad Manager ad unit path, e.g. `/1234567/randomcall_rewarded`, created as a
+*Rewarded* web ad unit). If no ad fills, the built-in countdown is used. The server
+still requires the ad to run for `REWARD_AD_MS` before granting matches.
+
 ## Video when WebRTC can't connect (relay fallback)
 
 Calls first try WebRTC: direct, or through TURN when `TURN_*` is set. If no path

@@ -225,6 +225,7 @@ export default function AdminPage() {
       )}
 
       <GivePlus api={api} />
+      <GiveCoins api={api} />
 
       <nav className="mt-5 flex gap-2 border-b border-slate-700">
         {(['reports', 'appeals', 'bans', 'history'] as Tab[]).map((t) => (
@@ -433,6 +434,39 @@ function GivePlus({ api }: { api: <T>(path: string, init?: RequestInit) => Promi
       <button disabled={busy} className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
         {days === 0 ? 'Remove Plus' : 'Give Plus'}
       </button>
+      {result && <p className={`w-full text-sm ${result.ok ? 'text-emerald-400' : 'text-red-400'}`}>{result.text}</p>}
+    </form>
+  );
+}
+
+/** Give (or take back) coins, for support and testing. */
+function GiveCoins({ api }: { api: <T>(path: string, init?: RequestInit) => Promise<T> }) {
+  const [email, setEmail] = useState('');
+  const [coins, setCoins] = useState(100);
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault();
+        try {
+          const r = await api<{ coins: number }>('/admin/coins', { method: 'POST', body: JSON.stringify({ email: email.trim(), coins }) });
+          setResult({ ok: true, text: `${email.trim()} now has ${r.coins} coins` });
+        } catch (err) {
+          setResult({ ok: false, text: err instanceof Error ? err.message : 'Could not update coins' });
+        }
+      }}
+      className="mt-3 flex flex-wrap items-end gap-2 rounded-xl bg-panel p-3"
+    >
+      <p className="w-full text-sm font-semibold">🪙 Give coins</p>
+      <label className="flex min-w-[14rem] flex-1 flex-col text-xs text-slate-400">
+        Account email
+        <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 rounded-lg bg-slate-800 px-3 py-2 text-sm text-white" />
+      </label>
+      <label className="flex w-28 flex-col text-xs text-slate-400">
+        Coins (− to remove)
+        <input type="number" value={coins} onChange={(e) => setCoins(Number(e.target.value))} className="mt-1 rounded-lg bg-slate-800 px-3 py-2 text-sm text-white" />
+      </label>
+      <button className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white">Apply</button>
       {result && <p className={`w-full text-sm ${result.ok ? 'text-emerald-400' : 'text-red-400'}`}>{result.text}</p>}
     </form>
   );

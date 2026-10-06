@@ -108,6 +108,21 @@ export async function handleAdmin(req: IncomingMessage, res: ServerResponse, dep
       return send(200, { email: user.email, plus }), true;
     }
 
+    // Support / testing: { email, coins } (negative removes coins).
+    if (req.method === 'POST' && resource === 'coins' && deps.accounts) {
+      const body = await readJson(req);
+      const coins = body.coins;
+      if (typeof body.email !== 'string' || typeof coins !== 'number' || !Number.isInteger(coins) || Math.abs(coins) > 100_000) {
+        return send(400, { error: 'email and a whole number of coins are required' }), true;
+      }
+      const user = await deps.accounts.userByEmail(body.email);
+      if (!user) return send(404, { error: 'No account with that email' }), true;
+      const balance = await deps.accounts.changeCoins(user.id, coins, 'admin');
+      if (balance === null) return send(409, { error: 'That would make the balance negative' }), true;
+      deps.onPlusChanged?.(user.id);
+      return send(200, { email: user.email, coins: balance }), true;
+    }
+
     if (req.method === 'GET' && resource === 'bans') {
       return send(200, await store.listBans(url.searchParams.get('active') !== '0')), true;
     }

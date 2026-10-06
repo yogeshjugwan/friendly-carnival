@@ -32,6 +32,16 @@ export default function TermsPage() {
       </p>
       <h2>5. Accounts</h2>
       <p>Accounts are optional. Keep your password secret. You can delete your account at any time in Settings.</p>
+      <h2>5a. Plus, coins and gifts</h2>
+      <ul>
+        <li>Plus is a subscription that renews until you cancel it in Settings → Manage subscription.</li>
+        <li>
+          Coins are a virtual item for use on randomCall only (gifts, Boost, extra matches). They have no cash value, can&apos;t be
+          exchanged for money and aren&apos;t refundable except where the law requires. Coins received as gifts can only be used on
+          randomCall.
+        </li>
+        <li>We may remove coins obtained through fraud, chargebacks or rule-breaking.</li>
+      </ul>
       <h2>6. Liability</h2>
       <p>
         Other users are strangers and we do not control what they do. To the extent allowed by law, randomCall is not liable for

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { CoinChip } from './Coins';
 import { useAuth } from '@/lib/auth';
 
 export function Brand() {
@@ -38,6 +39,7 @@ export function SiteHeader({ online }: { online?: number | null }) {
                 👑 Upgrade
               </Link>
             )}
+            <CoinChip className="!py-1.5" />
             <Link href="/settings" className="rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-medium hover:bg-slate-600">
               {user.email.split('@')[0]} · Settings
             </Link>

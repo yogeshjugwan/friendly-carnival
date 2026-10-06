@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { RandomCall } from '@/lib/useRandomCall';
+import { MATCHES_FOR_COINS } from '@rc/shared';
 import { AdSlot } from './AdSlot';
+import { spendError, useWallet } from './Coins';
 
 const hoursUntil = (t: number) => Math.max(1, Math.ceil((t - Date.now()) / 3_600_000));
 
@@ -36,6 +38,8 @@ export function LimitModal({ call }: { call: RandomCall }) {
           <span className="absolute -top-3 right-4 rounded-full bg-amber-300 px-2.5 py-0.5 text-xs font-semibold text-ink">Unlimited Matches</span>
           Get randomCall Plus 👑
         </Link>
+
+        <CoinsForMatches call={call} />
 
         <div className="my-4 flex items-center gap-3 text-xs font-medium text-slate-400">
           <span className="h-px flex-1 bg-slate-200" />
@@ -81,6 +85,39 @@ function RewardVideo({ endsAt, totalMs }: { endsAt: number; totalMs: number }) {
       <div className="h-1 bg-white/10">
         <div className="h-full bg-amber-400 transition-[width] duration-300" style={{ width: `${Math.min(100, 100 - ((left * 1000) / totalMs) * 100)}%` }} />
       </div>
+    </div>
+  );
+}
+
+/** "Use 30 coins · +10 matches" (logged-in users). */
+function CoinsForMatches({ call }: { call: RandomCall }) {
+  const wallet = useWallet(call);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!wallet) return null;
+  const enough = wallet.coins >= MATCHES_FOR_COINS.coins;
+  return (
+    <div className="mt-3">
+      {enough ? (
+        <button
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            const r = await call.buyMatches();
+            setBusy(false);
+            setError(spendError(r));
+          }}
+          className="w-full rounded-full border-2 border-amber-400 py-2.5 font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+        >
+          🪙 Use {MATCHES_FOR_COINS.coins} coins · +{MATCHES_FOR_COINS.matches} matches
+        </button>
+      ) : (
+        <Link href="/coins" target="_blank" className="block w-full rounded-full border-2 border-amber-400 py-2.5 font-semibold text-amber-700 hover:bg-amber-50">
+          🪙 Get coins for more matches
+        </Link>
+      )}
+      <p className="mt-1 text-xs text-slate-500">You have {wallet.coins} coins</p>
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );
 }

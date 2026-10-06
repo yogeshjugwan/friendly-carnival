@@ -5,6 +5,7 @@ import type { RandomCall } from '@/lib/useRandomCall';
 import { CONTACT_EMAIL } from './LegalPage';
 import { BackIcon, MoreVerticalIcon } from './icons';
 import { BlockedList } from './BlockedList';
+import { BoostCard } from './Coins';
 import { EffectsGrid } from './Effects';
 import { SettingsContent } from './SettingsMenu';
 
@@ -89,7 +90,7 @@ interface Props {
 
 /** The ⋮ "More options" menu, laid out like Google Meet's. */
 export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen }: Props) {
-  const [view, setView] = useState<'closed' | 'menu' | 'settings' | 'effects' | 'blocked'>('closed');
+  const [view, setView] = useState<'closed' | 'menu' | 'settings' | 'effects' | 'blocked' | 'boost'>('closed');
   const [fullscreen, setFullscreen] = useState(false);
   useEffect(() => {
     const sync = () => setFullscreen(!!document.fullscreenElement);
@@ -151,6 +152,17 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
                 </button>
               )}
               {call.canGoBack && <div className="sm:hidden">{item(BackIcon, 'Back to previous stranger', call.back)}</div>}
+              <button
+                role="menuitem"
+                onClick={() => setView('boost')}
+                className="flex w-full items-center gap-4 px-4 py-3 text-left text-[15px] text-slate-100 hover:bg-white/10"
+              >
+                <span className="w-5 text-center" aria-hidden>
+                  🚀
+                </span>
+                <span className="flex-1">Boost</span>
+                {call.wallet?.boostUntil && call.wallet.boostUntil > Date.now() && <span className="text-xs text-sky-300">On</span>}
+              </button>
               <div className="my-1.5 border-t border-white/10" />
               {item(ProblemIcon, 'Report a problem', () => {
                 window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('randomCall: problem report')}`;
@@ -173,6 +185,13 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
                 <GearIcon className="h-5 w-5 shrink-0 text-slate-300" />
                 <span>Settings</span>
               </button>
+            </div>
+          ) : view === 'boost' ? (
+            <div className="absolute bottom-full right-0 z-40 mb-3 w-80 max-w-[90vw] rounded-xl bg-[#2a2b2e] p-3 shadow-2xl sm:-right-20">
+              <button onClick={() => setView('menu')} aria-label="Back to menu" className="mb-2 rounded-full p-1 text-slate-300 hover:bg-white/10">
+                <BackIcon className="h-4 w-4" />
+              </button>
+              <BoostCard call={call} buy={call.buyBoost} />
             </div>
           ) : view === 'blocked' ? (
             <div className="absolute bottom-full right-0 z-40 mb-3 max-h-[70dvh] w-80 max-w-[90vw] overflow-y-auto rounded-xl bg-[#2a2b2e] p-4 shadow-2xl sm:-right-20">

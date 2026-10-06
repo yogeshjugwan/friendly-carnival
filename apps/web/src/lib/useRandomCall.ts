@@ -18,6 +18,9 @@ import {
   type CallRequestResult,
   type IncomingCall,
   type Friend,
+  type GiftEvent,
+  type SpendResult,
+  type Wallet,
   type FriendState,
   type PartnerInfo,
   type PartnerLeftReason,
@@ -130,6 +133,11 @@ export function useRandomCall() {
     setReactions((r) => [...r.slice(-11), { id, emoji, mine, x }]);
     window.setTimeout(() => setReactions((r) => r.filter((e) => e.id !== id)), 2_600);
   }, []);
+  /** Coins and Boost (logged-in users), pushed by the server. */
+  const [wallet, setWallet] = useState<Wallet | null>(null);
+  /** Gift animations on screen. */
+  const [gifts, setGifts] = useState<(GiftEvent & { id: number })[]>([]);
+  const giftId = useRef(0);
   /** Icebreaker question on screen for both people. */
   const [icebreaker, setIcebreaker] = useState<{ text: string; at: number } | null>(null);
   /** Friendship with the current partner (❤️ Add friend). */
@@ -484,6 +492,12 @@ export function useRandomCall() {
     const onBlocked = () => flash('Blocked. You will not be matched with them again.');
     const onPlusRequired = () => setPlusRequired(true);
     const onReaction = (emoji: string) => showReaction(emoji, false);
+    const onWallet = (w: Wallet) => setWallet(w);
+    const onGift = (g: GiftEvent) => {
+      const id = ++giftId.current;
+      setGifts((list) => [...list.slice(-3), { ...g, id }]);
+      window.setTimeout(() => setGifts((list) => list.filter((x) => x.id !== id)), 3_500);
+    };
     const onIcebreaker = (q: string) => {
       setIcebreaker({ text: q, at: Date.now() });
       addLine('system', `🎲 ${q}`);
@@ -545,6 +559,8 @@ export function useRandomCall() {
     socket.on('relay:start', onRelayStart);
     socket.on('relay:chunk', onRelayChunk);
     socket.on('reaction', onReaction);
+    socket.on('wallet', onWallet);
+    socket.on('gift', onGift);
     socket.on('icebreaker', onIcebreaker);
     socket.on('friend:state', onFriendState);
     socket.on('call:incoming', onIncomingCall);
@@ -556,6 +572,8 @@ export function useRandomCall() {
     socket.on('limit:ad-rejected', onAdRejected);
     return () => {
       socket.off('reaction', onReaction);
+      socket.off('wallet', onWallet);
+      socket.off('gift', onGift);
       socket.off('icebreaker', onIcebreaker);
       socket.off('friend:state', onFriendState);
       socket.off('call:incoming', onIncomingCall);
@@ -757,6 +775,28 @@ export function useRandomCall() {
     },
     [showReaction],
   );
+
+  const ask = (event: 'boost:buy' | 'limit:buy') =>
+    new Promise<SpendResult>((resolve) =>
+      getSocket()
+        .timeout(8_000)
+        .emit(event, (err, r) => resolve(err ? { ok: false, reason: 'invalid' } : r)),
+    );
+
+  /** 🎁 Send a gift to the current partner. */
+  const sendGift = useCallback(
+    (id: string) =>
+      new Promise<SpendResult>((resolve) =>
+        getSocket()
+          .timeout(8_000)
+          .emit('gift:send', id, (err, r) => resolve(err ? { ok: false, reason: 'invalid' } : r)),
+      ),
+    [],
+  );
+  /** 🚀 Boost: matched first for a while. */
+  const buyBoost = useCallback(() => ask('boost:buy'), []);
+  /** Out of free matches: spend coins for more. */
+  const buyMatches = useCallback(() => ask('limit:buy'), []);
 
   /** 🎲 Ask for an icebreaker question (both people see it). */
   const askIcebreaker = useCallback(() => {
@@ -1142,6 +1182,11 @@ export function useRandomCall() {
     outgoingCall,
     friendState,
     browseFor,
+    wallet,
+    gifts,
+    sendGift,
+    buyBoost,
+    buyMatches,
     icebreaker,
     askIcebreaker,
     dismissIcebreaker,

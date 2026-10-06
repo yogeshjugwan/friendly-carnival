@@ -13,6 +13,7 @@ import { VideoIcon } from './icons';
 import { CallControls, ReactionLayer } from './CallControls';
 import { FilterBar } from './FilterBar';
 import { LimitModal } from './LimitModal';
+import { CoinChip, GiftButton, GiftLayer } from './Coins';
 import { FriendButton, FriendsPanel } from './Friends';
 import { IncomingCallModal, OnlineUsersPanel } from './OnlineUsers';
 import { PlusUpsell } from './PlusUpsell';
@@ -214,6 +215,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               </span>
             )}
           </button>
+          <CoinChip call={call} className="max-sm:hidden" />
           {/* Video calls have settings under ⋮ in the call bar. */}
           {isText && <SettingsMenu call={call} />}
           {isPlus ? (
@@ -256,6 +258,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               <div className="flex items-center gap-2">
                 <PartnerBadge call={call} />
                 {matched && <FriendButton call={call} />}
+                {matched && <GiftButton call={call} />}
               </div>
               <SafetyMenu call={call} />
             </div>
@@ -327,7 +330,12 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                 <>
                   <div className="absolute left-3 top-3 flex flex-col items-start gap-1">
                     <PartnerBadge call={call} />
-                    {matched && <FriendButton call={call} />}
+                    {matched && (
+                      <div className="flex gap-1.5">
+                        <FriendButton call={call} />
+                        <GiftButton call={call} />
+                      </div>
+                    )}
                     {call.relayActive && (
                       <span
                         className="rounded-full bg-amber-500/90 px-2 py-0.5 text-[11px] font-medium text-white"
@@ -352,6 +360,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               </DraggablePip>
 
               <ReactionLayer call={call} />
+              <GiftLayer call={call} />
               {call.icebreaker && matched && (
                 <div className="absolute inset-x-3 top-24 z-20 flex justify-center sm:top-20">
                   <div className="w-full max-w-md rounded-2xl bg-black/70 px-4 py-3 text-center text-white shadow-xl backdrop-blur" role="status">

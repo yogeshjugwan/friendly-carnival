@@ -758,6 +758,20 @@ export function useRandomCall() {
     partnerVideoRef.current = el;
   }, []);
 
+  /** Opens the partner's video in a floating browser window (or closes it). */
+  const togglePictureInPicture = useCallback(async () => {
+    const video = partnerVideoRef.current;
+    try {
+      if (document.pictureInPictureElement) return void (await document.exitPictureInPicture());
+      if (!video || !document.pictureInPictureEnabled || !video.srcObject && !video.src) {
+        return flash('Picture-in-picture is available once you are talking to someone, in Chrome, Edge or Safari.');
+      }
+      await video.requestPictureInPicture();
+    } catch {
+      flash('This browser could not open picture-in-picture.');
+    }
+  }, [flash]);
+
   const report = useCallback(
     (target: 'current' | 'previous', reason: ReportReason, note?: string) => {
       const shot = target === 'current' ? snapshot(partnerVideoRef.current) ?? snapshots.current.current : snapshots.current.previous;
@@ -943,6 +957,7 @@ export function useRandomCall() {
     watchRewardAd,
     reactions,
     sendReaction,
+    togglePictureInPicture,
     incomingCall,
     outgoingCall,
     listUsers,

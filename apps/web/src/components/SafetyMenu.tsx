@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MAX_REPORT_NOTE_LENGTH, type ReportReason } from '@rc/shared';
 import type { RandomCall } from '@/lib/useRandomCall';
 import { ShieldIcon } from './icons';
@@ -38,6 +38,15 @@ export function SafetyMenu({ call }: { call: RandomCall }) {
       setStep('reason');
     }
   };
+
+  // "Report abuse" in the ⋮ menu opens this same flow.
+  const reportRef = useRef(startReport);
+  reportRef.current = startReport;
+  useEffect(() => {
+    const open = () => reportRef.current();
+    window.addEventListener('rc:report', open);
+    return () => window.removeEventListener('rc:report', open);
+  }, []);
 
   return (
     <>

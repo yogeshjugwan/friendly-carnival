@@ -94,3 +94,14 @@ export const SkipIcon = ({ className }: P) => (
     <path d="m5 4 10 8-10 8V4zM19 5v14" />
   </svg>
 );
+export const SendIcon = ({ className }: P) => (
+  <svg {...base(className)}>
+    <path d="m22 2-7 20-4-9-9-4Z" />
+    <path d="M22 2 11 13" />
+  </svg>
+);
+export const ChatIcon = ({ className }: P) => (
+  <svg {...base(className)}>
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  </svg>
+);

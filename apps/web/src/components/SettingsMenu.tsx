@@ -5,84 +5,84 @@ import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { loadSettings } from '@/lib/settings';
 import type { RandomCall } from '@/lib/useRandomCall';
-import { GearIcon, MoreVerticalIcon } from './icons';
+import { GearIcon } from './icons';
 
-/**
- * Call settings (devices, reconnect). `gear` is a header button that opens
- * downwards; `more` is the ⋮ button in the call bar that opens upwards.
- */
-export function SettingsMenu({ call, variant = 'gear', className = '' }: { call: RandomCall; variant?: 'gear' | 'more'; className?: string }) {
-  const [open, setOpen] = useState(false);
+/** Call settings: camera, microphone, allow reconnect. */
+export function SettingsContent({ call }: { call: RandomCall }) {
   const { saveSettings } = useAuth();
-  const more = variant === 'more';
+  return (
+    <div className="space-y-4">
+      {call.mode === 'video' && call.cameras.length > 0 && (
+        <>
+          <label className="block text-sm">
+            <span className="font-medium text-slate-600">Camera</span>
+            <select
+              value={call.cameraId ?? ''}
+              onChange={(e) => void call.switchDevice('video', e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2"
+            >
+              {call.cameras.map((d) => (
+                <option key={d.deviceId} value={d.deviceId}>
+                  {d.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm">
+            <span className="font-medium text-slate-600">Microphone</span>
+            <select
+              value={call.micId ?? ''}
+              onChange={(e) => void call.switchDevice('audio', e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2"
+            >
+              {call.mics.map((d) => (
+                <option key={d.deviceId} value={d.deviceId}>
+                  {d.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </>
+      )}
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={call.allowReconnect}
+          onChange={(e) => void saveSettings({ ...loadSettings(), allowReconnect: e.target.checked })}
+          className="mt-0.5 h-4 w-4"
+        />
+        <span>
+          <span className="font-medium">Allow reconnect</span>
+          <span className="block text-slate-500">People you skip can press Back to reach you again.</span>
+        </span>
+      </label>
+      <Link href="/settings" className="block text-sm font-medium text-brand hover:underline">
+        All settings →
+      </Link>
+    </div>
+  );
+}
 
+/** Gear button with the call settings (used in text chat; video calls use ⋮). */
+export function SettingsMenu({ call }: { call: RandomCall }) {
+  const [open, setOpen] = useState(false);
   return (
     <div className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        aria-label={more ? 'More options' : 'Settings'}
-        title={more ? 'More options' : 'Settings'}
-        className={className || 'flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 text-slate-200 hover:bg-slate-700'}
+        aria-label="Settings"
+        title="Settings"
+        className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-800 text-slate-200 hover:bg-slate-700"
       >
-        {more ? <MoreVerticalIcon /> : <GearIcon />}
+        <GearIcon />
       </button>
       {open && (
         <>
-          {/* Click outside to close. */}
           <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} aria-hidden />
-        <div
-          className={`absolute right-0 z-30 w-72 max-w-[85vw] space-y-4 rounded-xl bg-white p-4 text-ink shadow-xl ${more ? 'bottom-full mb-3' : 'mt-2'}`}
-        >
-          {more && <p className="text-sm font-semibold">⚙️ Settings</p>}
-          {call.mode === 'video' && call.cameras.length > 0 && (
-            <>
-              <label className="block text-sm">
-                <span className="font-medium text-slate-600">Camera</span>
-                <select
-                  value={call.cameraId ?? ''}
-                  onChange={(e) => void call.switchDevice('video', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2"
-                >
-                  {call.cameras.map((d) => (
-                    <option key={d.deviceId} value={d.deviceId}>
-                      {d.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block text-sm">
-                <span className="font-medium text-slate-600">Microphone</span>
-                <select
-                  value={call.micId ?? ''}
-                  onChange={(e) => void call.switchDevice('audio', e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2"
-                >
-                  {call.mics.map((d) => (
-                    <option key={d.deviceId} value={d.deviceId}>
-                      {d.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </>
-          )}
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={call.allowReconnect}
-              onChange={(e) => void saveSettings({ ...loadSettings(), allowReconnect: e.target.checked })}
-              className="mt-0.5 h-4 w-4"
-            />
-            <span>
-              <span className="font-medium">Allow reconnect</span>
-              <span className="block text-slate-500">People you skip can press Back to reach you again.</span>
-            </span>
-          </label>
-          <Link href="/settings" className="block text-sm font-medium text-brand hover:underline">
-            All settings →
-          </Link>
-        </div>
+          <div className="absolute right-0 z-30 mt-2 w-72 max-w-[85vw] rounded-xl bg-white p-4 text-ink shadow-xl">
+            <SettingsContent call={call} />
+          </div>
         </>
       )}
     </div>

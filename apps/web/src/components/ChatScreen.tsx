@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { NO_FILTERS } from '@rc/shared';
 import { useAuth } from '@/lib/auth';
 import { countryName, flagEmoji, GENDER_ICON, GENDER_LABEL } from '@/lib/format';
@@ -94,6 +94,22 @@ export function ChatScreen({ call }: { call: RandomCall }) {
   const isPlus = !!user?.plus.active;
   const showAd = call.adBreak && !isPlus;
   const [showOnline, setShowOnline] = useState(false);
+  // Meet-style chat: closed by default; a side panel on desktop, a sheet over the video on phones.
+  const [chatOpen, setChatOpen] = useState(false);
+  // Partner messages seen while the chat was open; the rest show as a badge.
+  const theirCount = call.messages.filter((m) => m.from === 'them').length;
+  const [seen, setSeen] = useState(0);
+  useEffect(() => {
+    if (chatOpen || theirCount < seen) setSeen(theirCount);
+  }, [chatOpen, theirCount, seen]);
+  const unread = Math.max(0, theirCount - seen);
+  // Adjust view: fill the tile (cropped) or fit the whole picture.
+  const [fit, setFit] = useState(false);
+  const mainRef = useRef<HTMLElement>(null);
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    else void mainRef.current?.requestFullscreen?.().catch(() => undefined);
+  }, []);
   const [onlineUpsell, setOnlineUpsell] = useState(false);
   const closeOnline = useCallback(() => setShowOnline(false), []);
   // "See who's online" from the home page opens the list straight away.
@@ -116,14 +132,19 @@ export function ChatScreen({ call }: { call: RandomCall }) {
   );
 
   return (
-    <main className="mx-auto flex h-[100dvh] max-w-6xl flex-col overflow-hidden p-2 sm:p-4">
-      <div className="flex min-h-0 flex-1 flex-col gap-3 rounded-3xl bg-[#0f172a] p-3 sm:gap-4 sm:p-5">
+    <main ref={mainRef} className={`mx-auto flex h-[100dvh] flex-col overflow-hidden bg-ink p-2 sm:p-4 ${chatOpen && !isText ? 'max-w-7xl' : 'max-w-6xl'}`}>
+      <div className="flex min-h-0 flex-1 flex-col gap-3 rounded-3xl bg-[#0f172a] p-3 sm:gap-4 sm:p-5 [@media(max-height:500px)]:gap-2 [@media(max-height:500px)]:p-2">
         {/* Header: logo · online · settings · upgrade */}
         <header className="flex items-center gap-2 sm:gap-3">
-          <span className="mr-auto text-xl font-semibold sm:text-2xl">
+          <span className="text-xl font-semibold sm:text-2xl [@media(max-height:500px)]:text-lg">
             random<span className="text-brand">Call</span>
             {isText && <span className="ml-2 text-sm font-normal text-slate-400">text chat</span>}
           </span>
+          {/* Short screens (phone sideways): filters share the header row to leave room for the video. */}
+          <div className="mr-auto hidden [@media(max-height:500px)]:block">
+            <FilterBar />
+          </div>
+          <span className="mr-auto [@media(max-height:500px)]:hidden" aria-hidden />
           {/* Online count and the Online list are Plus-only. */}
           <button
             onClick={() => (isPlus ? setShowOnline(true) : setOnlineUpsell(true))}
@@ -153,7 +174,9 @@ export function ChatScreen({ call }: { call: RandomCall }) {
           )}
         </header>
 
-        <FilterBar />
+        <div className="[@media(max-height:500px)]:hidden">
+          <FilterBar />
+        </div>
 
         <LimitModal call={call} />
         <IncomingCallModal call={call} />
@@ -204,14 +227,18 @@ export function ChatScreen({ call }: { call: RandomCall }) {
             </div>
           </div>
         ) : (
-          <div className="grid min-h-0 flex-1 grid-rows-[minmax(11rem,3fr)_minmax(8rem,2fr)] gap-3 sm:gap-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:grid-rows-1 max-lg:landscape:grid-cols-[minmax(0,1fr)_minmax(14rem,34%)] max-lg:landscape:grid-rows-1">
+          <div
+            className={`grid min-h-0 flex-1 grid-rows-1 gap-3 sm:gap-4 ${
+              chatOpen ? 'lg:grid-cols-[minmax(0,1fr)_360px] max-lg:landscape:grid-cols-[minmax(0,1fr)_minmax(15rem,42%)]' : ''
+            }`}
+          >
             {/* Stage: partner video, your picture-in-picture, controls */}
             <VideoTile
               stream={matched ? call.remoteStream : null}
               videoRef={call.setPartnerVideo}
               forceVisible={call.relayActive}
               className="min-h-0 rounded-2xl !bg-[#1e293b]"
-              videoClassName={`transition-[filter] duration-700 ${
+              videoClassName={`transition-[filter] duration-700 ${fit ? '!object-contain' : ''} ${
                 call.partnerHidden || call.aiHidden ? 'blur-3xl brightness-50' : call.blurPartner ? 'blur-xl' : ''
               }`}
             >
@@ -260,7 +287,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               )}
 
               {/* You (picture-in-picture): drag it to any corner */}
-              <DraggablePip onCornerChange={setPipCorner} className="aspect-[3/4] h-[34%] max-h-[12rem] min-h-[5rem] max-w-[40%] overflow-hidden rounded-xl border-2 border-slate-500/80 bg-slate-600 shadow-xl md:aspect-video landscape:aspect-video max-lg:landscape:h-[38%] lg:h-[26%]">
+              <DraggablePip onCornerChange={setPipCorner} className="aspect-[3/4] h-[24%] max-h-[10rem] min-h-[5rem] max-w-[36%] sm:h-[30%] sm:max-h-[12rem] overflow-hidden rounded-xl border-2 border-slate-500/80 bg-slate-600 shadow-xl md:aspect-video landscape:aspect-video max-lg:landscape:h-[34%] lg:h-[26%] [@media(max-height:500px)]:h-[30%] [@media(max-height:500px)]:min-h-[3.5rem]">
                 <VideoTile stream={call.localStream} muted mirrored className="pointer-events-none h-full w-full rounded-none !bg-slate-600" />
                 {(!call.localStream || !call.cameraOn) && (
                   <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-200">You</div>
@@ -270,12 +297,35 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               <ReactionLayer call={call} />
 
               {/* Call bar (Meet style): mic, camera, reactions, hand, ⋮ settings, end, Next */}
-              <div className="absolute bottom-3 left-0 right-0 z-30 flex justify-center px-2 sm:bottom-4 max-lg:landscape:justify-start max-lg:landscape:pl-3">
-                <CallControls call={call} matched={matched} />
+              <div className="absolute bottom-3 left-0 right-0 z-30 flex justify-center px-2 sm:bottom-4">
+                <CallControls
+                  call={call}
+                  matched={matched}
+                  chatOpen={chatOpen}
+                  onToggleChat={() => setChatOpen((o) => !o)}
+                  unread={unread}
+                  fit={fit}
+                  onToggleFit={() => setFit((f) => !f)}
+                  onToggleFullscreen={toggleFullscreen}
+                />
               </div>
             </VideoTile>
 
-            {chat('h-full min-h-0')}
+            {chatOpen && (
+              <ChatPanel
+                variant="meet"
+                autoFocus
+                onClose={() => setChatOpen(false)}
+                messages={call.messages}
+                partnerTyping={call.partnerTyping}
+                enabled={matched}
+                onSend={call.sendMessage}
+                onTyping={call.notifyTyping}
+                // Desktop and sideways phones: a column beside the video. Upright phones/tablets:
+                // a sheet over the lower video.
+                className="h-full shadow-2xl max-lg:portrait:fixed max-lg:portrait:inset-x-2 max-lg:portrait:bottom-2 max-lg:portrait:top-[38%] max-lg:portrait:z-40 max-lg:portrait:h-auto"
+              />
+            )}
           </div>
         )}
       </div>

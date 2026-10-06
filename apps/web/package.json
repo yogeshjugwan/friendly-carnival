@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^1.0.1",
     "@rc/shared": "workspace:*",
     "@tensorflow/tfjs": "^4.22.0",
     "next": "^15.5.4",

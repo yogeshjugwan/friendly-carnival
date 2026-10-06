@@ -25,6 +25,7 @@ import {
 } from '@rc/shared';
 import { AD_BREAK_MS } from './ads';
 import { explicitScore, snapshot } from './nsfw';
+import { BackgroundEffect, backgroundEffectsSupported, type BackgroundMode } from './backgroundEffect';
 import { RelayReceiver, RelaySender, relaySupported } from './relay';
 import { loadSettings, onSettingsChange } from './settings';
 import { getSocket } from './socket';
@@ -588,12 +589,75 @@ export function useRandomCall() {
     setMics(pick('audioinput', 'Microphone'));
   }, []);
 
+  /** Background effect (blur / virtual background) and the real camera track behind it. */
+  const effectRef = useRef<BackgroundEffect | null>(null);
+  const rawCameraRef = useRef<MediaStreamTrack | null>(null);
+  const [background, setBackgroundState] = useState<BackgroundMode>('none');
+  const [backgroundBusy, setBackgroundBusy] = useState(false);
+
   const adoptStream = useCallback((stream: MediaStream) => {
     localRef.current = stream;
     setLocalStream(stream);
-    setCameraId(stream.getVideoTracks()[0]?.getSettings().deviceId ?? null);
+    // With an effect on, the stream's video is a canvas; the device is the real camera behind it.
+    setCameraId((rawCameraRef.current ?? stream.getVideoTracks()[0])?.getSettings().deviceId ?? null);
     setMicId(stream.getAudioTracks()[0]?.getSettings().deviceId ?? null);
   }, []);
+
+  /** Puts `track` in place of the current outgoing/preview video track. */
+  const useVideoTrack = useCallback(
+    async (track: MediaStreamTrack) => {
+      const local = localRef.current;
+      if (!local) return;
+      const current = local.getVideoTracks()[0];
+      track.enabled = current ? current.enabled : true;
+      const sender = pcRef.current?.getSenders().find((x) => x.track?.kind === 'video');
+      await sender?.replaceTrack(track).catch(() => undefined);
+      adoptStream(new MediaStream([track, ...local.getAudioTracks()]));
+    },
+    [adoptStream],
+  );
+
+  /** Backgrounds and effects: blur or replace the background of my camera. */
+  const setBackground = useCallback(
+    async (mode: BackgroundMode) => {
+      const local = localRef.current;
+      try {
+        window.localStorage.setItem('rc.background', mode);
+      } catch {
+        /* ignore */
+      }
+      if (!local || !local.getVideoTracks()[0]) return setBackgroundState(mode);
+      if (mode === 'none') {
+        const raw = rawCameraRef.current;
+        effectRef.current?.stop();
+        effectRef.current = null;
+        rawCameraRef.current = null;
+        if (raw) await useVideoTrack(raw);
+        return setBackgroundState('none');
+      }
+      if (effectRef.current) {
+        effectRef.current.setMode(mode);
+        return setBackgroundState(mode);
+      }
+      if (!backgroundEffectsSupported()) return flash('Backgrounds and effects are not supported in this browser.');
+      setBackgroundBusy(true);
+      const raw = local.getVideoTracks()[0];
+      const effect = new BackgroundEffect(mode);
+      try {
+        const processed = await effect.start(raw);
+        effectRef.current = effect;
+        rawCameraRef.current = raw;
+        await useVideoTrack(processed);
+        setBackgroundState(mode);
+      } catch {
+        effect.stop();
+        flash('Could not load backgrounds and effects on this device.');
+      } finally {
+        setBackgroundBusy(false);
+      }
+    },
+    [flash, useVideoTrack],
+  );
 
   const start = useCallback(
     async (join: Omit<JoinPayload, 'mode' | 'hideCountry'>, chatMode: ChatMode = 'video', browse = false) => {
@@ -617,6 +681,14 @@ export function useRandomCall() {
           setCameraOn(true);
           setMicOn(true);
           void refreshDevices();
+          // Bring back the background the user picked last time.
+          let saved: BackgroundMode = 'none';
+          try {
+            saved = (window.localStorage.getItem('rc.background') as BackgroundMode | null) ?? 'none';
+          } catch {
+            /* ignore */
+          }
+          if (saved !== 'none') void setBackground(saved);
         } catch {
           setStatus('media-denied');
           return;
@@ -633,7 +705,7 @@ export function useRandomCall() {
       setStatus('searching');
       startAdBreak(() => getSocket().emit('queue:join', payload));
     },
-    [adoptStream, refreshDevices, startAdBreak],
+    [adoptStream, refreshDevices, startAdBreak, setBackground],
   );
 
   const stop = useCallback(() => {
@@ -708,6 +780,17 @@ export function useRandomCall() {
     async (kind: 'video' | 'audio', deviceId: string) => {
       const local = localRef.current;
       if (!local) return;
+      if (kind === 'video' && effectRef.current) {
+        // Keep the effect; just feed it the new camera.
+        const fresh = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: deviceId } } }).catch(() => null);
+        const cam = fresh?.getVideoTracks()[0];
+        if (!cam) return flash('Could not switch to that device.');
+        rawCameraRef.current?.stop();
+        rawCameraRef.current = cam;
+        await effectRef.current.setInput(cam);
+        setCameraId(cam.getSettings().deviceId ?? deviceId);
+        return;
+      }
       const old = kind === 'video' ? local.getVideoTracks()[0] : local.getAudioTracks()[0];
       const fresh = await navigator.mediaDevices
         .getUserMedia(kind === 'video' ? { video: { deviceId: { exact: deviceId } } } : { audio: { deviceId: { exact: deviceId } } })
@@ -902,6 +985,8 @@ export function useRandomCall() {
       Object.values(timers.current).forEach((t) => window.clearTimeout(t));
       pcRef.current?.close();
       localRef.current?.getTracks().forEach((t) => t.stop());
+      effectRef.current?.stop();
+      rawCameraRef.current?.stop();
       getSocket().emit('queue:leave');
     },
     [],
@@ -958,6 +1043,9 @@ export function useRandomCall() {
     reactions,
     sendReaction,
     togglePictureInPicture,
+    background,
+    backgroundBusy,
+    setBackground,
     incomingCall,
     outgoingCall,
     listUsers,

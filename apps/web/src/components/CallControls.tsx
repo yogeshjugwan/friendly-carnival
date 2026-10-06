@@ -181,7 +181,8 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
           aria-label={unread ? `Chat, ${unread} new` : 'Chat'}
           aria-pressed={chatOpen}
           title="Chat"
-          className={`relative ${round(chatOpen ? 'active' : 'normal')}`}
+          // On wide screens Chat sits at the bottom right, like Meet.
+          className={`relative ${round(chatOpen ? 'active' : 'normal')} sm:!hidden`}
         >
           <ChatIcon />
           {unread > 0 && !chatOpen && (

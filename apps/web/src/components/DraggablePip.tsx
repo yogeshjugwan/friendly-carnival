@@ -15,8 +15,8 @@ const EDGE = 4;
 const CORNER_CLASS: Record<Corner, string> = {
   tl: 'left-3 top-[4.5rem] sm:left-4 max-lg:landscape:top-12',
   tr: 'right-3 top-14 sm:right-4 max-lg:landscape:top-12',
-  bl: 'left-3 bottom-[4.75rem] sm:left-4 sm:bottom-24',
-  br: 'right-3 bottom-[4.75rem] sm:right-4 sm:bottom-24',
+  bl: 'left-3 bottom-3 sm:left-4 sm:bottom-4',
+  br: 'right-3 bottom-3 sm:right-4 sm:bottom-4',
 };
 
 function loadCorner(): Corner {

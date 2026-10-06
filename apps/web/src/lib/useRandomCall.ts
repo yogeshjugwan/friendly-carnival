@@ -32,6 +32,7 @@ import { AD_BREAK_MS } from './ads';
 import { explicitScore, snapshot } from './nsfw';
 import { BackgroundEffect, backgroundEffectsSupported, type BackgroundMode } from './backgroundEffect';
 import { RelayReceiver, RelaySender, relaySupported } from './relay';
+import { faceVisible, waitForFace } from './faceCheck';
 import { GAM_REWARDED_UNIT, showRewardedAd } from './rewardedAd';
 import { loadSettings, onSettingsChange } from './settings';
 import { getSocket } from './socket';
@@ -45,6 +46,8 @@ export type CallStatus =
   | 'in-call' // media flowing (or text chat open)
   | 'limited' // free matches used up for today
   | 'browsing' // Plus: online and picking someone from the Online list
+  | 'face-check' // looking for a face in the camera before matching
+  | 'no-face' // no face seen: asked to look at the camera
   | 'banned'; // device is banned; can appeal
 
 export interface ChatLine {
@@ -139,6 +142,10 @@ export function useRandomCall() {
   /** Gift animations on screen. */
   const [gifts, setGifts] = useState<(GiftEvent & { id: number })[]>([]);
   const giftId = useRef(0);
+  /** Face check: what start() was asked to do, to retry after "no face". */
+  const pendingStart = useRef<{ join: Omit<JoinPayload, 'mode' | 'hideCountry'>; chatMode: ChatMode; browse: false | 'online' | 'friends' } | null>(null);
+  /** In a call, the camera hasn't seen a face for a while. */
+  const [noFace, setNoFace] = useState(false);
   /** Icebreaker question on screen for both people. */
   const [icebreaker, setIcebreaker] = useState<{ text: string; at: number } | null>(null);
   /** Friendship with the current partner (❤️ Add friend). */
@@ -738,6 +745,19 @@ export function useRandomCall() {
         }
       }
 
+      // Safety: video chats need a face in the camera (checked on this device).
+      const local = localRef.current;
+      if (chatMode === 'video' && local && local.getVideoTracks()[0]?.enabled) {
+        setStatus('face-check');
+        const cam = rawCameraRef.current ? new MediaStream([rawCameraRef.current]) : local;
+        const seen = await waitForFace(cam, 6_000);
+        if (seen === false) {
+          pendingStart.current = { join, chatMode, browse };
+          setStatus('no-face');
+          return;
+        }
+      }
+
       activeRef.current = true;
       setBrowseFor(browse || null);
       if (browse) {
@@ -751,6 +771,35 @@ export function useRandomCall() {
     },
     [adoptStream, refreshDevices, startAdBreak, setBackground],
   );
+
+  /** "No face" screen: check again and carry on. */
+  const retryFaceCheck = useCallback(() => {
+    const p = pendingStart.current;
+    if (p) void start(p.join, p.chatMode, p.browse);
+  }, [start]);
+
+  // During video calls, remind people whose face hasn't been visible for ~9 s.
+  useEffect(() => {
+    if (mode !== 'video' || !cameraOn || !(status === 'in-call' || status === 'connecting' || status === 'searching' || status === 'browsing')) {
+      setNoFace(false);
+      return;
+    }
+    let misses = 0;
+    let cancelled = false;
+    const t = window.setInterval(async () => {
+      const raw = rawCameraRef.current;
+      const cam = raw ? new MediaStream([raw]) : localRef.current;
+      if (!cam) return;
+      const seen = await faceVisible(cam);
+      if (cancelled || seen === null) return;
+      misses = seen ? 0 : misses + 1;
+      setNoFace(misses >= 3);
+    }, 3_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(t);
+    };
+  }, [mode, cameraOn, status]);
 
   const stop = useCallback(() => {
     activeRef.current = false;
@@ -1196,6 +1245,8 @@ export function useRandomCall() {
     outgoingCall,
     friendState,
     browseFor,
+    noFace,
+    retryFaceCheck,
     wallet,
     gifts,
     sendGift,

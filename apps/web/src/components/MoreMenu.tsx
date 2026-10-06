@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type { RandomCall } from '@/lib/useRandomCall';
+import { BACKGROUND_OPTIONS } from '@/lib/backgroundEffect';
 import { CONTACT_EMAIL } from './LegalPage';
 import { BackIcon, MoreVerticalIcon } from './icons';
 import { SettingsContent } from './SettingsMenu';
@@ -28,6 +29,13 @@ const PipIcon = svg(
   <>
     <rect x="3" y="4" width="18" height="16" rx="2" />
     <rect x="12" y="7" width="6" height="5" rx="1" fill="currentColor" />
+  </>,
+);
+const EffectsIcon = svg(
+  <>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <circle cx="12" cy="10" r="3" />
+    <path d="M6 20a6 6 0 0 1 12 0M18 3l1 2 2 1-2 1-1 2-1-2-2-1 2-1z" />
   </>,
 );
 const ProblemIcon = svg(
@@ -66,7 +74,7 @@ interface Props {
 
 /** The ⋮ "More options" menu, laid out like Google Meet's. */
 export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen }: Props) {
-  const [view, setView] = useState<'closed' | 'menu' | 'settings'>('closed');
+  const [view, setView] = useState<'closed' | 'menu' | 'settings' | 'effects'>('closed');
   const [fullscreen, setFullscreen] = useState(false);
   useEffect(() => {
     const sync = () => setFullscreen(!!document.fullscreenElement);
@@ -115,6 +123,17 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
               {item(ViewIcon, 'Adjust view', onToggleFit, fit ? 'Fit' : 'Fill')}
               {item(FullIcon, fullscreen ? 'Exit full screen' : 'Full screen', onToggleFullscreen)}
               {item(PipIcon, 'Open picture-in-picture', () => void call.togglePictureInPicture())}
+              {call.mode === 'video' && (
+                <button
+                  role="menuitem"
+                  onClick={() => setView('effects')}
+                  className="flex w-full items-center gap-4 px-4 py-3 text-left text-[15px] text-slate-100 hover:bg-white/10"
+                >
+                  <EffectsIcon className="h-5 w-5 shrink-0 text-slate-300" />
+                  <span className="flex-1">Backgrounds and effects</span>
+                  {call.background !== 'none' && <span className="text-xs text-sky-300">On</span>}
+                </button>
+              )}
               {call.canGoBack && <div className="sm:hidden">{item(BackIcon, 'Back to previous stranger', call.back)}</div>}
               <div className="my-1.5 border-t border-white/10" />
               {item(ProblemIcon, 'Report a problem', () => {
@@ -130,6 +149,41 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
                 <GearIcon className="h-5 w-5 shrink-0 text-slate-300" />
                 <span>Settings</span>
               </button>
+            </div>
+          ) : view === 'effects' ? (
+            <div className="absolute bottom-full right-0 z-40 mb-3 w-80 max-w-[90vw] rounded-xl bg-[#2a2b2e] p-4 text-slate-100 shadow-2xl sm:-right-20">
+              <div className="mb-3 flex items-center gap-2">
+                <button onClick={() => setView('menu')} aria-label="Back to menu" className="rounded-full p-1 text-slate-300 hover:bg-white/10">
+                  <BackIcon className="h-4 w-4" />
+                </button>
+                <p className="font-semibold">Backgrounds and effects</p>
+                {call.backgroundBusy && <span className="ml-auto h-4 w-4 animate-spin rounded-full border-2 border-slate-500 border-t-sky-300" aria-label="Loading" />}
+              </div>
+              <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label="Background">
+                {BACKGROUND_OPTIONS.map((o) => {
+                  const active = call.background === o.mode;
+                  return (
+                    <button
+                      key={o.mode}
+                      role="radio"
+                      aria-checked={active}
+                      disabled={call.backgroundBusy}
+                      onClick={() => void call.setBackground(o.mode)}
+                      title={o.label}
+                      className={`flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border-2 text-[10px] leading-tight transition disabled:opacity-50 ${
+                        active ? 'border-sky-300' : 'border-transparent hover:border-white/30'
+                      }`}
+                      style={{ background: o.swatch === 'transparent' ? '#3c4043' : o.swatch }}
+                    >
+                      <span className="text-lg" aria-hidden>
+                        {o.mode === 'none' ? '⊘' : o.mode === 'slight-blur' ? '◌' : o.mode === 'blur' ? '◉' : ''}
+                      </span>
+                      <span className="px-0.5 text-center font-medium text-white drop-shadow">{o.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-3 text-xs text-slate-400">Runs on your device. The first time takes a few seconds to load.</p>
             </div>
           ) : (
             <div className="absolute bottom-full right-0 z-40 mb-3 w-72 max-w-[88vw] rounded-xl bg-white p-4 text-ink shadow-2xl sm:-right-20">

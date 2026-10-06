@@ -604,7 +604,7 @@ export function useRandomCall() {
   }, []);
 
   /** Puts `track` in place of the current outgoing/preview video track. */
-  const useVideoTrack = useCallback(
+  const swapVideoTrack = useCallback(
     async (track: MediaStreamTrack) => {
       const local = localRef.current;
       if (!local) return;
@@ -632,7 +632,7 @@ export function useRandomCall() {
         effectRef.current?.stop();
         effectRef.current = null;
         rawCameraRef.current = null;
-        if (raw) await useVideoTrack(raw);
+        if (raw) await swapVideoTrack(raw);
         return setBackgroundState('none');
       }
       if (effectRef.current) {
@@ -647,7 +647,7 @@ export function useRandomCall() {
         const processed = await effect.start(raw);
         effectRef.current = effect;
         rawCameraRef.current = raw;
-        await useVideoTrack(processed);
+        await swapVideoTrack(processed);
         setBackgroundState(mode);
       } catch {
         effect.stop();
@@ -656,7 +656,7 @@ export function useRandomCall() {
         setBackgroundBusy(false);
       }
     },
-    [flash, useVideoTrack],
+    [flash, swapVideoTrack],
   );
 
   const start = useCallback(

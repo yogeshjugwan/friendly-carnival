@@ -54,7 +54,7 @@ export function FilterBar() {
           }
         }}
         aria-label={label}
-        className={`appearance-none rounded-xl bg-slate-800 py-2 pl-3 pr-12 text-xs font-medium text-slate-100 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-brand sm:pl-4 sm:text-sm ${wide ? 'max-w-[9.5rem] sm:max-w-[11rem]' : ''}`}
+        className={`appearance-none rounded-full bg-[#3c4043] py-2 pl-3 pr-12 text-xs font-medium text-slate-100 hover:bg-[#4a4e52] focus:outline-none focus:ring-2 focus:ring-brand sm:pl-4 sm:text-sm ${wide ? 'max-w-[9.5rem] sm:max-w-[11rem]' : ''}`}
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>

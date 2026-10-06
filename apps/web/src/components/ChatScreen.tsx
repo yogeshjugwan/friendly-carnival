@@ -132,8 +132,9 @@ export function ChatScreen({ call }: { call: RandomCall }) {
   );
 
   return (
-    <main ref={mainRef} className={`mx-auto flex h-[100dvh] flex-col overflow-hidden bg-ink p-2 sm:p-4 ${chatOpen && !isText ? 'max-w-7xl' : 'max-w-6xl'}`}>
-      <div className="flex min-h-0 flex-1 flex-col gap-3 rounded-3xl bg-[#0f172a] p-3 sm:gap-4 sm:p-5 [@media(max-height:500px)]:gap-2 [@media(max-height:500px)]:p-2">
+    // Full-screen dark call view, like Google Meet.
+    <main ref={mainRef} className="flex h-[100dvh] w-full flex-col overflow-hidden bg-[#202124] px-2 pb-2 pt-2 sm:px-4 sm:pb-4 sm:pt-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 sm:gap-3 [@media(max-height:500px)]:gap-1.5">
         {/* Header: logo · online · settings · upgrade */}
         <header className="flex items-center gap-2 sm:gap-3">
           <span className="text-xl font-semibold sm:text-2xl [@media(max-height:500px)]:text-lg">
@@ -148,7 +149,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
           {/* Online count and the Online list are Plus-only. */}
           <button
             onClick={() => (isPlus ? setShowOnline(true) : setOnlineUpsell(true))}
-            className="flex items-center gap-1.5 rounded-xl bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-slate-700"
+            className="flex items-center gap-1.5 rounded-full bg-[#3c4043] px-3 py-2 text-sm font-medium text-slate-100 hover:bg-[#4a4e52]"
             title={isPlus ? 'See who is online and call them' : 'See who is online (Plus)'}
           >
             <span aria-hidden>👥</span>
@@ -168,7 +169,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
           {isPlus ? (
             <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-sm font-semibold text-amber-300" title="Your Plus membership">👑 Plus member</span>
           ) : (
-            <Link href="/plus" className="rounded-xl bg-amber-500 px-4 py-2 font-semibold text-white hover:bg-amber-600">
+            <Link href="/plus" className="rounded-full bg-amber-500 px-4 py-2 font-semibold text-white hover:bg-amber-600">
               Upgrade
             </Link>
           )}
@@ -237,7 +238,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               stream={matched ? call.remoteStream : null}
               videoRef={call.setPartnerVideo}
               forceVisible={call.relayActive}
-              className="min-h-0 rounded-2xl !bg-[#1e293b]"
+              className="min-h-0 rounded-2xl !bg-[#2d2e31]"
               videoClassName={`transition-[filter] duration-700 ${fit ? '!object-contain' : ''} ${
                 call.partnerHidden || call.aiHidden ? 'blur-3xl brightness-50' : call.blurPartner ? 'blur-xl' : ''
               }`}

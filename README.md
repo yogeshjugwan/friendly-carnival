@@ -96,11 +96,18 @@ falling back to the longest waiter; the last 5 partners are never re-matched.
 
 ## TURN (needed for ~15–20% of calls)
 
-1. Create a free account at https://www.metered.ca/stun-turn and copy the TURN credentials.
-2. In Render → random-call-server → Environment, set `TURN_URLS`
-   (e.g. `turn:global.relay.metered.ca:80,turn:global.relay.metered.ca:443?transport=tcp`),
-   `TURN_USERNAME` and `TURN_CREDENTIAL`.
-3. `/health` then reports `"turnConfigured": true`; watch `calls.connectRate` (Phase 2 gate: ≥ 0.9).
+Some mobile and office networks block direct WebRTC. A TURN server relays those
+calls (otherwise they fall back to the slower Socket.IO relay). The server
+fetches **short-lived TURN credentials** from a provider and refreshes them
+every 6 hours, so no long-lived TURN password is shipped to browsers:
+
+- **Cloudflare** (free up to 1,000 GB/month): Cloudflare dashboard → Realtime →
+  TURN → *Create TURN key* → set `CF_TURN_KEY_ID` and `CF_TURN_API_TOKEN`.
+- **Metered**: dashboard → TURN credentials → set `METERED_DOMAIN`
+  (e.g. `myapp.metered.live`) and `METERED_API_KEY`.
+
+Static `TURN_URLS` + `TURN_USERNAME` + `TURN_CREDENTIAL` still work as a fallback.
+`/health` shows `turnConfigured` and `turnProvider` (`ok`, `static` or the last error).
 
 ## Safety and moderation
 

@@ -15,6 +15,16 @@ services:
         # Exact origins or wildcard hosts, comma separated. Update after the first Vercel deploy.
         value: https://*.vercel.app,http://localhost:3000
       # TURN relay (e.g. Metered.ca free tier). Set the values in the Render dashboard.
+      # TURN with short-lived credentials (pick one provider): Cloudflare …
+      - key: CF_TURN_KEY_ID
+        sync: false
+      - key: CF_TURN_API_TOKEN
+        sync: false
+      # … or Metered (e.g. myapp.metered.live + API key).
+      - key: METERED_DOMAIN
+        sync: false
+      - key: METERED_API_KEY
+        sync: false
       - key: TURN_URLS
         sync: false
       - key: TURN_USERNAME

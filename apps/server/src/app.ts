@@ -38,6 +38,7 @@ import { handleAdmin } from './admin.ts';
 import { createAuthHandler } from './auth.ts';
 import { createGoogleHandler, type GoogleConfig } from './google.ts';
 import { MatchLimits, type LimitOptions } from './limits.ts';
+import { TurnCredentials, type TurnConfig } from './turn.ts';
 import { ConsoleMailer, type Mailer } from './mailer.ts';
 import { config } from './config.ts';
 import { Matchmaker, type Pairing, type Session } from './matchmaker.ts';
@@ -102,6 +103,9 @@ export interface AppOptions {
   limits?: LimitOptions | null;
   /** Clock for the match limit (tests). */
   now?: () => number;
+  /** TURN provider (defaults to the environment); fetch is injectable for tests. */
+  turn?: TurnConfig;
+  turnFetch?: typeof fetch;
 }
 
 export interface App {
@@ -226,7 +230,8 @@ export function createApp(opts: AppOptions = {}): App {
               relayMB: +(metrics.relayBytes / 1e6).toFixed(1),
               recent: metrics.recent.slice(0, 20).map((r) => ({ ...r, ago: Math.round((Date.now() - r.at) / 1000) + 's' })),
             },
-            turnConfigured: config.iceServers.some((s) => s.username),
+            turnConfigured: turn.hasTurn(),
+            turnProvider: turn.enabled ? (turn.lastError ? `error: ${turn.lastError}` : 'ok') : 'static',
             persistentStore: opts.persistent ?? !(store instanceof MemoryStore),
             billingConfigured: !!opts.billing,
           }),
@@ -279,6 +284,9 @@ export function createApp(opts: AppOptions = {}): App {
       });
   });
 
+  const turn = new TurnCredentials(config.iceServers, opts.turn ?? config.turn, opts.turnFetch);
+  void turn.start();
+
   const limitOpts = opts.limits === undefined ? config.limits : opts.limits;
   const limits = limitOpts && limitOpts.daily > 0 ? new MatchLimits(limitOpts, opts.now) : null;
   /** Account, else browser; guests without a browser id fall back to their (hashed) IP. */
@@ -322,7 +330,7 @@ export function createApp(opts: AppOptions = {}): App {
         s.emit('limit:status', limits.status(limitKey(s.data), false));
       }
     }
-    const base = { matchId, mode: b.mode, reconnected, iceServers: config.iceServers };
+    const base = { matchId, mode: b.mode, reconnected, iceServers: turn.current() };
     // b just joined (or pressed Back) and initiates, so a is ready to answer.
     const info = (s: Pairing['a']) => ({
       gender: s.gender,
@@ -889,6 +897,7 @@ export function createApp(opts: AppOptions = {}): App {
     close: async () => {
       clearInterval(statsTimer);
       clearInterval(sweepTimer);
+      turn.stop();
       for (const r of callRequests.values()) clearTimeout(r.timer);
       clearInterval(purgeTimer);
       await io.close();

@@ -12,6 +12,11 @@ export const config = {
   recentPartnerMemory: 5,
   statsIntervalMs: 5_000,
   iceServers: buildIceServers(),
+  /** Short-lived TURN credentials from a provider (see turn.ts). */
+  turn: {
+    cloudflare: env.CF_TURN_KEY_ID && env.CF_TURN_API_TOKEN ? { keyId: env.CF_TURN_KEY_ID, apiToken: env.CF_TURN_API_TOKEN } : null,
+    metered: env.METERED_DOMAIN && env.METERED_API_KEY ? { domain: env.METERED_DOMAIN, apiKey: env.METERED_API_KEY } : null,
+  },
   /** Bearer token for /admin/*; admin is disabled when unset. */
   adminToken: env.ADMIN_TOKEN || undefined,
   /** Salt for hashing IPs before they are stored. Set a long random value in production. */

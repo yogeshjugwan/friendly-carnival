@@ -378,6 +378,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                 variant="meet"
                 autoFocus
                 onIcebreaker={matched ? call.askIcebreaker : undefined}
+                canAutoTranslate={isPlus}
                 onClose={() => setChatOpen(false)}
                 messages={call.messages}
                 partnerTyping={call.partnerTyping}

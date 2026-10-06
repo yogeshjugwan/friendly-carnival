@@ -352,6 +352,22 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               </DraggablePip>
 
               <ReactionLayer call={call} />
+              {call.icebreaker && matched && (
+                <div className="absolute inset-x-3 top-24 z-20 flex justify-center sm:top-20">
+                  <div className="w-full max-w-md rounded-2xl bg-black/70 px-4 py-3 text-center text-white shadow-xl backdrop-blur" role="status">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">🎲 Icebreaker</p>
+                    <p className="mt-1 text-base font-medium sm:text-lg">{call.icebreaker.text}</p>
+                    <div className="mt-2 flex justify-center gap-2 text-xs">
+                      <button onClick={call.askIcebreaker} className="rounded-full bg-white/15 px-3 py-1 hover:bg-white/25">
+                        Another one
+                      </button>
+                      <button onClick={call.dismissIcebreaker} className="rounded-full px-3 py-1 text-white/70 hover:text-white">
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
             </VideoTile>
 
@@ -361,6 +377,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               <ChatPanel
                 variant="meet"
                 autoFocus
+                onIcebreaker={matched ? call.askIcebreaker : undefined}
                 onClose={() => setChatOpen(false)}
                 messages={call.messages}
                 partnerTyping={call.partnerTyping}

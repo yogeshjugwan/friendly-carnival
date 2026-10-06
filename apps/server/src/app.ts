@@ -3,6 +3,7 @@ import { createServer, type IncomingHttpHeaders, type Server as HttpServer } fro
 import { Server } from 'socket.io';
 import {
   CALL_REQUEST_MS,
+  ICEBREAKERS,
   MAX_FRIEND_NICKNAME,
   REACTIONS,
   CHAT_BURST,
@@ -382,6 +383,17 @@ export function createApp(opts: AppOptions = {}): App {
       // Leaving a live match to go back: the person being left sees a normal "next".
       if (current && current.id !== result.a.id) notifyLeft(current.id, 'next');
       announce(result);
+    });
+
+    let lastIcebreaker = 0;
+    socket.on('icebreaker', () => {
+      const partner = matchmaker.partnerOf(socket.id);
+      const now = Date.now();
+      if (!partner || now - lastIcebreaker < 4_000) return;
+      lastIcebreaker = now;
+      const question = ICEBREAKERS[Math.floor(Math.random() * ICEBREAKERS.length)];
+      socket.emit('icebreaker', question);
+      io.to(partner.id).emit('icebreaker', question);
     });
 
     const reactionsAt: number[] = [];

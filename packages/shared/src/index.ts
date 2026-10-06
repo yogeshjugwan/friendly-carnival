@@ -234,6 +234,8 @@ export interface ClientToServerEvents {
   'blocks:list': (ack: (blocked: BlockedUser[]) => void) => void;
   /** Unblock one of them. */
   'blocks:remove': (id: string, ack: (ok: boolean) => void) => void;
+  /** Ask for an icebreaker question (shown to both people). */
+  icebreaker: () => void;
   /** Send a reaction emoji to the current partner (one of REACTIONS). */
   reaction: (emoji: string) => void;
   /** Plus: who is online now (ack gets the list, or null without Plus). */
@@ -265,6 +267,8 @@ export interface ServerToClientEvents {
   'plus:required': () => void;
   /** Friendship with the current partner changed. */
   'friend:state': (state: FriendState) => void;
+  /** An icebreaker question for both people in this chat. */
+  icebreaker: (question: string) => void;
   /** The partner sent a reaction. */
   reaction: (emoji: string) => void;
   /** Someone (a Plus member) wants to chat with you. */
@@ -305,6 +309,30 @@ export interface MatchLimitStatus {
 
 /** Reactions partners can send during a call (✋ = raise hand). */
 export const REACTIONS = ['💖', '👍', '🎉', '👏', '😂', '😮', '😢', '🤔', '👎', '✋'] as const;
+
+/** Icebreaker questions: one is shown to both people when either taps 🎲. */
+export const ICEBREAKERS = [
+  'Would you rather travel to the past or the future?',
+  "What's the last song you had on repeat?",
+  'If you could live in any country for a year, which one?',
+  "What's a food you could eat every day?",
+  'Cats or dogs — and why?',
+  "What's the best thing that happened to you this week?",
+  'If you won the lottery tomorrow, what would you buy first?',
+  "What's a movie you can watch again and again?",
+  'Would you rather be able to fly or be invisible?',
+  "What's something you're really good at?",
+  'Beach holiday or mountain trip?',
+  "What's the strangest food you've ever tried?",
+  'If you could have dinner with anyone, who would it be?',
+  "What's your go-to karaoke song?",
+  'Morning person or night owl?',
+  "What's a hobby you'd love to pick up?",
+  'Would you rather speak every language or play every instrument?',
+  "What's the best advice you've ever been given?",
+  'What would your perfect weekend look like?',
+  "What's one thing on your bucket list?",
+] as const;
 
 export const MAX_INTERESTS = 10;
 export const MAX_INTEREST_LENGTH = 24;

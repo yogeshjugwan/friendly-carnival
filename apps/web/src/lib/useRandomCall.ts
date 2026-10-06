@@ -130,6 +130,8 @@ export function useRandomCall() {
     setReactions((r) => [...r.slice(-11), { id, emoji, mine, x }]);
     window.setTimeout(() => setReactions((r) => r.filter((e) => e.id !== id)), 2_600);
   }, []);
+  /** Icebreaker question on screen for both people. */
+  const [icebreaker, setIcebreaker] = useState<{ text: string; at: number } | null>(null);
   /** Friendship with the current partner (❤️ Add friend). */
   const [friendState, setFriendState] = useState<FriendState>('none');
   /** What "browse" was opened for: the Plus Online list or the Friends list. */
@@ -167,6 +169,7 @@ export function useRandomCall() {
     ad?: number;
     patience?: number;
     reward?: number;
+    icebreaker?: number;
   }>({});
   /** Plus members see no ads. */
   const adFreeRef = useRef(false);
@@ -427,6 +430,7 @@ export function useRandomCall() {
       setOutgoingCall(null);
       setIncomingCall(null);
       setFriendState('none');
+      setIcebreaker(null);
       if (pcRef.current || matchRef.current) setHasPrevious(true);
       closePeer();
       matchRef.current = { id: match.matchId, startedAt: Date.now(), reported: false };
@@ -480,6 +484,12 @@ export function useRandomCall() {
     const onBlocked = () => flash('Blocked. You will not be matched with them again.');
     const onPlusRequired = () => setPlusRequired(true);
     const onReaction = (emoji: string) => showReaction(emoji, false);
+    const onIcebreaker = (q: string) => {
+      setIcebreaker({ text: q, at: Date.now() });
+      addLine('system', `🎲 ${q}`);
+      window.clearTimeout(timers.current.icebreaker);
+      timers.current.icebreaker = window.setTimeout(() => setIcebreaker(null), 10_000);
+    };
     const onFriendState = (st: FriendState) => setFriendState(st);
     const onIncomingCall = (c: IncomingCall) => setIncomingCall(c);
     const onIncomingCancelled = (id: string) => setIncomingCall((c) => (c?.requestId === id ? null : c));
@@ -535,6 +545,7 @@ export function useRandomCall() {
     socket.on('relay:start', onRelayStart);
     socket.on('relay:chunk', onRelayChunk);
     socket.on('reaction', onReaction);
+    socket.on('icebreaker', onIcebreaker);
     socket.on('friend:state', onFriendState);
     socket.on('call:incoming', onIncomingCall);
     socket.on('call:incoming-cancelled', onIncomingCancelled);
@@ -545,6 +556,7 @@ export function useRandomCall() {
     socket.on('limit:ad-rejected', onAdRejected);
     return () => {
       socket.off('reaction', onReaction);
+      socket.off('icebreaker', onIcebreaker);
       socket.off('friend:state', onFriendState);
       socket.off('call:incoming', onIncomingCall);
       socket.off('call:incoming-cancelled', onIncomingCancelled);
@@ -745,6 +757,12 @@ export function useRandomCall() {
     },
     [showReaction],
   );
+
+  /** 🎲 Ask for an icebreaker question (both people see it). */
+  const askIcebreaker = useCallback(() => {
+    if (matchRef.current) getSocket().emit('icebreaker');
+  }, []);
+  const dismissIcebreaker = useCallback(() => setIcebreaker(null), []);
 
   /** ❤️ Add friend with the current partner. */
   const addFriend = useCallback(() => {
@@ -1124,6 +1142,9 @@ export function useRandomCall() {
     outgoingCall,
     friendState,
     browseFor,
+    icebreaker,
+    askIcebreaker,
+    dismissIcebreaker,
     addFriend,
     listFriends,
     callFriend,

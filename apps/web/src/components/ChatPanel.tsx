@@ -21,9 +21,11 @@ interface Props {
   onClose?: () => void;
   /** Focus the message box when the panel opens. */
   autoFocus?: boolean;
+  /** 🎲 Icebreaker button in the meet header. */
+  onIcebreaker?: () => void;
 }
 
-export function ChatPanel({ messages, partnerTyping, enabled, onSend, onTyping, className = '', variant = 'card', onClose, autoFocus }: Props) {
+export function ChatPanel({ messages, partnerTyping, enabled, onSend, onTyping, className = '', variant = 'card', onClose, autoFocus, onIcebreaker }: Props) {
   const [draft, setDraft] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -76,7 +78,12 @@ export function ChatPanel({ messages, partnerTyping, enabled, onSend, onTyping, 
       {meet && (
         <>
           <header className="flex items-center justify-between px-5 pb-2 pt-4">
-            <h2 className="text-lg">In-call messages</h2>
+            <h2 className="mr-auto text-lg">In-call messages</h2>
+            {onIcebreaker && (
+              <button onClick={onIcebreaker} title="Icebreaker question" aria-label="Icebreaker question" className="rounded-full px-2 py-1 text-lg hover:bg-white/10">
+                🎲
+              </button>
+            )}
             {onClose && (
               <button onClick={onClose} aria-label="Close chat" className="rounded-full p-2 text-slate-300 hover:bg-white/10 hover:text-white">
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>

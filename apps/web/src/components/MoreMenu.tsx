@@ -57,6 +57,14 @@ const BlockIcon = svg(
     <path d="m5.7 5.7 12.6 12.6" />
   </>,
 );
+const DiceIcon = svg(
+  <>
+    <rect x="3" y="3" width="18" height="18" rx="3" />
+    <circle cx="8" cy="8" r="1.2" fill="currentColor" />
+    <circle cx="16" cy="16" r="1.2" fill="currentColor" />
+    <circle cx="12" cy="12" r="1.2" fill="currentColor" />
+  </>,
+);
 const HelpIcon = svg(
   <>
     <circle cx="11" cy="11" r="7" />
@@ -130,6 +138,7 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
               {item(ViewIcon, 'Adjust view', onToggleFit, fit ? 'Fit' : 'Fill')}
               {item(FullIcon, fullscreen ? 'Exit full screen' : 'Full screen', onToggleFullscreen)}
               {item(PipIcon, 'Open picture-in-picture', () => void call.togglePictureInPicture())}
+              {call.partner && item(DiceIcon, 'Icebreaker question', call.askIcebreaker)}
               {call.mode === 'video' && (
                 <button
                   role="menuitem"

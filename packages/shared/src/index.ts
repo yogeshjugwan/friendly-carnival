@@ -89,11 +89,37 @@ export interface IncomingCall {
 
 export type CallRequestResult =
   | { ok: true; requestId: string; expiresAt: number }
-  | { ok: false; reason: 'plus-required' | 'gone' | 'busy' | 'unavailable' | 'pending' | 'mode' | 'offline' | 'login-required' };
+  | { ok: false; reason: 'plus-required' | 'gone' | 'busy' | 'unavailable' | 'pending' | 'mode' | 'offline' | 'login-required' | 'cooldown' };
 
 export type CallAnswer = { accepted: true } | { accepted: false; reason: 'declined' | 'timeout' | 'busy' | 'gone' };
 
 export const CALL_REQUEST_MS = 20_000;
+
+/** 'link': links and social handles are blocked with strangers; 'spam': the same text again and again. */
+export type ChatRejectReason = 'rate-limited' | 'invalid' | 'link' | 'spam';
+
+/**
+ * Proof of work: a real browser spends a fraction of a second finding `nonce`
+ * so that sha256(`${challenge}:${nonce}`) starts with `bits` zero bits. Cheap
+ * for one person, expensive for a bot farm opening thousands of connections.
+ */
+export interface GuardChallenge {
+  challenge: string;
+  bits: number;
+}
+
+/** Number of leading zero bits in a hash. */
+export function leadingZeroBits(hash: Uint8Array): number {
+  let bits = 0;
+  for (const byte of hash) {
+    if (byte === 0) {
+      bits += 8;
+      continue;
+    }
+    return bits + Math.clz32(byte) - 24;
+  }
+  return bits;
+}
 
 /** New-user protection: guests are "new" for this long after their device is first seen… */
 export const NEW_DEVICE_MS = 15 * 60_000;
@@ -257,6 +283,8 @@ export interface ClientToServerEvents {
   reaction: (emoji: string) => void;
   /** Plus: who is online now (ack gets the list, or null without Plus). */
   'users:list': (ack: (users: ActiveUser[] | null) => void) => void;
+  /** Answer to guard:challenge. */
+  'guard:proof': (nonce: string) => void;
   /** Plus: ask a waiting person to chat. */
   'users:call': (publicId: string, ack: (result: CallRequestResult) => void) => void;
   'users:cancel': () => void;
@@ -274,7 +302,11 @@ export interface ServerToClientEvents {
   'back:unavailable': (reason: BackUnavailableReason) => void;
   'chat:message': (msg: ChatMessage) => void;
   'chat:typing': (typing: boolean) => void;
-  'chat:rejected': (reason: 'rate-limited' | 'invalid') => void;
+  'chat:rejected': (reason: ChatRejectReason) => void;
+  /** Prove this is a real browser: find a nonce (see GuardChallenge). */
+  'guard:challenge': (c: GuardChallenge) => void;
+  /** Too many skips / requests: wait before matching again. */
+  'guard:slow-down': (s: { reason: 'skipping' | 'flood'; retryAfterMs: number }) => void;
   'report:received': () => void;
   'report:rejected': (reason: 'no-target' | 'invalid' | 'rate-limited') => void;
   'user:blocked': () => void;

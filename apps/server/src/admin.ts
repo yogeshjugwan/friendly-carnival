@@ -18,7 +18,24 @@ export interface AdminDeps {
   onPlusChanged?: (userId: string) => void;
   onVerifiedChanged?: (userId: string, verified: boolean) => void;
   analytics?: Analytics;
+  /** Rate-limit key for the caller (hashed IP). */
+  clientKey?: (req: IncomingMessage) => string;
 }
+
+/** Wrong admin tokens: 10 per 10 minutes per IP, then everything is refused for a while. */
+const failures = new Map<string, { count: number; resetAt: number }>();
+const MAX_FAILURES = 10;
+const FAILURE_WINDOW_MS = 10 * 60_000;
+const tooManyFailures = (key: string, now = Date.now()) => {
+  const f = failures.get(key);
+  return !!f && f.resetAt > now && f.count >= MAX_FAILURES;
+};
+const noteFailure = (key: string, now = Date.now()) => {
+  const f = failures.get(key);
+  if (!f || f.resetAt <= now) failures.set(key, { count: 1, resetAt: now + FAILURE_WINDOW_MS });
+  else f.count++;
+  if (failures.size > 10_000) for (const [k, v] of failures) if (v.resetAt <= now) failures.delete(k);
+};
 
 const sameToken = (given: string, expected: string) => {
   const a = Buffer.from(given);
@@ -39,8 +56,13 @@ export async function handleAdmin(req: IncomingMessage, res: ServerResponse, dep
   };
 
   if (!deps.token) return send(503, { error: 'Admin is disabled: set ADMIN_TOKEN on the server' }), true;
+  const caller = deps.clientKey?.(req) ?? 'unknown';
+  if (tooManyFailures(caller)) return send(429, { error: 'Too many wrong tokens. Try again later.' }), true;
   const auth = req.headers.authorization ?? '';
-  if (!auth.startsWith('Bearer ') || !sameToken(auth.slice(7), deps.token)) return send(401, { error: 'Unauthorized' }), true;
+  if (!auth.startsWith('Bearer ') || !sameToken(auth.slice(7), deps.token)) {
+    noteFailure(caller);
+    return send(401, { error: 'Unauthorized' }), true;
+  }
 
   try {
     const { store, safety } = deps;

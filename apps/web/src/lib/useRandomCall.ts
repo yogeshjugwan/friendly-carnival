@@ -28,6 +28,7 @@ import {
   type ReportReason,
   type SignalMessage,
   type ReferralReward,
+  type ChatRejectReason,
 } from '@rc/shared';
 import { ACCOUNT_CHANGED } from './auth';
 import { AD_BREAK_MS } from './ads';
@@ -190,6 +191,7 @@ export function useRandomCall() {
     patience?: number;
     reward?: number;
     icebreaker?: number;
+    slowDown?: number;
   }>({});
   /** Plus members see no ads. */
   const adFreeRef = useRef(false);
@@ -484,8 +486,28 @@ export function useRandomCall() {
       addLine('them', msg.text, msg.at);
     };
     const onTyping = (typing: boolean) => setPartnerTyping(typing);
-    const onRejected = (reason: 'rate-limited' | 'invalid') =>
-      flash(reason === 'rate-limited' ? 'Slow down a little — too many messages.' : 'That message could not be sent.');
+    const onRejected = (reason: ChatRejectReason) =>
+      flash(
+        reason === 'rate-limited'
+          ? 'Slow down a little — too many messages.'
+          : reason === 'link'
+            ? "Links and social handles can't be shared with strangers — add them as a friend first."
+            : reason === 'spam'
+              ? "You've sent that already."
+              : 'That message could not be sent.',
+      );
+    const onSlowDown = ({ reason, retryAfterMs }: { reason: 'skipping' | 'flood'; retryAfterMs: number }) => {
+      const secs = Math.ceil(retryAfterMs / 1000);
+      if (reason === 'flood') {
+        activeRef.current = false;
+        setStatus('idle');
+        flash(`Too many requests from this browser. Try again in ${Math.ceil(secs / 60)} min.`);
+        return;
+      }
+      flash(`You're skipping very fast — take a breath. Matching resumes in ${secs} s.`);
+      window.clearTimeout(timers.current.slowDown);
+      timers.current.slowDown = window.setTimeout(() => requeue(), retryAfterMs + 500);
+    };
     const onError = (message: string) => console.warn('[server]', message);
     const onBanned = (info: BanInfo) => {
       activeRef.current = false;
@@ -574,6 +596,7 @@ export function useRandomCall() {
     socket.on('chat:message', onChat);
     socket.on('chat:typing', onTyping);
     socket.on('chat:rejected', onRejected);
+    socket.on('guard:slow-down', onSlowDown);
     socket.on('error:message', onError);
     socket.on('banned', onBanned);
     socket.on('report:received', onReported);
@@ -617,6 +640,7 @@ export function useRandomCall() {
       socket.off('chat:message', onChat);
       socket.off('chat:typing', onTyping);
       socket.off('chat:rejected', onRejected);
+      socket.off('guard:slow-down', onSlowDown);
       socket.off('error:message', onError);
       socket.off('banned', onBanned);
       socket.off('report:received', onReported);

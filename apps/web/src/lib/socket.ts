@@ -3,6 +3,7 @@
 import { io, type Socket } from 'socket.io-client';
 import type { ClientToServerEvents, HandshakeAuth, ServerToClientEvents } from '@rc/shared';
 import { getDeviceId } from './deviceId';
+import { solveChallenge } from './guard';
 
 export type RcSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -26,6 +27,12 @@ export function getSocket(): RcSocket {
       transports: ['websocket'],
       autoConnect: true,
       auth,
+    });
+    // Prove we're a real browser before matching (the server waits for this).
+    socket.on('guard:challenge', (c) => {
+      void solveChallenge(c)
+        .then((nonce) => socket?.emit('guard:proof', nonce))
+        .catch((e) => console.warn('[guard]', e));
     });
   }
   return socket;

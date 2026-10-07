@@ -5,6 +5,7 @@ import { io as connect, type Socket } from 'socket.io-client';
 import type { ActiveUser, CallRequestResult, ClientToServerEvents, IncomingCall, ServerToClientEvents } from '@rc/shared';
 import { MemoryAccountStore, NO_PLUS } from './accounts.ts';
 import { createApp } from './app.ts';
+import { Guard } from './guard.ts';
 import { MemoryStore } from './store.ts';
 
 type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -13,7 +14,9 @@ const once = <E extends keyof ServerToClientEvents>(s: Client, e: E) =>
 
 test('Plus members see who is online and can call a waiting person, who can accept or decline', async () => {
   const accounts = new MemoryAccountStore();
-  const app = createApp({ store: new MemoryStore(), accounts, statsIntervalMs: 60_000, limits: null });
+  let clock = Date.now();
+  const guard = new Guard({ now: () => clock });
+  const app = createApp({ store: new MemoryStore(), accounts, statsIntervalMs: 60_000, limits: null, guard });
   await new Promise<void>((r) => app.http.listen(0, r));
   const url = `http://localhost:${(app.http.address() as AddressInfo).port}`;
   const u = (await accounts.createUser('plus@example.com', 'h')) as { id: string };
@@ -67,6 +70,10 @@ test('Plus members see who is online and can call a waiting person, who can acce
     const declined = once(plus, 'call:answered');
     her.emit('users:answer', req1.requestId, false);
     assert.deepEqual(await declined, { accepted: false, reason: 'declined' });
+
+    // Calling straight back is blocked for a few minutes (no call loops).
+    assert.deepEqual(await call(plus, people[0].publicId), { ok: false, reason: 'cooldown' });
+    clock += 3 * 60_000 + 1;
 
     // Second request: accepted → both get matched.
     const incoming2 = once(her, 'call:incoming');

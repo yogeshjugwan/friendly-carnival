@@ -7,7 +7,15 @@ import { createStores } from './store-factory.ts';
 const stores = await createStores(config.databaseUrl);
 const mailer = config.resendApiKey ? new ResendMailer(config.resendApiKey, config.mailFrom) : new ConsoleMailer();
 const billing = config.stripe ? new StripeBilling(config.stripe.secretKey, config.stripe.webhookSecret, config.stripe.prices) : null;
-const app = createApp({ store: stores.safety, accounts: stores.accounts, mailer, persistent: stores.persistent, billing });
+const app = createApp({
+  store: stores.safety,
+  accounts: stores.accounts,
+  mailer,
+  persistent: stores.persistent,
+  billing,
+  // Proof of work before matching; GUARD_POW=off turns it off (e.g. for load tests).
+  requireProof: process.env.GUARD_POW !== 'off',
+});
 if (!billing) console.warn('[rc-server] Stripe not configured: Plus checkout is disabled');
 
 if (!config.adminToken) console.warn('[rc-server] ADMIN_TOKEN not set: the admin dashboard API is disabled');

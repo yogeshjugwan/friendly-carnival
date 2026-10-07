@@ -17,6 +17,7 @@ export const FAIL_TEXT: Record<Extract<CallRequestResult, { ok: false }>['reason
   mode: 'They are in a different chat mode.',
   offline: 'They are not in the call screen right now.',
   'login-required': 'Log in to call friends.',
+  cooldown: 'They said no recently — try again in a few minutes.',
 };
 
 export const useSecondsLeft = (until: number | null) => {

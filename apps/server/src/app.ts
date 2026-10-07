@@ -36,6 +36,8 @@ import {
 import type { AccountStore } from './accounts.ts';
 import { Analytics } from './analytics.ts';
 import { PushService, type PushSender } from './push.ts';
+import { Guard, looksLikeLink } from './guard.ts';
+import { RateLimiter } from './http.ts';
 import { isPlusActive, MAX_FRIENDS, MemoryAccountStore, NO_PLUS } from './accounts.ts';
 import type { BillingProvider } from './billing.ts';
 import { createBillingHandler } from './billing-http.ts';
@@ -63,6 +65,10 @@ interface SocketData {
   verified?: boolean;
   /** No invite reward can be due any more (checked on matches). */
   referralDone?: boolean;
+  /** Passed the proof-of-work check (a real browser, not a script). */
+  human?: boolean;
+  /** The proof-of-work challenge sent to this socket. */
+  challenge?: string;
   /** Active Plus subscription at handshake time (updated live by webhooks). */
   plus: boolean;
   ipHash: string | null;
@@ -116,6 +122,10 @@ export interface AppOptions {
   now?: () => number;
   /** Replaces Web Push delivery (tests). */
   pushSender?: PushSender;
+  /** Require a proof of work before matching (on in production; off in most tests). */
+  requireProof?: boolean;
+  /** Bot / flood shield (tests pass their own to tune it). */
+  guard?: Guard;
   /** TURN provider (defaults to the environment); fetch is injectable for tests. */
   turn?: TurnConfig;
   turnFetch?: typeof fetch;
@@ -214,8 +224,18 @@ export function createApp(opts: AppOptions = {}): App {
     onPlusChanged,
   });
 
+  // Every HTTP route: 600 requests per 5 minutes per IP (Stripe webhooks and /health exempt).
+  const httpLimit = new RateLimiter(600, 5 * 60_000);
   const http = createServer((req, res) => {
     void (async () => {
+      const path = (req.url ?? '').split('?')[0];
+      if (path !== '/health' && path !== '/billing/webhook') {
+        const key = hashIp(clientIp(req.headers, req.socket.remoteAddress), ipSalt) ?? 'unknown';
+        if (!httpLimit.allow(key)) {
+          res.writeHead(429, { 'content-type': 'application/json', 'retry-after': '60' });
+          return void res.end(JSON.stringify({ error: 'Too many requests. Slow down and try again in a minute.' }));
+        }
+      }
       if (await handleBilling(req, res)) return;
       if (await handleGoogle(req, res)) return;
       if (await handleAuth(req, res)) return;
@@ -228,6 +248,7 @@ export function createApp(opts: AppOptions = {}): App {
           online: () => matchmaker.onlineCount,
           accounts,
           analytics,
+          clientKey: (req) => hashIp(clientIp(req.headers, req.socket.remoteAddress), ipSalt) ?? 'unknown',
           onPlusChanged,
           onVerifiedChanged: (userId, verified) => {
             matchmaker.setVerified(userId, verified);
@@ -297,6 +318,19 @@ export function createApp(opts: AppOptions = {}): App {
     return first - bootAt > BOOT_GRACE_MS && now - first < NEW_DEVICE_MS;
   };
 
+  const guard = opts.guard ?? new Guard();
+  const requireProof = opts.requireProof ?? false;
+  const ipKeyOf = (ipHash: string | null, socketId: string) => (ipHash ? `ip:${ipHash}` : `sock:${socketId}`);
+
+  // Flood shield: too many new connections from one IP (or a device cut off for flooding) are refused.
+  io.use((socket, next) => {
+    const auth = (socket.handshake.auth ?? {}) as HandshakeAuth;
+    const ipHash = hashIp(clientIp(socket.handshake.headers, socket.handshake.address), ipSalt);
+    const device = isDeviceId(auth.deviceId) ? `d:${auth.deviceId.toLowerCase()}` : `sock:${socket.id}`;
+    if (!guard.allowConnection(ipKeyOf(ipHash, socket.id), device)) return next(new Error('rate-limited'));
+    next();
+  });
+
   // Identify the browser and check bans before any event is handled.
   io.use((socket, next) => {
     const auth = (socket.handshake.auth ?? {}) as HandshakeAuth;
@@ -352,6 +386,9 @@ export function createApp(opts: AppOptions = {}): App {
     return false;
   };
 
+  /** Matches between friends: they may share links. */
+  const friendMatches = new Set<string>();
+
   /** Per match: account ids that tapped ❤️ Add friend. */
   const friendWants = new Map<string, Set<string>>();
 
@@ -364,6 +401,11 @@ export function createApp(opts: AppOptions = {}): App {
     if (!r) return;
     clearTimeout(r.timer);
     callRequests.delete(requestId);
+    if (answer && !answer.accepted && (answer.reason === 'declined' || answer.reason === 'timeout')) {
+      const from = io.sockets.sockets.get(r.from)?.data;
+      const to = io.sockets.sockets.get(r.to)?.data;
+      if (from && to) guard.noteDeclined(limitKey(from), limitKey(to));
+    }
     if (answer) io.to(r.from).emit('call:answered', answer);
     if (tellCallee) io.to(r.to).emit('call:incoming-cancelled', requestId);
   };
@@ -464,6 +506,13 @@ export function createApp(opts: AppOptions = {}): App {
       }
     }
     for (const [x, y] of [[a.id, b.id], [b.id, a.id]]) void checkReferral(x, y).catch((e) => console.error('[referral]', e));
+    // Skipping through people very fast (bots, spammers): pause their matching for a bit.
+    if (!reconnected) {
+      for (const id of [a.id, b.id]) {
+        const d = io.sockets.sockets.get(id)?.data;
+        if (d) guard.noteMatch(limitKey(d));
+      }
+    }
     analytics.count('matches');
     analytics.count(b.mode === 'video' ? 'videoMatches' : 'textMatches');
     const base = { matchId, mode: b.mode, reconnected, iceServers: turn.current() };
@@ -488,6 +537,8 @@ export function createApp(opts: AppOptions = {}): App {
         .isFriend(ua, ub)
         .then((yes) => {
           if (!yes) return;
+          friendMatches.add(matchId);
+          if (friendMatches.size > 10_000) friendMatches.delete(friendMatches.values().next().value!);
           io.to(a.id).emit('friend:state', 'friends');
           io.to(b.id).emit('friend:state', 'friends');
         })
@@ -507,6 +558,61 @@ export function createApp(opts: AppOptions = {}): App {
       boostUntil: socket.data.boostUntil ?? null,
     });
     socket.emit('stats', { online: matchmaker.onlineCount });
+
+    // ---- Shield: proof of work, event rate limits, skipping brake ----
+    const ipKey = ipKeyOf(socket.data.ipHash, socket.id);
+    socket.data.human = !requireProof;
+    /** A join that arrived before the proof; run once proven. */
+    let pendingJoin: unknown = null;
+    if (requireProof) {
+      const c = guard.challenge(ipKey);
+      socket.data.challenge = c.challenge;
+      socket.emit('guard:challenge', c);
+    }
+    socket.on('guard:proof', (nonce) => {
+      if (socket.data.human) return;
+      if (!guard.verify(socket.data.challenge, nonce)) {
+        // Wrong answer: a fresh, harder-to-fake challenge.
+        const c = guard.challenge(ipKey);
+        socket.data.challenge = c.challenge;
+        return void socket.emit('guard:challenge', c);
+      }
+      socket.data.human = true;
+      if (pendingJoin !== null) {
+        const payload = pendingJoin;
+        pendingJoin = null;
+        for (const handler of socket.listeners('queue:join')) (handler as (p: unknown) => void)(payload);
+      }
+    });
+    /** Events that need a proven browser (everything that reaches other people). */
+    const HUMAN_ONLY = new Set(['queue:join', 'call:next', 'call:back', 'users:call', 'friends:call', 'users:list', 'chat:message', 'relay:start']);
+    const allowEvent = guard.eventLimiter();
+    socket.use(([event, ...args], next) => {
+      const verdict = allowEvent(event);
+      if (verdict === 'kick') {
+        console.warn('[guard] flood, disconnecting', ipKey.slice(0, 12));
+        // Cut off this browser for 5 minutes, and its IP briefly (shared IPs recover fast).
+        guard.block(`d:${socket.data.deviceId}`);
+        guard.block(ipKey, 60_000);
+        socket.emit('guard:slow-down', { reason: 'flood', retryAfterMs: 5 * 60_000 });
+        return void socket.disconnect(true);
+      }
+      if (verdict === 'drop') return;
+      if (!socket.data.human && HUMAN_ONLY.has(event)) {
+        if (event === 'queue:join') pendingJoin = args[0];
+        return;
+      }
+      next();
+    });
+    /** True (and tells the client) while this person is paused for skipping too fast. */
+    const pausedForSkipping = () => {
+      const left = guard.pausedFor(limitKey(socket.data));
+      if (!left) return false;
+      matchmaker.leaveQueue(socket.id);
+      socket.emit('guard:slow-down', { reason: 'skipping', retryAfterMs: left });
+      return true;
+    };
+
     analytics.visit(socket.data.userId ? `u:${socket.data.userId}` : socket.data.deviceId);
     const onlineUser = socket.data.userId;
     if (onlineUser && [...io.sockets.sockets.values()].filter((x) => x.data.userId === onlineUser).length === 1) {
@@ -517,6 +623,7 @@ export function createApp(opts: AppOptions = {}): App {
     if (userId) void pushWallet(userId).catch(() => undefined);
     if (socket.data.ban) socket.emit('banned', socket.data.ban);
     const sentAt: number[] = [];
+    const recentTexts: string[] = [];
 
     /** True (and tells the client) while a ban is in force; clears expired bans. */
     const stillBanned = () => {
@@ -531,6 +638,7 @@ export function createApp(opts: AppOptions = {}): App {
       const join = parseJoin(payload);
       if (!join) return void socket.emit('error:message', 'Invalid join request');
       if (matchmaker.get(socket.id)?.partnerId) return;
+      if (pausedForSkipping()) return;
       if (!mayMatch(socket)) return;
       if (hasFilters(join.filters) && !socket.data.plus) socket.emit('plus:required');
       // Plus members browse the Online list; any logged-in user can wait for friends.
@@ -548,6 +656,7 @@ export function createApp(opts: AppOptions = {}): App {
     socket.on('call:next', () => {
       if (!matchmaker.get(socket.id) || stillBanned()) return;
       notifyLeft(matchmaker.endMatch(socket.id)?.id, 'next');
+      if (pausedForSkipping()) return;
       if (!mayMatch(socket)) return void matchmaker.leaveQueue(socket.id);
       const pairing = matchmaker.rejoin(socket.id);
       if (pairing) announce(pairing);
@@ -561,7 +670,7 @@ export function createApp(opts: AppOptions = {}): App {
     });
 
     socket.on('call:back', () => {
-      if (stillBanned() || !mayMatch(socket)) return;
+      if (stillBanned() || pausedForSkipping() || !mayMatch(socket)) return;
       const current = matchmaker.partnerOf(socket.id);
       const result = matchmaker.reconnect(socket.id);
       if (typeof result === 'string') return void socket.emit('back:unavailable', result);
@@ -681,6 +790,13 @@ export function createApp(opts: AppOptions = {}): App {
       if ([...callRequests.values()].some((r) => r.to === target.id)) return { ok: false, reason: 'busy' };
       const check = matchmaker.canCall(socket.id, target.id, friend);
       if (check !== 'ok') return { ok: false, reason: check };
+      // No ringing the same person again and again after they said no.
+      const targetData = io.sockets.sockets.get(target.id)?.data;
+      if (targetData) {
+        const loop = guard.canRequest(limitKey(socket.data), limitKey(targetData));
+        if (loop !== 'ok') return { ok: false, reason: loop };
+        guard.noteRequest(limitKey(targetData));
+      }
 
       const me = matchmaker.get(socket.id)!;
       const requestId = randomUUID();
@@ -864,6 +980,14 @@ export function createApp(opts: AppOptions = {}): App {
       const now = Date.now();
       while (sentAt.length && now - sentAt[0]! > CHAT_WINDOW_MS) sentAt.shift();
       if (sentAt.length >= CHAT_BURST) return void socket.emit('chat:rejected', 'rate-limited');
+      // Strangers can't swap links or social handles (the classic bot / scam opener); friends can.
+      const matchId = matchmaker.get(socket.id)?.matchId;
+      if (looksLikeLink(text) && !(matchId && friendMatches.has(matchId))) return void socket.emit('chat:rejected', 'link');
+      // The same message over and over.
+      const key = text.toLowerCase().replace(/\s+/g, ' ');
+      recentTexts.push(key);
+      if (recentTexts.length > 5) recentTexts.shift();
+      if (recentTexts.filter((t) => t === key).length >= 3) return void socket.emit('chat:rejected', 'spam');
       sentAt.push(now);
       io.to(partner.id).emit('chat:message', { text, at: now });
     });

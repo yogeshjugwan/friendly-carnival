@@ -187,6 +187,7 @@ export function createApp(opts: AppOptions = {}): App {
     push,
     chattedToday: (userId) => chatDay.get(userId) === dayOf(Date.now()),
     onCoins: (userId) => void pushWallet(userId),
+    onPlusChanged: (userId) => onPlusChanged(userId),
     accounts,
     mailer: opts.mailer ?? new ConsoleMailer(),
     webUrl: opts.webUrl ?? config.webUrl,

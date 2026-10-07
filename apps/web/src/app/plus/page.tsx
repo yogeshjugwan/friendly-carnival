@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import type { PlanPrice, PlusPlan } from '@rc/shared';
+import { PLUS_TRIAL_HOURS, type PlanPrice, type PlusPlan } from '@rc/shared';
 import { PLUS_FEATURES } from '@/components/PlusUpsell';
 import { SiteFooter, SiteHeader } from '@/components/SiteHeader';
 import { errorText, FormError, FormNote } from '@/components/forms/fields';
@@ -38,6 +38,7 @@ export default function PlusPage() {
   const [plans, setPlans] = useState<PlanPrice[] | null>(null);
   const [enabled, setEnabled] = useState(true);
   const [busy, setBusy] = useState<PlusPlan | 'portal' | null>(null);
+  const [trialBusy, setTrialBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
@@ -130,6 +131,37 @@ export default function PlusPage() {
       {notice && <FormNote>{notice}</FormNote>}
       {waiting && <p className="text-center text-slate-300">Activating your Plus membership…</p>}
       <FormError error={error} />
+
+      {user?.trialAvailable && !plus?.active && (
+        <section className="flex flex-col items-center gap-3 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 p-5 text-center text-white sm:flex-row sm:text-left">
+          <div className="flex-1">
+            <p className="text-lg font-bold">🎁 Try Plus free for {PLUS_TRIAL_HOURS} hours</p>
+            <p className="text-sm text-white/90">
+              No card needed. Filters, no ads, see who&apos;s online — then decide.
+              {!user.emailVerified && ' Confirm your email first.'}
+            </p>
+          </div>
+          <button
+            disabled={trialBusy || !user.emailVerified}
+            onClick={async () => {
+              setTrialBusy(true);
+              setError(null);
+              try {
+                await api('/auth/plus/trial', {}, token);
+                await refresh();
+                setNotice(`👑 Plus is on for the next ${PLUS_TRIAL_HOURS} hours. Enjoy!`);
+              } catch (e) {
+                setError(errorText(e));
+              } finally {
+                setTrialBusy(false);
+              }
+            }}
+            className="rounded-full bg-white px-5 py-2.5 font-semibold text-orange-600 disabled:opacity-60"
+          >
+            {trialBusy ? 'Starting…' : 'Start free trial'}
+          </button>
+        </section>
+      )}
 
       {plus?.active ? (
         <section className="rounded-2xl bg-white p-6 text-ink">

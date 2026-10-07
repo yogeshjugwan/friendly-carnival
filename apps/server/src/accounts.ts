@@ -72,6 +72,8 @@ export interface User {
   /** Daily streak: days in a row, and the last day claimed ('YYYY-MM-DD', IST). */
   streakDays: number;
   streakLastDay: string | null;
+  /** The free Plus trial was used. */
+  trialUsed: boolean;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -147,6 +149,8 @@ export interface AccountStore {
   markRead(to: string, from: string): Promise<void>;
   /** Unread messages for `to`, by sender. */
   unreadCounts(to: string): Promise<Map<string, number>>;
+  /** Marks the free trial used; false if it already was. */
+  useTrial(userId: string): Promise<boolean>;
   /** Records a daily claim; false if `day` was already claimed. */
   setStreak(userId: string, days: number, lastDay: string, previousDay: string | null): Promise<boolean>;
   /** Small server-wide secrets (e.g. the Web Push keys). */
@@ -232,6 +236,7 @@ export class MemoryAccountStore implements AccountStore {
       referralRewarded: false,
       streakDays: 0,
       streakLastDay: null,
+      trialUsed: false,
     };
     this.users.set(user.id, user);
     return user;
@@ -330,6 +335,13 @@ export class MemoryAccountStore implements AccountStore {
   }
 
   private messages: StoredMessage[] = [];
+
+  async useTrial(userId: string) {
+    const u = this.users.get(userId);
+    if (!u || u.trialUsed) return false;
+    u.trialUsed = true;
+    return true;
+  }
 
   async addMessage(from: string, to: string, text: string) {
     const m: StoredMessage = { id: randomUUID(), from, to, text, at: Date.now(), readAt: null };
@@ -513,6 +525,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_status TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ref_code TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_days INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_last_day TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_used BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_rewarded BOOLEAN NOT NULL DEFAULT FALSE;
 CREATE UNIQUE INDEX IF NOT EXISTS users_ref_code_idx ON users (ref_code);
@@ -573,6 +586,7 @@ const toUser = (r: Record<string, unknown>): User => ({
   referralRewarded: !!r.referral_rewarded,
   streakDays: Number(r.streak_days ?? 0),
   streakLastDay: (r.streak_last_day as string | null) ?? null,
+  trialUsed: !!r.trial_used,
 });
 
 export class PostgresAccountStore implements AccountStore {
@@ -779,6 +793,11 @@ export class PostgresAccountStore implements AccountStore {
       'UPDATE users SET referral_rewarded = TRUE WHERE id = $1 AND referral_rewarded = FALSE',
       [userId],
     );
+    return !!rowCount;
+  }
+
+  async useTrial(userId: string) {
+    const { rowCount } = await this.pool.query('UPDATE users SET trial_used = TRUE WHERE id = $1 AND trial_used = FALSE', [userId]);
     return !!rowCount;
   }
 

@@ -731,7 +731,12 @@ export interface PublicUser {
   plus: PlusStatus;
   wallet: Wallet;
   verification: VerificationStatus;
+  /** A free Plus day can still be started (once per account, confirmed email). */
+  trialAvailable: boolean;
 }
+
+/** Length of the one-time free Plus trial. */
+export const PLUS_TRIAL_HOURS = 24;
 
 /** ✓ Verified badge: a selfie with a random gesture, checked by a moderator. */
 export type VerificationStatus = 'none' | 'pending' | 'verified' | 'rejected';

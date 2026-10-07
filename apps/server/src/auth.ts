@@ -7,11 +7,12 @@ import {
   VERIFY_GESTURES,
   type PublicUser,
   streakReward,
+  PLUS_TRIAL_HOURS,
   type DailyStatus,
   type ReferralInfo,
   type VerifyGestureId,
 } from '@rc/shared';
-import { hashPassword, publicPlus, verifyPassword, type AccountStore, type User } from './accounts.ts';
+import { hashPassword, NO_PLUS, publicPlus, verifyPassword, type AccountStore, type User } from './accounts.ts';
 import { bearer, cors, RateLimiter, readJson, sendJson } from './http.ts';
 import { linkEmail, type Mailer } from './mailer.ts';
 import { isPushSubscription, type PushService } from './push.ts';
@@ -31,6 +32,8 @@ export interface AuthDeps {
   chattedToday?: (userId: string) => boolean;
   /** Coins changed: refresh the user's open tabs. */
   onCoins?: (userId: string) => void;
+  /** Plus changed: refresh the user's live sessions. */
+  onPlusChanged?: (userId: string) => void;
 }
 
 /** An invite link can be attached up to a day after sign-up. */
@@ -49,6 +52,8 @@ export const publicUser = (u: User): PublicUser => ({
   plus: publicPlus(u.plus),
   wallet: { coins: u.coins, boostUntil: u.boostUntil && u.boostUntil > Date.now() ? u.boostUntil : null },
   verification: u.verifiedAt ? 'verified' : (u.verifyStatus ?? 'none'),
+  // Never had Plus in any form (paid, gift or trial).
+  trialAvailable: !u.trialUsed && !u.plus.status && !u.stripeCustomerId,
 });
 
 const passwordProblem = (p: unknown): string | null => {
@@ -212,6 +217,17 @@ export function createAuthHandler(deps: AuthDeps) {
         const mine = await accounts.pushSubscriptions(user.id);
         if (mine.some((s) => s.endpoint === endpoint)) await accounts.removePushSubscription(endpoint);
         return sendJson(res, 200, { ok: true }), true;
+      }
+
+      // One free Plus day per account, for people who never had Plus.
+      if (route === 'POST /auth/plus/trial') {
+        if (!publicUser(user).trialAvailable) return fail(409, 'The free trial is for accounts that never had Plus');
+        if (!user.emailVerified) return fail(403, 'Confirm your email to start the free trial');
+        if (!(await accounts.useTrial(user.id))) return fail(409, 'You already used your free trial');
+        const plus = { ...NO_PLUS, status: 'admin', until: Date.now() + PLUS_TRIAL_HOURS * 3_600_000 };
+        await accounts.setPlus(user.id, plus);
+        deps.onPlusChanged?.(user.id);
+        return sendJson(res, 200, publicUser({ ...user, plus, trialUsed: true })), true;
       }
 
       if (route === 'GET /auth/daily') return sendJson(res, 200, dailyStatus(user)), true;

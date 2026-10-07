@@ -3,6 +3,7 @@ import { createServer, type IncomingHttpHeaders, type Server as HttpServer } fro
 import { Server } from 'socket.io';
 import {
   BOOST,
+  GAMES,
   REFERRAL,
   CALL_REQUEST_MS,
   NEW_ACCOUNT_MS,
@@ -37,6 +38,7 @@ import type { AccountStore } from './accounts.ts';
 import { Analytics } from './analytics.ts';
 import { PushService, type PushSender } from './push.ts';
 import { Guard, looksLikeLink } from './guard.ts';
+import { applyMove, newGame, viewFor, type GameState } from './games.ts';
 import { RateLimiter } from './http.ts';
 import { isPlusActive, MAX_FRIENDS, MemoryAccountStore, NO_PLUS } from './accounts.ts';
 import type { BillingProvider } from './billing.ts';
@@ -385,6 +387,9 @@ export function createApp(opts: AppOptions = {}): App {
     analytics.count('limitHits');
     return false;
   };
+
+  /** Mini-game per match. */
+  const games = new Map<string, GameState>();
 
   /** Matches between friends: they may share links. */
   const friendMatches = new Set<string>();
@@ -761,6 +766,38 @@ export function createApp(opts: AppOptions = {}): App {
       const question = ICEBREAKERS[Math.floor(Math.random() * ICEBREAKERS.length)];
       socket.emit('icebreaker', question);
       io.to(partner.id).emit('icebreaker', question);
+    });
+
+    // ---- Mini-games (the server keeps the board so both see the same thing) ----
+    const sendGame = (matchId: string, a: string, b: string) => {
+      const entry = games.get(matchId);
+      io.to(a).emit('game:state', entry ? viewFor(entry, a) : null);
+      io.to(b).emit('game:state', entry ? viewFor(entry, b) : null);
+    };
+    socket.on('game:start', (game) => {
+      const partner = matchmaker.partnerOf(socket.id);
+      const matchId = matchmaker.get(socket.id)?.matchId;
+      if (!partner || !matchId || !GAMES.some((g) => g.id === game)) return;
+      games.set(matchId, newGame(game, socket.id, partner.id));
+      if (games.size > 5_000) games.delete(games.keys().next().value!);
+      analytics.count('games');
+      sendGame(matchId, socket.id, partner.id);
+    });
+    socket.on('game:move', (move) => {
+      const partner = matchmaker.partnerOf(socket.id);
+      const matchId = matchmaker.get(socket.id)?.matchId;
+      const state = matchId ? games.get(matchId) : undefined;
+      if (!partner || !matchId || !state || !move || typeof move !== 'object') return;
+      const next = applyMove(state, socket.id, partner.id, move);
+      if (!next) return;
+      games.set(matchId, next);
+      sendGame(matchId, socket.id, partner.id);
+    });
+    socket.on('game:end', () => {
+      const partner = matchmaker.partnerOf(socket.id);
+      const matchId = matchmaker.get(socket.id)?.matchId;
+      if (!partner || !matchId || !games.delete(matchId)) return;
+      sendGame(matchId, socket.id, partner.id);
     });
 
     const reactionsAt: number[] = [];

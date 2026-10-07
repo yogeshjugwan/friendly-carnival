@@ -280,6 +280,10 @@ export interface ClientToServerEvents {
   'limit:buy': (ack: (r: SpendResult) => void) => void;
   /** Ask for an icebreaker question (shown to both people). */
   icebreaker: () => void;
+  /** Start (or switch to) a mini-game with the current partner. */
+  'game:start': (game: GameId) => void;
+  'game:move': (move: GameMove) => void;
+  'game:end': () => void;
   /** Send a reaction emoji to the current partner (one of REACTIONS). */
   reaction: (emoji: string) => void;
   /** Plus: who is online now (ack gets the list, or null without Plus). */
@@ -325,6 +329,8 @@ export interface ServerToClientEvents {
   gift: (gift: GiftEvent) => void;
   /** An icebreaker question for both people in this chat. */
   icebreaker: (question: string) => void;
+  /** The current mini-game as this person sees it; null when it ended. */
+  'game:state': (view: GameView | null) => void;
   /** The partner sent a reaction. */
   reaction: (emoji: string) => void;
   /** Someone (a Plus member) wants to chat with you. */
@@ -367,6 +373,118 @@ export interface MatchLimitStatus {
 export const REACTIONS = ['💖', '👍', '🎉', '👏', '😂', '😮', '😢', '🤔', '👎', '✋'] as const;
 
 /** Icebreaker questions: one is shown to both people when either taps 🎲. */
+// ---- Mini-games in a call ----
+
+export type GameId = 'ttt' | 'tod' | 'wyr';
+export const GAMES: { id: GameId; name: string; emoji: string; blurb: string }[] = [
+  { id: 'ttt', name: 'Tic-tac-toe', emoji: '❌', blurb: 'Three in a row wins' },
+  { id: 'tod', name: 'Truth or Dare', emoji: '🎲', blurb: 'Take turns — keep it friendly' },
+  { id: 'wyr', name: 'Would you rather', emoji: '🤔', blurb: 'Pick one, then see their answer' },
+];
+
+export type GameMove = { cell: number } | { pick: 'truth' | 'dare' } | { vote: 'a' | 'b' } | { next: true };
+
+export type GameView =
+  | {
+      game: 'ttt';
+      startedBy: 'me' | 'them';
+      /** 9 cells, row by row. */
+      board: ('me' | 'them' | null)[];
+      myTurn: boolean;
+      winner: 'me' | 'them' | 'draw' | null;
+      /** Indexes of the winning line. */
+      line: number[] | null;
+    }
+  | {
+      game: 'tod';
+      startedBy: 'me' | 'them';
+      /** Whoever's turn it is picks truth or dare (and answers it). */
+      myTurn: boolean;
+      card: { kind: 'truth' | 'dare'; text: string; for: 'me' | 'them' } | null;
+    }
+  | {
+      game: 'wyr';
+      startedBy: 'me' | 'them';
+      question: { a: string; b: string };
+      myVote: 'a' | 'b' | null;
+      /** Hidden until you vote too. */
+      theirVote: 'a' | 'b' | 'hidden' | null;
+    };
+
+export const TRUTHS = [
+  'What is the most fun thing you did this year?',
+  "What's a song you secretly love?",
+  "What's the best gift you ever got?",
+  'What is your biggest fear?',
+  "What's a skill you wish you had?",
+  'What was your favourite cartoon as a kid?',
+  "What's the weirdest food you have eaten?",
+  'Who is your role model and why?',
+  "What's something that always makes you laugh?",
+  'What is your dream job?',
+  "What's the last thing you searched online?",
+  'What is a habit you want to break?',
+  "What's your most-used emoji?",
+  'Where would you live if you could live anywhere?',
+  "What's the most embarrassing thing that happened to you at school?",
+  'What movie can you watch again and again?',
+  "What's one thing people get wrong about you?",
+  'What is the best advice you ever got?',
+  "What's your guilty-pleasure TV show?",
+  'If you won the lottery, what would you buy first?',
+] as const;
+
+export const DARES = [
+  'Sing the chorus of your favourite song.',
+  'Do your best animal impression.',
+  'Speak in an accent for the next minute.',
+  'Show the last photo in your gallery (if it is safe to share!).',
+  'Do 10 jumping jacks.',
+  'Say the alphabet backwards as fast as you can.',
+  'Make your funniest face and hold it for 5 seconds.',
+  'Tell a joke — it has to make them smile.',
+  'Talk without closing your lips for 30 seconds.',
+  'Dance for 10 seconds with no music.',
+  'Describe your day using only three words.',
+  'Say a tongue twister three times fast.',
+  'Pretend to be a news reporter for 20 seconds.',
+  'Balance something on your head until your next turn.',
+  'Draw something in the air and let them guess it.',
+  'Rap about the room you are in.',
+  'Act out your favourite movie scene.',
+  'Say something nice in three languages.',
+  'Show them the view from your window.',
+  'Do your best evil laugh.',
+] as const;
+
+export const WOULD_YOU_RATHER: readonly { a: string; b: string }[] = [
+  { a: 'Be able to fly', b: 'Be invisible' },
+  { a: 'Live by the beach', b: 'Live in the mountains' },
+  { a: 'Never use social media again', b: 'Never watch movies again' },
+  { a: 'Travel to the past', b: 'Travel to the future' },
+  { a: 'Always be 10 minutes late', b: 'Always be 20 minutes early' },
+  { a: 'Have unlimited pizza', b: 'Have unlimited biryani' },
+  { a: 'Talk to animals', b: 'Speak every language' },
+  { a: 'Be famous', b: 'Be rich' },
+  { a: 'Read minds', b: 'See the future' },
+  { a: 'Only whisper', b: 'Only shout' },
+  { a: 'Give up music', b: 'Give up your phone for a month' },
+  { a: 'Have a rewind button', b: 'Have a pause button' },
+  { a: 'Be a cricket star', b: 'Be a movie star' },
+  { a: 'Live without summer', b: 'Live without winter' },
+  { a: 'Have a pet dragon', b: 'Have a pet unicorn' },
+  { a: 'Eat only sweet food', b: 'Eat only spicy food' },
+  { a: 'Explore space', b: 'Explore the deep sea' },
+  { a: 'Know how you die', b: 'Know when you die' },
+  { a: 'Be the funniest person in the room', b: 'Be the smartest' },
+  { a: 'Never feel cold', b: 'Never feel tired' },
+  { a: 'Work from home forever', b: 'Work from a beach café' },
+  { a: 'Have super strength', b: 'Have super speed' },
+  { a: 'Live in a big city', b: 'Live in a small village' },
+  { a: 'Lose your phone', b: 'Lose your wallet' },
+  { a: 'Be a kid again', b: 'Skip to 10 years from now' },
+];
+
 export const ICEBREAKERS = [
   'Would you rather travel to the past or the future?',
   "What's the last song you had on repeat?",

@@ -29,6 +29,9 @@ import {
   type SignalMessage,
   type ReferralReward,
   type ChatRejectReason,
+  type GameId,
+  type GameMove,
+  type GameView,
 } from '@rc/shared';
 import { ACCOUNT_CHANGED } from './auth';
 import { AD_BREAK_MS } from './ads';
@@ -153,6 +156,8 @@ export function useRandomCall() {
   const [noFace, setNoFace] = useState(false);
   /** Icebreaker question on screen for both people. */
   const [icebreaker, setIcebreaker] = useState<{ text: string; at: number } | null>(null);
+  /** The mini-game being played with the current partner. */
+  const [game, setGame] = useState<GameView | null>(null);
   /** Friendship with the current partner (❤️ Add friend). */
   const [friendState, setFriendState] = useState<FriendState>('none');
   /** What "browse" was opened for: the Plus Online list or the Friends list. */
@@ -284,6 +289,7 @@ export function useRandomCall() {
     setBlurPartner(false);
     setPartnerHidden(false);
     setAiHidden(false);
+    setGame(null);
     typingSent.current = false;
   }, []);
 
@@ -453,6 +459,7 @@ export function useRandomCall() {
       setIncomingCall(null);
       setFriendState('none');
       setIcebreaker(null);
+      setGame(null);
       if (pcRef.current || matchRef.current) setHasPrevious(true);
       closePeer();
       matchRef.current = { id: match.matchId, startedAt: Date.now(), reported: false };
@@ -610,6 +617,7 @@ export function useRandomCall() {
     socket.on('referral:rewarded', onReferral);
     socket.on('gift', onGift);
     socket.on('icebreaker', onIcebreaker);
+    socket.on('game:state', setGame);
     socket.on('friend:state', onFriendState);
     socket.on('call:incoming', onIncomingCall);
     socket.on('call:incoming-cancelled', onIncomingCancelled);
@@ -624,6 +632,7 @@ export function useRandomCall() {
       socket.off('referral:rewarded', onReferral);
       socket.off('gift', onGift);
       socket.off('icebreaker', onIcebreaker);
+      socket.off('game:state', setGame);
       socket.off('friend:state', onFriendState);
       socket.off('call:incoming', onIncomingCall);
       socket.off('call:incoming-cancelled', onIncomingCancelled);
@@ -908,6 +917,16 @@ export function useRandomCall() {
     if (matchRef.current) getSocket().emit('icebreaker');
   }, []);
   const dismissIcebreaker = useCallback(() => setIcebreaker(null), []);
+
+  /** 🎮 Mini-games: start one, play a move, or close it (for both people). */
+  const startGame = useCallback((id: GameId) => {
+    if (matchRef.current) getSocket().emit('game:start', id);
+  }, []);
+  const gameMove = useCallback((move: GameMove) => getSocket().emit('game:move', move), []);
+  const endGame = useCallback(() => {
+    setGame(null);
+    getSocket().emit('game:end');
+  }, []);
 
   /** ❤️ Add friend with the current partner. */
   const addFriend = useCallback(() => {
@@ -1309,6 +1328,10 @@ export function useRandomCall() {
     buyMatches,
     icebreaker,
     askIcebreaker,
+    game,
+    startGame,
+    gameMove,
+    endGame,
     dismissIcebreaker,
     addFriend,
     listFriends,

@@ -23,6 +23,7 @@ import { SettingsMenu } from './SettingsMenu';
 import { VideoTile } from './VideoTile';
 import { VerifiedBadge } from './VerifiedBadge';
 import { VoiceStage } from './VoiceStage';
+import { GameCard, GamesButton } from './Games';
 
 const STATUS_TEXT: Record<string, string> = {
   searching: 'Looking for someone to chat with…',
@@ -269,11 +270,17 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                 <PartnerBadge call={call} />
                 {matched && <FriendButton call={call} />}
                 {matched && <GiftButton call={call} />}
+                {matched && <GamesButton call={call} />}
               </div>
               <SafetyMenu call={call} />
             </div>
             <div className="relative min-h-0 flex-1">
               {chat('h-full')}
+              {matched && call.game && (
+                <div className="absolute inset-x-0 top-2 z-20 flex justify-center px-2">
+                  <GameCard call={call} />
+                </div>
+              )}
               {(!matched || showAd) && (
                 <div className="absolute inset-0 overflow-hidden rounded-xl bg-ink/90">
                   {showAd ? (
@@ -353,6 +360,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                       <div className="flex gap-1.5">
                         <FriendButton call={call} />
                         <GiftButton call={call} />
+                        <GamesButton call={call} />
                       </div>
                     )}
                     {call.relayActive && (
@@ -389,6 +397,11 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               )}
               <ReactionLayer call={call} />
               <GiftLayer call={call} />
+              {matched && call.game && (
+                <div className="absolute inset-x-0 bottom-3 z-20 flex justify-center px-3 lg:inset-x-auto lg:left-3">
+                  <GameCard call={call} />
+                </div>
+              )}
               {call.icebreaker && matched && (
                 <div className="absolute inset-x-3 top-24 z-20 flex justify-center sm:top-20">
                   <div className="w-full max-w-md rounded-2xl bg-black/70 px-4 py-3 text-center text-white shadow-xl backdrop-blur" role="status">

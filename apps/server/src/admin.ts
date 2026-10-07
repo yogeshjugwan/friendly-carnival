@@ -14,6 +14,8 @@ export interface AdminDeps {
   token: string | undefined;
   origins: (string | RegExp)[];
   online: () => number;
+  /** People in the low-trust shadow pool right now. */
+  shadowPool?: () => number;
   accounts?: AccountStore;
   onPlusChanged?: (userId: string) => void;
   onVerifiedChanged?: (userId: string, verified: boolean) => void;
@@ -83,6 +85,7 @@ export async function handleAdmin(req: IncomingMessage, res: ServerResponse, dep
           activeBans: bans.length,
           openAppeals: appeals.length,
           online: deps.online(),
+          shadowPool: deps.shadowPool?.() ?? 0,
         }),
         true
       );

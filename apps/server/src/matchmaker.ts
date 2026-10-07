@@ -25,6 +25,8 @@ export interface Session {
   verified: boolean;
   /** ⭐ Priority (paid, one match): only verified partners, picked first. */
   priority: boolean;
+  /** Shadow pool: low trust, only matched with other low-trust people. */
+  lowTrust: boolean;
   /** Plus match filters (always NO_FILTERS without Plus). */
   filters: MatchFilters;
   /** Persistent browser id (from the handshake); falls back to the socket id. */
@@ -77,6 +79,18 @@ export class Matchmaker {
     return this.sessions.size;
   }
 
+  /** People in the shadow pool right now. */
+  get lowTrustCount(): number {
+    let n = 0;
+    for (const s of this.sessions.values()) if (s.lowTrust) n++;
+    return n;
+  }
+
+  setLowTrust(id: string, low: boolean): void {
+    const s = this.sessions.get(id);
+    if (s) s.lowTrust = low;
+  }
+
   get waitingCount(): number {
     return this.queue.length;
   }
@@ -115,6 +129,7 @@ export class Matchmaker {
       plus: identity.plus ?? false,
       verified: identity.verified ?? false,
       priority: false,
+      lowTrust: false,
       boostUntil: identity.boostUntil ?? null,
       filters: { ...NO_FILTERS },
       deviceId,
@@ -270,7 +285,7 @@ export class Matchmaker {
       state,
     });
     const visible = (s: Session | undefined): s is Session =>
-      !!s && s.id !== viewerId && s.id !== viewer?.partnerId && !(viewer && isBlocked(viewer, s));
+      !!s && s.id !== viewerId && s.id !== viewer?.partnerId && !(viewer && (isBlocked(viewer, s) || viewer.lowTrust !== s.lowTrust));
     const waiting = this.queue.map((id) => this.sessions.get(id)).filter(visible).map((s) => view(s, 'waiting'));
     const busy = [...this.sessions.values()].filter((s) => s.partnerId && visible(s)).map((s) => view(s, 'in-call'));
     return [...waiting, ...busy].slice(0, limit);
@@ -290,7 +305,7 @@ export class Matchmaker {
     const to = this.sessions.get(toId);
     if (!from || !to) return 'gone';
     // Friends skip each other's match filters; blocks always apply.
-    if (isBlocked(from, to) || (!friend && !wants(to, from))) return 'unavailable';
+    if (isBlocked(from, to) || (!friend && (!wants(to, from) || from.lowTrust !== to.lowTrust))) return 'unavailable';
     if (to.mode !== from.mode) return 'mode';
     // Strangers must be searching; friends may also be browsing (joined, not in a call).
     if (to.partnerId || (friend ? !to.joined : !this.isWaiting(toId))) return 'busy';
@@ -377,6 +392,7 @@ export class Matchmaker {
       // Recent partners only meet again in a sweep, after both waited long enough.
       if (recent && (relaxedAt === undefined || relaxedAt - (this.queuedAt.get(otherId) ?? relaxedAt) < this.relaxAfterMs)) continue;
       if (isBlocked(session, other)) continue;
+      if (session.lowTrust !== other.lowTrust) continue;
       if (!wants(session, other) || !wants(other, session)) continue;
       // Topic rooms: a different topic only after both have waited (in a sweep).
       const sameTopic = session.topic === other.topic;

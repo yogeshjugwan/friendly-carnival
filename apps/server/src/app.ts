@@ -47,6 +47,7 @@ import { Guard, looksLikeLink } from './guard.ts';
 import { applyMove, newGame, viewFor, type GameState } from './games.ts';
 import { Rooms, type RoomSeat } from './rooms.ts';
 import { Razorpay } from './razorpay.ts';
+import { LOW_TRUST, SkipTracker, trustScore } from './trust.ts';
 import { RateLimiter } from './http.ts';
 import { isPlusActive, MAX_FRIENDS, MemoryAccountStore, NO_PLUS, type StoredMessage } from './accounts.ts';
 import type { BillingProvider } from './billing.ts';
@@ -75,6 +76,8 @@ interface SocketData {
   verified?: boolean;
   /** No invite reward can be due any more (checked on matches). */
   referralDone?: boolean;
+  /** 0–100; below LOW_TRUST means the shadow pool. */
+  trust?: number;
   /** Passed the proof-of-work check (a real browser, not a script). */
   human?: boolean;
   /** The proof-of-work challenge sent to this socket. */
@@ -268,6 +271,7 @@ export function createApp(opts: AppOptions = {}): App {
           token: opts.adminToken ?? config.adminToken,
           origins,
           online: () => matchmaker.onlineCount,
+          shadowPool: () => matchmaker.lowTrustCount,
           accounts,
           analytics,
           clientKey: (req) => hashIp(clientIp(req.headers, req.socket.remoteAddress), ipSalt) ?? 'unknown',
@@ -409,6 +413,25 @@ export function createApp(opts: AppOptions = {}): App {
   };
 
   const rooms = new Rooms();
+  // ---- Trust score / shadow pool ----
+  const skips = new SkipTracker();
+  const matchStarted = new Map<string, number>();
+  /** Recomputes someone's trust and moves them in or out of the shadow pool. */
+  const refreshTrust = async (socketId: string) => {
+    const d = io.sockets.sockets.get(socketId)?.data;
+    if (!d) return;
+    const reporters7d = await store.distinctReporters(d.deviceId, Date.now() - 7 * 86_400_000).catch(() => 0);
+    const score = trustScore({
+      verified: !!d.verified,
+      loggedIn: !!d.userId,
+      accountAgeMs: d.accountCreatedAt ? Date.now() - d.accountCreatedAt : null,
+      reporters7d,
+      ...skips.stats(limitKey(d)),
+    });
+    d.trust = score;
+    matchmaker.setLowTrust(socketId, score < LOW_TRUST);
+  };
+
   /** ⭐ Priority matches waiting for a verified partner (refund timers). */
   const priorityTimers = new Map<string, NodeJS.Timeout>();
 
@@ -559,6 +582,12 @@ export function createApp(opts: AppOptions = {}): App {
         priorityTimers.delete(id);
       }
     }
+    matchStarted.set(matchId, Date.now());
+    if (matchStarted.size > 20_000) matchStarted.delete(matchStarted.keys().next().value!);
+    for (const id of [a.id, b.id]) {
+      const d = io.sockets.sockets.get(id)?.data;
+      if (d) skips.matched(limitKey(d));
+    }
     analytics.count('matches');
     analytics.count(`${b.mode}Matches`);
     const base = { matchId, mode: b.mode, reconnected, iceServers: turn.current() };
@@ -675,6 +704,7 @@ export function createApp(opts: AppOptions = {}): App {
     };
 
     analytics.visit(socket.data.userId ? `u:${socket.data.userId}` : socket.data.deviceId);
+    void refreshTrust(socket.id).catch((e) => console.error('[trust]', e));
     const onlineUser = socket.data.userId;
     if (onlineUser && [...io.sockets.sockets.values()].filter((x) => x.data.userId === onlineUser).length === 1) {
       void notifyFriendsOnline(onlineUser).catch((e) => console.error('[push]', e));
@@ -716,6 +746,17 @@ export function createApp(opts: AppOptions = {}): App {
 
     socket.on('call:next', () => {
       if (!matchmaker.get(socket.id) || stillBanned()) return;
+      // Skipped within seconds: counts against the person skipped (see trust.ts).
+      const current = matchmaker.get(socket.id)!;
+      const skipped = matchmaker.partnerOf(socket.id);
+      const started = current.matchId ? matchStarted.get(current.matchId) : undefined;
+      if (skipped && started && Date.now() - started < 5_000) {
+        const d = io.sockets.sockets.get(skipped.id)?.data;
+        if (d) {
+          skips.quickSkipped(limitKey(d));
+          void refreshTrust(skipped.id).catch(() => undefined);
+        }
+      }
       notifyLeft(matchmaker.endMatch(socket.id)?.id, 'next');
       if (pausedForSkipping()) return;
       if (!mayMatch(socket)) return void matchmaker.leaveQueue(socket.id);
@@ -934,6 +975,7 @@ export function createApp(opts: AppOptions = {}): App {
           { target: 'current', reason, source: 'user', note: 'Reported in a group room' },
         );
         analytics.count('reports');
+        void refreshTrust(target.socketId).catch(() => undefined);
         // Block them so you're never put in a room (or chat) together again.
         await store.addBlock(socket.data.deviceId, t.deviceId).catch(() => undefined);
         matchmaker.block(socket.data.deviceId, t.deviceId);
@@ -1289,6 +1331,7 @@ export function createApp(opts: AppOptions = {}): App {
       try {
         await safety.report({ deviceId, ipHash, userId }, target, report);
         analytics.count('reports');
+        if (targetId) void refreshTrust(targetId).catch(() => undefined);
         // People you report are never matched with you again.
         if (report.source === 'user') {
           await store.addBlock(deviceId, target.deviceId);

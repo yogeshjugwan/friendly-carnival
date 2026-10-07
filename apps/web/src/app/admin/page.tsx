@@ -14,6 +14,8 @@ interface Summary {
   activeBans: number;
   openAppeals: number;
   online: number;
+  /** Low-trust people (only matched with each other). */
+  shadowPool?: number;
 }
 interface Report {
   id: string;
@@ -212,13 +214,14 @@ export default function AdminPage() {
       {error && <p className="mt-3 rounded-lg bg-red-100 px-3 py-2 text-sm text-red-800">{error}</p>}
 
       {summary && (
-        <section className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <section className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {[
             ['Open reports', summary.openReports],
             ['Oldest open', summary.oldestOpenAgeMs == null ? '—' : ago(Date.now() - summary.oldestOpenAgeMs)],
             ['Active bans', summary.activeBans],
             ['Open appeals', summary.openAppeals],
             ['Online now', summary.online],
+            ['Shadow pool', summary.shadowPool ?? 0],
           ].map(([label, value], i) => (
             <div key={label as string} className={`rounded-xl p-3 ${i === 1 && overdue ? 'bg-red-900/60' : 'bg-panel'}`}>
               <p className="text-xs text-slate-400">{label}</p>

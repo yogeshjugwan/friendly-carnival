@@ -57,7 +57,7 @@ test('Razorpay: order → signed payment → coins / Plus pass, applied exactly 
     // The webhook for the same order changes nothing.
     const event = Buffer.from(JSON.stringify({ event: 'order.paid', payload: { order: { entity: rp.orders.get(orderId) } } }));
     const hook = (raw: Buffer, sig: string) =>
-      fetch(`${url}/billing/razorpay/webhook`, { method: 'POST', headers: { 'x-razorpay-signature': sig, 'content-type': 'application/json' }, body: raw });
+      fetch(`${url}/billing/razorpay/webhook`, { method: 'POST', headers: { 'x-razorpay-signature': sig, 'content-type': 'application/json' }, body: new Uint8Array(raw) });
     assert.equal((await hook(event, 'bad')).status, 400);
     assert.equal((await hook(event, createHmac('sha256', cfg.webhookSecret).update(event).digest('hex'))).status, 200);
     assert.equal((await accounts.userById(u.id))!.coins, 550, 'applied once');

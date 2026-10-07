@@ -36,7 +36,7 @@ import {
   type ServerToClientEvents,
 } from '@rc/shared';
 import type { AccountStore } from './accounts.ts';
-import { Analytics } from './analytics.ts';
+import { Analytics, dayOf } from './analytics.ts';
 import { PushService, type PushSender } from './push.ts';
 import { Guard, looksLikeLink } from './guard.ts';
 import { applyMove, newGame, viewFor, type GameState } from './games.ts';
@@ -176,8 +176,12 @@ export function createApp(opts: AppOptions = {}): App {
 
   const push = new PushService(accounts, opts.webUrl ?? config.webUrl, opts.pushSender);
 
+  /** Users who had a chat today (IST), for daily rewards. */
+  const chatDay = new Map<string, string>();
   const handleAuth = createAuthHandler({
     push,
+    chattedToday: (userId) => chatDay.get(userId) === dayOf(Date.now()),
+    onCoins: (userId) => void pushWallet(userId),
     accounts,
     mailer: opts.mailer ?? new ConsoleMailer(),
     webUrl: opts.webUrl ?? config.webUrl,
@@ -526,6 +530,11 @@ export function createApp(opts: AppOptions = {}): App {
         if (d) guard.noteMatch(limitKey(d));
       }
     }
+    for (const id of [a.id, b.id]) {
+      const userId = io.sockets.sockets.get(id)?.data.userId;
+      if (userId) chatDay.set(userId, dayOf(Date.now()));
+    }
+    if (chatDay.size > 200_000) chatDay.clear();
     analytics.count('matches');
     analytics.count(`${b.mode}Matches`);
     const base = { matchId, mode: b.mode, reconnected, iceServers: turn.current() };

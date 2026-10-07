@@ -9,6 +9,7 @@ import { SiteFooter, SiteHeader } from '@/components/SiteHeader';
 import { errorText, FormError, FormNote } from '@/components/forms/fields';
 import { api, useAuth } from '@/lib/auth';
 import { getSocket } from '@/lib/socket';
+import { DailyRewardCard } from '@/components/DailyReward';
 
 const money = (cents: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
 
@@ -97,6 +98,8 @@ export default function CoinsPage() {
           </div>
         ))}
       </section>
+
+      {user && <DailyRewardCard />}
 
       <section className="grid gap-4 md:grid-cols-2">
         <BoostCard buy={boost} />

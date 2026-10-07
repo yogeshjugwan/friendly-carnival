@@ -6,6 +6,8 @@ import {
   MIN_PASSWORD_LENGTH,
   VERIFY_GESTURES,
   type PublicUser,
+  streakReward,
+  type DailyStatus,
   type ReferralInfo,
   type VerifyGestureId,
 } from '@rc/shared';
@@ -13,6 +15,7 @@ import { hashPassword, publicPlus, verifyPassword, type AccountStore, type User 
 import { bearer, cors, RateLimiter, readJson, sendJson } from './http.ts';
 import { linkEmail, type Mailer } from './mailer.ts';
 import { isPushSubscription, type PushService } from './push.ts';
+import { dayOf } from './analytics.ts';
 import { parseSettings } from './validate.ts';
 
 export interface AuthDeps {
@@ -24,6 +27,10 @@ export interface AuthDeps {
   /** Rate-limit key for the caller (hashed IP). */
   clientKey: (req: IncomingMessage) => string;
   push?: PushService;
+  /** Has the user had at least one chat today (IST)? */
+  chattedToday?: (userId: string) => boolean;
+  /** Coins changed: refresh the user's open tabs. */
+  onCoins?: (userId: string) => void;
 }
 
 /** An invite link can be attached up to a day after sign-up. */
@@ -67,6 +74,24 @@ export function createAuthHandler(deps: AuthDeps) {
     await mailer.send(
       linkEmail(user.email, 'Confirm your randomCall email', 'Welcome to randomCall! Please confirm your email address.', 'Confirm email', url, 'This link expires in 48 hours. If you did not sign up, ignore this email.'),
     );
+  };
+
+  /** Where the user's daily streak stands right now. */
+  const dailyStatus = (u: User): DailyStatus => {
+    const now = Date.now();
+    const today = dayOf(now);
+    const claimedToday = u.streakLastDay === today;
+    // A streak survives if yesterday was claimed.
+    const alive = claimedToday || u.streakLastDay === dayOf(now - 86_400_000);
+    const streak = alive ? u.streakDays : 0;
+    return {
+      streak,
+      claimedToday,
+      // Claimed today: this shows tomorrow's reward.
+      reward: streakReward(streak + 1),
+      needsChat: !claimedToday && !(deps.chattedToday?.(u.id) ?? false),
+      needsEmail: !u.emailVerified,
+    };
   };
 
   /** Logged-in user for the request's bearer token. */
@@ -187,6 +212,23 @@ export function createAuthHandler(deps: AuthDeps) {
         const mine = await accounts.pushSubscriptions(user.id);
         if (mine.some((s) => s.endpoint === endpoint)) await accounts.removePushSubscription(endpoint);
         return sendJson(res, 200, { ok: true }), true;
+      }
+
+      if (route === 'GET /auth/daily') return sendJson(res, 200, dailyStatus(user)), true;
+
+      if (route === 'POST /auth/daily/claim') {
+        const status = dailyStatus(user);
+        if (status.claimedToday) return fail(409, 'Already claimed today — come back tomorrow!');
+        if (status.needsEmail) return fail(403, 'Confirm your email to get daily rewards');
+        if (status.needsChat) return fail(409, 'Have one chat today, then claim your reward');
+        const today = dayOf(Date.now());
+        if (!(await accounts.setStreak(user.id, status.streak + 1, today, user.streakLastDay))) {
+          return fail(409, 'Already claimed today — come back tomorrow!');
+        }
+        await accounts.changeCoins(user.id, status.reward, 'daily', `daily:${user.id}:${today}`);
+        deps.onCoins?.(user.id);
+        const fresh = (await accounts.userById(user.id)) ?? user;
+        return sendJson(res, 200, { status: dailyStatus(fresh), coins: status.reward }), true;
       }
 
       if (route === 'GET /auth/referral') {

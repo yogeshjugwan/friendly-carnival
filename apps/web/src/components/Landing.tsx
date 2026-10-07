@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { loadSettings, onSettingsChange } from '@/lib/settings';
 import { SiteFooter, SiteHeader } from './SiteHeader';
 import { InstallButton } from './Pwa';
+import { DailyRewardCard } from './DailyReward';
 
 interface Props {
   online: number | null;
@@ -199,6 +200,7 @@ export function Landing({ online, onStart }: Props) {
             Don&apos;t want your camera on? Start Text Chat
           </button>
         </form>
+        {user && <DailyRewardCard className="mt-4" />}
         <InstallButton className="mt-4 text-center" />
       </section>
 

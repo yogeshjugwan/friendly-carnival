@@ -24,6 +24,7 @@ import { VideoTile } from './VideoTile';
 import { VerifiedBadge } from './VerifiedBadge';
 import { VoiceStage } from './VoiceStage';
 import { GameCard, GamesButton } from './Games';
+import { DailyRewardChip } from './DailyReward';
 
 const STATUS_TEXT: Record<string, string> = {
   searching: 'Looking for someone to chat with…',
@@ -232,6 +233,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               </span>
             )}
           </button>
+          {user && <DailyRewardChip refreshKey={call.status === 'in-call' ? call.partner : null} />}
           <CoinChip call={call} className="max-sm:hidden" />
           {/* Video calls have settings under ⋮ in the call bar. */}
           {isText && <SettingsMenu call={call} />}

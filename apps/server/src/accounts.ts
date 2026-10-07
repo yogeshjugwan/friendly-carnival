@@ -69,6 +69,9 @@ export interface User {
   referredBy: string | null;
   /** The invite reward for this user was paid out. */
   referralRewarded: boolean;
+  /** Daily streak: days in a row, and the last day claimed ('YYYY-MM-DD', IST). */
+  streakDays: number;
+  streakLastDay: string | null;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -136,6 +139,8 @@ export interface AccountStore {
   /** Marks the invite reward paid; false if it already was (so it pays once). */
   markReferralRewarded(userId: string): Promise<boolean>;
   referralCounts(referrerId: string): Promise<{ invited: number; rewarded: number }>;
+  /** Records a daily claim; false if `day` was already claimed. */
+  setStreak(userId: string, days: number, lastDay: string, previousDay: string | null): Promise<boolean>;
   /** Small server-wide secrets (e.g. the Web Push keys). */
   appSecret(key: string): Promise<string | null>;
   /** Stores a secret unless one exists; returns the stored value either way. */
@@ -208,6 +213,8 @@ export class MemoryAccountStore implements AccountStore {
       verifyStatus: null,
       referredBy: null,
       referralRewarded: false,
+      streakDays: 0,
+      streakLastDay: null,
     };
     this.users.set(user.id, user);
     return user;
@@ -302,6 +309,14 @@ export class MemoryAccountStore implements AccountStore {
 
   async appSecret(key: string) {
     return this.secrets.get(key) ?? null;
+  }
+
+  async setStreak(userId: string, days: number, lastDay: string, previousDay: string | null) {
+    const u = this.users.get(userId);
+    if (!u || u.streakLastDay !== previousDay) return false;
+    u.streakDays = days;
+    u.streakLastDay = lastDay;
+    return true;
   }
 
   async initAppSecret(key: string, value: string) {
@@ -454,6 +469,8 @@ CREATE INDEX IF NOT EXISTS coin_ledger_user_idx ON coin_ledger (user_id);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS verified_at BIGINT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS verify_status TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ref_code TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_days INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_last_day TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_rewarded BOOLEAN NOT NULL DEFAULT FALSE;
 CREATE UNIQUE INDEX IF NOT EXISTS users_ref_code_idx ON users (ref_code);
@@ -502,6 +519,8 @@ const toUser = (r: Record<string, unknown>): User => ({
   verifyStatus: r.verify_status === 'pending' || r.verify_status === 'rejected' ? r.verify_status : null,
   referredBy: (r.referred_by as string | null) ?? null,
   referralRewarded: !!r.referral_rewarded,
+  streakDays: Number(r.streak_days ?? 0),
+  streakLastDay: (r.streak_last_day as string | null) ?? null,
 });
 
 export class PostgresAccountStore implements AccountStore {
@@ -706,6 +725,17 @@ export class PostgresAccountStore implements AccountStore {
     const { rowCount } = await this.pool.query(
       'UPDATE users SET referral_rewarded = TRUE WHERE id = $1 AND referral_rewarded = FALSE',
       [userId],
+    );
+    return !!rowCount;
+  }
+
+  async setStreak(userId: string, days: number, lastDay: string, previousDay: string | null) {
+    // Compare-and-set on the last claimed day, so two taps can't both claim.
+    const { rowCount } = await this.pool.query(
+      previousDay === null
+        ? 'UPDATE users SET streak_days = $2, streak_last_day = $3 WHERE id = $1 AND streak_last_day IS NULL'
+        : 'UPDATE users SET streak_days = $2, streak_last_day = $3 WHERE id = $1 AND streak_last_day = $4',
+      previousDay === null ? [userId, days, lastDay] : [userId, days, lastDay, previousDay],
     );
     return !!rowCount;
   }

@@ -537,6 +537,21 @@ export const GIFT_SHARE = 0.5;
 /** Boost: matched first for a while. */
 export const BOOST = { coins: 100, minutes: 30 } as const;
 
+/** Daily streak: coins for day 1…7 of a streak (then the cycle repeats at day 7's amount). */
+export const STREAK_REWARDS = [10, 15, 20, 25, 30, 40, 60] as const;
+export const streakReward = (day: number) => STREAK_REWARDS[Math.min(Math.max(day, 1), STREAK_REWARDS.length) - 1]!;
+
+export interface DailyStatus {
+  /** Days in a row you claimed, counting today if claimed. */
+  streak: number;
+  claimedToday: boolean;
+  /** Coins the next claim gives. */
+  reward: number;
+  /** Claiming needs one chat today (and a confirmed email). */
+  needsChat: boolean;
+  needsEmail: boolean;
+}
+
 /**
  * Invite friends: when someone signs up with your link and finishes their first
  * chat, you both get a free Plus day (or coins if you already pay for Plus).

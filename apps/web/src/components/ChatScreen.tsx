@@ -45,28 +45,34 @@ function PartnerBadge({ call }: { call: RandomCall }) {
   const { partner } = call;
   if (!partner) return null;
   return (
-    <div className="flex max-w-[70vw] items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-xs text-white sm:max-w-none sm:gap-2 sm:px-3 sm:text-sm">
-      <span title={GENDER_LABEL[partner.gender]}>{GENDER_ICON[partner.gender]}</span>
-      <span>{partner.locationHidden ? '📍' : flagEmoji(partner.country)}</span>
-      <span className="truncate">{partner.locationHidden ? 'Hidden' : countryName(partner.country)}</span>
-      {partner.verified && <VerifiedBadge />}
-      {partner.plus && (
-        <span title="Plus member" aria-label="Plus member">
-          👑
-        </span>
-      )}
-      {partner.isNew && (
-        <span title="Joined in the last day" className="rounded-full bg-amber-500/80 px-2 py-0.5 text-[11px] font-semibold text-black">
-          New
-        </span>
-      )}
-      {partner.topic && (
-        <span className="rounded-full bg-brand/80 px-2 py-0.5 text-[11px] font-semibold text-white">
-          {TOPICS.find((t) => t.id === partner.topic)?.emoji} #{TOPICS.find((t) => t.id === partner.topic)?.label}
-        </span>
-      )}
-      {partner.sharedInterests.length > 0 && (
-        <span className="hidden truncate text-slate-300 md:inline">· likes {partner.sharedInterests.join(', ')}</span>
+    <div className="flex flex-col items-start gap-1">
+      <div className="flex max-w-[70vw] items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-xs text-white sm:max-w-none sm:gap-2 sm:px-3 sm:text-sm">
+        {partner.avatar && <span className="text-base sm:text-lg">{partner.avatar}</span>}
+        <span title={GENDER_LABEL[partner.gender]}>{GENDER_ICON[partner.gender]}</span>
+        <span>{partner.locationHidden ? '📍' : flagEmoji(partner.country)}</span>
+        <span className="truncate">{partner.locationHidden ? 'Hidden' : countryName(partner.country)}</span>
+        {partner.verified && <VerifiedBadge />}
+        {partner.plus && (
+          <span title="Plus member" aria-label="Plus member">
+            👑
+          </span>
+        )}
+        {partner.isNew && (
+          <span title="Joined in the last day" className="rounded-full bg-amber-500/80 px-2 py-0.5 text-[11px] font-semibold text-black">
+            New
+          </span>
+        )}
+        {partner.topic && (
+          <span className="rounded-full bg-brand/80 px-2 py-0.5 text-[11px] font-semibold text-white">
+            {TOPICS.find((t) => t.id === partner.topic)?.emoji} #{TOPICS.find((t) => t.id === partner.topic)?.label}
+          </span>
+        )}
+        {partner.sharedInterests.length > 0 && (
+          <span className="hidden truncate text-slate-300 md:inline">· likes {partner.sharedInterests.join(', ')}</span>
+        )}
+      </div>
+      {partner.bio && (
+        <p className="max-w-[70vw] truncate rounded-full bg-black/45 px-2.5 py-0.5 text-xs italic text-slate-200 sm:max-w-sm">“{partner.bio}”</p>
       )}
     </div>
   );
@@ -324,7 +330,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                 </div>
               )}
               {isVoice && !showAd && (
-                <VoiceStage call={call} matched={matched} partnerEmoji={call.partner ? GENDER_ICON[call.partner.gender] : '🙂'} />
+                <VoiceStage call={call} matched={matched} partnerEmoji={call.partner ? (call.partner.avatar ?? GENDER_ICON[call.partner.gender]) : '🙂'} />
               )}
               <div className={`absolute inset-x-0 flex justify-center px-4 ${pipOnTop ? 'bottom-4' : 'top-14'}`}>
                 <Searching call={call} />

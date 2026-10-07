@@ -10,6 +10,7 @@ import { api, useAuth } from '@/lib/auth';
 import { loadSettings } from '@/lib/settings';
 import { BlockedList } from '@/components/BlockedList';
 import { InstallButton, NotificationsToggle } from '@/components/Pwa';
+import { ProfileEditor } from '@/components/ProfileEditor';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -124,6 +125,9 @@ export default function SettingsPage() {
             title="Hide my country"
             detail="Partners see “Location hidden” instead of your flag."
           />
+          <h3 className="mt-6 text-base font-semibold">Profile card</h3>
+          <p className="text-sm text-slate-500">What strangers see next to your country.</p>
+          <ProfileEditor settings={settings} onChange={update} />
           <FormError error={error} />
           {saved && <FormNote>Saved{user ? ' to your account' : ' in this browser'}.</FormNote>}
           <Submit busy={saving}>Save preferences</Submit>

@@ -55,6 +55,9 @@ export interface PartnerInfo {
   plus?: boolean;
   /** Brand-new account or device: their video starts hidden for you. */
   isNew?: boolean;
+  /** Their profile card. */
+  avatar?: string | null;
+  bio?: string;
   /** ✓ Verified: a moderator matched their selfie to a live gesture. */
   verified?: boolean;
   sharedInterests: string[];
@@ -73,6 +76,8 @@ export interface ActiveUser {
   interests: string[];
   plus: boolean;
   verified?: boolean;
+  avatar?: string | null;
+  bio?: string;
   mode: ChatMode;
   /** 'waiting' people can be called; 'in-call' are busy. */
   state: 'waiting' | 'in-call';
@@ -290,6 +295,8 @@ export interface ClientToServerEvents {
   'users:list': (ack: (users: ActiveUser[] | null) => void) => void;
   /** Answer to guard:challenge. */
   'guard:proof': (nonce: string) => void;
+  /** Your profile card (sent before joining, and when it changes). */
+  'profile:set': (profile: UserProfile) => void;
   /** Plus: ask a waiting person to chat. */
   'users:call': (publicId: string, ack: (result: CallRequestResult) => void) => void;
   'users:cancel': () => void;
@@ -605,7 +612,23 @@ export interface UserSettings {
   hideCountry: boolean;
   /** Plus match filters (kept for everyone, applied only with Plus). */
   filters: MatchFilters;
+  /** Profile card shown to partners. */
+  avatar?: string | null;
+  bio?: string;
 }
+
+/** What partners see about you, besides gender / country / interests. */
+export interface UserProfile {
+  /** One of AVATARS, or null for the default. */
+  avatar: string | null;
+  /** One line about you (no links or handles). */
+  bio: string;
+}
+export const MAX_BIO = 80;
+export const AVATARS = [
+  '😀', '😎', '🤓', '😇', '🥳', '🤠', '🧐', '😺', '🐶', '🦊', '🐼', '🐨',
+  '🦁', '🐯', '🐸', '🐵', '🦄', '🐙', '👻', '🤖', '👽', '🎃', '🌸', '⚡',
+] as const;
 
 export type PlusPlan = 'week' | 'month' | 'halfyear';
 export const PLUS_PLANS: PlusPlan[] = ['week', 'month', 'halfyear'];

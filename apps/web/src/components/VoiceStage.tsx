@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { loadSettings, onSettingsChange } from '@/lib/settings';
 import type { RandomCall } from '@/lib/useRandomCall';
 
 /** 0–1 loudness of a stream's audio, updated ~10×/s. */
@@ -70,11 +71,17 @@ function Person({ label, emoji, level, muted }: { label: string; emoji: string; 
 
 /** Voice-only call: two avatars that light up when each person talks. */
 export function VoiceStage({ call, matched, partnerEmoji }: { call: RandomCall; matched: boolean; partnerEmoji: string }) {
+  const [myAvatar, setMyAvatar] = useState<string | null>(null);
+  useEffect(() => {
+    const sync = () => setMyAvatar(loadSettings().avatar ?? null);
+    sync();
+    return onSettingsChange(sync);
+  }, []);
   const mine = useLevel(call.localStream);
   const theirs = useLevel(matched ? call.remoteStream : null);
   return (
     <div className="absolute inset-0 flex items-center justify-center gap-10 bg-gradient-to-b from-[#2d2e31] to-[#1f2023] sm:gap-20">
-      <Person label="You" emoji="🙂" level={mine} muted={!call.micOn} />
+      <Person label="You" emoji={myAvatar ?? '🙂'} level={mine} muted={!call.micOn} />
       {matched ? (
         <Person label="Stranger" emoji={partnerEmoji} level={theirs} />
       ) : (

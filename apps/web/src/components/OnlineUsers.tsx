@@ -65,7 +65,7 @@ export function OnlineUsersPanel({ call, onClose, className = '' }: { call: Rand
     return (
       <li key={u.publicId} className="flex items-center gap-3 rounded-xl bg-[#2a2b2e] px-3 py-2.5">
         <span className="text-2xl" title={GENDER_LABEL[u.gender]} aria-label={GENDER_LABEL[u.gender]}>
-          {GENDER_ICON[u.gender]}
+          {u.avatar ?? GENDER_ICON[u.gender]}
         </span>
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 text-sm font-medium text-slate-100">
@@ -76,6 +76,7 @@ export function OnlineUsersPanel({ call, onClose, className = '' }: { call: Rand
             {u.mode === 'text' && <span className="rounded bg-white/10 px-1.5 text-[10px] font-semibold uppercase text-slate-300">text</span>}
             {u.mode === 'voice' && <span className="rounded bg-white/10 px-1.5 text-[10px] font-semibold uppercase text-slate-300">voice</span>}
           </p>
+          {u.bio && <p className="truncate text-xs italic text-slate-300">“{u.bio}”</p>}
           {u.interests.length > 0 && <p className="truncate text-xs text-slate-400">likes {u.interests.join(', ')}</p>}
         </div>
         {u.state === 'in-call' ? (
@@ -165,6 +166,7 @@ export function IncomingCallModal({ call }: { call: RandomCall }) {
           <span>{from.locationHidden ? '📍 Location hidden' : `${flagEmoji(from.country)} ${countryName(from.country)}`}</span>
           {from.verified && <VerifiedBadge />}
         </p>
+        {from.bio && <p className="mt-1 text-sm italic text-slate-600">{from.avatar ? `${from.avatar} ` : ''}“{from.bio}”</p>}
         {from.sharedInterests.length > 0 && <p className="mt-1 text-sm text-slate-500">You both like {from.sharedInterests.join(', ')}</p>}
         <div className="mt-6 flex gap-3">
           <button onClick={() => answerCall(false)} className="flex-1 rounded-full bg-slate-200 py-3 font-semibold text-slate-700 hover:bg-slate-300">

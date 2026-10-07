@@ -1,4 +1,6 @@
 import {
+  AVATARS,
+  MAX_BIO,
   TOPICS,
   MAX_INTEREST_LENGTH,
   MAX_INTERESTS,
@@ -9,8 +11,10 @@ import {
   type JoinPayload,
   type SignalMessage,
   type MatchFilters,
+  type UserProfile,
   type UserSettings,
 } from '@rc/shared';
+import { looksLikeLink } from './guard.ts';
 
 const GENDERS: Gender[] = ['male', 'female', 'couple'];
 const MODES: ChatMode[] = ['video', 'voice', 'text'];
@@ -111,7 +115,17 @@ export function parseSettings(input: unknown): UserSettings | null {
     allowReconnect: s.allowReconnect,
     hideCountry: s.hideCountry,
     filters: parseFilters(s.filters) ?? { gender: 'any', country: 'any' },
+    ...parseProfile(s),
   };
+}
+
+/** A safe profile card: a listed avatar and a short bio without links / handles (else empty). */
+export function parseProfile(input: unknown): UserProfile {
+  const p = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+  const avatar = typeof p.avatar === 'string' && (AVATARS as readonly string[]).includes(p.avatar) ? p.avatar : null;
+  let bio = typeof p.bio === 'string' ? p.bio.replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_BIO) : '';
+  if (looksLikeLink(bio)) bio = '';
+  return { avatar, bio };
 }
 
 /** Match filters, or null when malformed. Country is an ISO alpha-2 code. */

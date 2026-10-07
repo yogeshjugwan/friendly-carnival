@@ -26,6 +26,7 @@ import {
   type CallAnswer,
   type CallRequestResult,
   type SpendResult,
+  type UserProfile,
   type Wallet,
   type Friend,
   type CallResult,
@@ -53,7 +54,7 @@ import { config } from './config.ts';
 import { Matchmaker, type Pairing, type Session } from './matchmaker.ts';
 import { banInfo, clientIp, hashIp, isDeviceId, parseReport, Safety, SNAPSHOT_RETENTION_MS } from './safety.ts';
 import { MemoryStore, type SafetyStore } from './store.ts';
-import { parseCallResult, parseChatText, parseJoin, parseSignal } from './validate.ts';
+import { parseCallResult, parseChatText, parseJoin, parseProfile, parseSignal } from './validate.ts';
 
 interface SocketData {
   deviceId: string;
@@ -71,6 +72,8 @@ interface SocketData {
   human?: boolean;
   /** The proof-of-work challenge sent to this socket. */
   challenge?: string;
+  /** Profile card shown to partners. */
+  profile?: UserProfile;
   /** Active Plus subscription at handshake time (updated live by webhooks). */
   plus: boolean;
   ipHash: string | null;
@@ -495,6 +498,11 @@ export function createApp(opts: AppOptions = {}): App {
     }
   };
 
+  const profileOf = (socketId: string) => {
+    const p = io.sockets.sockets.get(socketId)?.data.profile;
+    return p ? { avatar: p.avatar, bio: p.bio } : {};
+  };
+
   const announce = (pairing: Pairing) => {
     const { a, b, matchId, sharedInterests, reconnected } = pairing;
     // Matched some other way: any open call request involving them lapses.
@@ -529,6 +537,7 @@ export function createApp(opts: AppOptions = {}): App {
       plus: s.plus,
       isNew: isNewUser(s.id),
       verified: s.verified,
+      ...profileOf(s.id),
       sharedInterests,
       topic: a.topic && a.topic === b.topic ? a.topic : null,
     });
@@ -574,6 +583,9 @@ export function createApp(opts: AppOptions = {}): App {
       socket.data.challenge = c.challenge;
       socket.emit('guard:challenge', c);
     }
+    socket.on('profile:set', (profile) => {
+      socket.data.profile = parseProfile(profile);
+    });
     socket.on('guard:proof', (nonce) => {
       if (socket.data.human) return;
       if (!guard.verify(socket.data.challenge, nonce)) {
@@ -816,7 +828,12 @@ export function createApp(opts: AppOptions = {}): App {
     socket.on('users:list', (ack) => {
       if (typeof ack !== 'function') return;
       if (!socket.data.plus) return ack(null);
-      ack(matchmaker.listActive(socket.id));
+      ack(
+        matchmaker.listActive(socket.id).map((u) => {
+          const session = matchmaker.byPublicId(u.publicId);
+          return session ? { ...u, ...profileOf(session.id) } : u;
+        }),
+      );
     });
 
     /** Sends a direct call request to `target` (from the Online list or the Friends list). */
@@ -851,6 +868,7 @@ export function createApp(opts: AppOptions = {}): App {
           plus: me.plus,
           isNew: isNewUser(socket.id),
           verified: me.verified,
+          ...profileOf(socket.id),
           sharedInterests: me.interests.filter((i) => target.interests.includes(i)),
         },
       });

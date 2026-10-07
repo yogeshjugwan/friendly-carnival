@@ -135,6 +135,8 @@ describe('auth HTTP API and sockets', () => {
       allowReconnect: false,
       hideCountry: true,
       filters: { gender: 'any', country: 'any' },
+      avatar: null,
+      bio: '',
     });
     assert.equal((await post('/auth/settings', { settings: { gender: 'robot' } }, session2)).status, 400);
 

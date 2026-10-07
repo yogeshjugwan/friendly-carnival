@@ -4,6 +4,7 @@ import { io, type Socket } from 'socket.io-client';
 import type { ClientToServerEvents, HandshakeAuth, ServerToClientEvents } from '@rc/shared';
 import { getDeviceId } from './deviceId';
 import { solveChallenge } from './guard';
+import { loadSettings, onSettingsChange } from './settings';
 
 export type RcSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -28,6 +29,13 @@ export function getSocket(): RcSocket {
       autoConnect: true,
       auth,
     });
+    // Your profile card travels with the connection (and follows edits).
+    const sendProfile = () => {
+      const s = loadSettings();
+      socket?.emit('profile:set', { avatar: s.avatar ?? null, bio: s.bio ?? '' });
+    };
+    socket.on('connect', sendProfile);
+    onSettingsChange(sendProfile);
     // Prove we're a real browser before matching (the server waits for this).
     socket.on('guard:challenge', (c) => {
       void solveChallenge(c)

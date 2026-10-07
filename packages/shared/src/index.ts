@@ -310,6 +310,15 @@ export interface ClientToServerEvents {
   'users:list': (ack: (users: ActiveUser[] | null) => void) => void;
   /** Answer to guard:challenge. */
   'guard:proof': (nonce: string) => void;
+  /** Group rooms: how many people are in each topic's rooms right now. */
+  'rooms:list': (ack: (counts: Record<string, number>) => void) => void;
+  'room:join': (topic: string, mode: 'video' | 'voice', gender: Gender, ack: (r: RoomJoinResult) => void) => void;
+  'room:leave': () => void;
+  /** WebRTC signaling to one member of your room. */
+  'room:signal': (to: string, msg: SignalMessage) => void;
+  'room:chat': (text: string) => void;
+  /** Report someone in your room (and leave them behind). */
+  'room:report': (memberId: string, reason: ReportReason) => void;
   /** Your profile card (sent before joining, and when it changes). */
   'profile:set': (profile: UserProfile) => void;
   /** Plus: ask a waiting person to chat. */
@@ -351,6 +360,10 @@ export interface ServerToClientEvents {
   gift: (gift: GiftEvent) => void;
   /** An icebreaker question for both people in this chat. */
   icebreaker: (question: string) => void;
+  'room:member-joined': (m: RoomMember) => void;
+  'room:member-left': (id: string) => void;
+  'room:signal': (s: { from: string; msg: SignalMessage }) => void;
+  'room:chat': (c: RoomChat) => void;
   /** A friend messaged you. */
   'dm:new': (dm: { friendId: string; message: DirectMessage }) => void;
   /** The current mini-game as this person sees it; null when it ended. */
@@ -397,6 +410,29 @@ export interface MatchLimitStatus {
 export const REACTIONS = ['💖', '👍', '🎉', '👏', '😂', '😮', '😢', '🤔', '👎', '✋'] as const;
 
 /** Icebreaker questions: one is shown to both people when either taps 🎲. */
+// ---- Group rooms (up to ROOM_SIZE people per topic, logged-in only) ----
+
+export const ROOM_SIZE = 4;
+
+/** Someone else in your room (ids are random per room; nothing identifies the person). */
+export interface RoomMember {
+  id: string;
+  gender: Gender;
+  avatar: string | null;
+  country: string | null;
+  verified: boolean;
+}
+
+export type RoomJoinResult =
+  | { ok: true; roomId: string; you: string; members: RoomMember[]; iceServers: RTCIceServerLike[]; mode: 'video' | 'voice' }
+  | { ok: false; reason: 'login-required' | 'banned' | 'invalid' | 'busy' };
+
+export interface RoomChat {
+  from: string;
+  text: string;
+  at: number;
+}
+
 // ---- Mini-games in a call ----
 
 export type GameId = 'ttt' | 'tod' | 'wyr';

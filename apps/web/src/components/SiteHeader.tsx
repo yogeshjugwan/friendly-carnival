@@ -83,6 +83,9 @@ export function SiteFooter() {
       <Link href="/privacy" className="hover:text-white">
         Privacy Policy
       </Link>
+      <Link href="/rooms" className="hover:text-white">
+        Group rooms
+      </Link>
       <Link href="/invite" className="hover:text-white">
         Invite friends
       </Link>

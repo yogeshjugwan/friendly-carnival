@@ -42,6 +42,9 @@ export const EVENT_LIMITS: Record<string, [number, number]> = {
   'user:block': [10, 0.1],
   'gift:send': [10, 0.5],
   'dm:send': [10, 0.5],
+  'room:signal': [600, 60],
+  'room:chat': [20, 1],
+  'room:join': [10, 0.2],
   'dm:history': [30, 1],
   default: [60, 5],
 };

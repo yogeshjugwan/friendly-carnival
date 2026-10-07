@@ -191,6 +191,12 @@ export function Landing({ online, onStart }: Props) {
           >
             🎙️ Voice only — no camera
           </button>
+          <Link
+            href="/rooms"
+            className="mt-2 block w-full rounded-lg border-2 border-violet-300 py-2.5 text-center font-semibold text-violet-700 transition hover:bg-violet-50"
+          >
+            👥 Group rooms — up to 4 people
+          </Link>
           <button
             type="button"
             disabled={!agreed}

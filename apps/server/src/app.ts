@@ -4,6 +4,8 @@ import { Server } from 'socket.io';
 import {
   BOOST,
   GAMES,
+  REPORT_REASONS,
+  TOPICS,
   REFERRAL,
   CALL_REQUEST_MS,
   NEW_ACCOUNT_MS,
@@ -27,6 +29,7 @@ import {
   type CallRequestResult,
   type SpendResult,
   type DirectMessage,
+  type RoomMember,
   type UserProfile,
   type Wallet,
   type Friend,
@@ -41,6 +44,7 @@ import { Analytics, dayOf } from './analytics.ts';
 import { PushService, type PushSender } from './push.ts';
 import { Guard, looksLikeLink } from './guard.ts';
 import { applyMove, newGame, viewFor, type GameState } from './games.ts';
+import { Rooms, type RoomSeat } from './rooms.ts';
 import { RateLimiter } from './http.ts';
 import { isPlusActive, MAX_FRIENDS, MemoryAccountStore, NO_PLUS, type StoredMessage } from './accounts.ts';
 import type { BillingProvider } from './billing.ts';
@@ -396,6 +400,8 @@ export function createApp(opts: AppOptions = {}): App {
     return false;
   };
 
+  const rooms = new Rooms();
+
   /** Mini-game per match. */
   const games = new Map<string, GameState>();
 
@@ -612,7 +618,18 @@ export function createApp(opts: AppOptions = {}): App {
       }
     });
     /** Events that need a proven browser (everything that reaches other people). */
-    const HUMAN_ONLY = new Set(['queue:join', 'call:next', 'call:back', 'users:call', 'friends:call', 'users:list', 'chat:message', 'relay:start']);
+    const HUMAN_ONLY = new Set([
+      'queue:join',
+      'call:next',
+      'call:back',
+      'users:call',
+      'friends:call',
+      'users:list',
+      'chat:message',
+      'relay:start',
+      'room:join',
+      'room:chat',
+    ]);
     const allowEvent = guard.eventLimiter();
     socket.use(([event, ...args], next) => {
       const verdict = allowEvent(event);
@@ -788,6 +805,92 @@ export function createApp(opts: AppOptions = {}): App {
       const question = ICEBREAKERS[Math.floor(Math.random() * ICEBREAKERS.length)];
       socket.emit('icebreaker', question);
       io.to(partner.id).emit('icebreaker', question);
+    });
+
+    // ---- Group rooms ----
+    const roomPeers = (except?: string) => (rooms.roomOf(socket.id)?.seats ?? []).filter((x) => x.socketId !== except);
+    const memberView = (x: RoomSeat): RoomMember => ({ id: x.id, gender: x.gender, avatar: x.avatar, country: x.country, verified: x.verified });
+    const leaveRoom = () => {
+      const left = rooms.leave(socket.id);
+      if (left) for (const x of left.room.seats) io.to(x.socketId).emit('room:member-left', left.seat.id);
+    };
+    socket.on('rooms:list', (ack) => {
+      if (typeof ack === 'function') ack(rooms.counts());
+    });
+    socket.on('room:join', (topic, mode, gender, ack) => {
+      if (typeof ack !== 'function') return;
+      if (!socket.data.userId) return ack({ ok: false, reason: 'login-required' });
+      if (stillBanned()) return ack({ ok: false, reason: 'banned' });
+      if (!TOPICS.some((t) => t.id === topic) || (mode !== 'video' && mode !== 'voice') || !['male', 'female', 'couple'].includes(gender)) {
+        return ack({ ok: false, reason: 'invalid' });
+      }
+      // A room replaces any one-to-one chat.
+      matchmaker.leaveQueue(socket.id);
+      notifyLeft(matchmaker.endMatch(socket.id)?.id, 'stop');
+      const me = matchmaker.get(socket.id);
+      const myDevice = socket.data.deviceId;
+      const blockedPair = (a: string, b: string) => {
+        const other = a === myDevice ? b : a;
+        const otherSocket = [...io.sockets.sockets.values()].find((x) => x.data.deviceId === other);
+        return socket.data.blocked.has(other) || !!otherSocket?.data.blocked.has(myDevice);
+      };
+      const { room, seat } = rooms.join(
+        {
+          socketId: socket.id,
+          deviceId: myDevice,
+          gender,
+          avatar: socket.data.profile?.avatar ?? null,
+          country: me && !me.hideCountry ? me.country : null,
+          verified: !!socket.data.verified,
+        },
+        topic,
+        mode,
+        blockedPair,
+      );
+      analytics.count('roomJoins');
+      ack({ ok: true, roomId: room.id, you: seat.id, members: roomPeers(socket.id).map(memberView), iceServers: turn.current(), mode });
+      for (const x of roomPeers(socket.id)) io.to(x.socketId).emit('room:member-joined', memberView(seat));
+    });
+    socket.on('room:leave', leaveRoom);
+    socket.on('disconnect', leaveRoom);
+    socket.on('room:signal', (to, payload) => {
+      const me = rooms.seatOf(socket.id);
+      const target = roomPeers(socket.id).find((x) => x.id === to);
+      const msg = parseSignal(payload);
+      if (me && target && msg) io.to(target.socketId).emit('room:signal', { from: me.id, msg });
+    });
+    socket.on('room:chat', (payload) => {
+      const me = rooms.seatOf(socket.id);
+      const text = parseChatText(payload);
+      if (!me || !text) return;
+      if (looksLikeLink(text)) return void socket.emit('chat:rejected', 'link');
+      const chat = { from: me.id, text, at: Date.now() };
+      for (const x of rooms.roomOf(socket.id)!.seats) io.to(x.socketId).emit('room:chat', chat);
+    });
+    socket.on('room:report', async (memberId, reason) => {
+      const target = roomPeers(socket.id).find((x) => x.id === memberId);
+      if (!target || !REPORT_REASONS.includes(reason)) return;
+      const now = Date.now();
+      const times = socket.data.reportsAt;
+      while (times.length && now - times[0]! > REPORT_WINDOW_MS) times.shift();
+      if (times.length >= REPORT_BURST) return;
+      times.push(now);
+      const t = io.sockets.sockets.get(target.socketId)?.data;
+      if (!t) return;
+      try {
+        await safety.report(
+          { deviceId: socket.data.deviceId, ipHash: socket.data.ipHash, userId: socket.data.userId },
+          { deviceId: t.deviceId, ipHash: t.ipHash, userId: t.userId },
+          { target: 'current', reason, source: 'user', note: 'Reported in a group room' },
+        );
+        analytics.count('reports');
+        // Block them so you're never put in a room (or chat) together again.
+        await store.addBlock(socket.data.deviceId, t.deviceId).catch(() => undefined);
+        matchmaker.block(socket.data.deviceId, t.deviceId);
+        socket.data.blocked.add(t.deviceId);
+      } catch (e) {
+        console.error('[room:report]', e);
+      }
     });
 
     // ---- Mini-games (the server keeps the board so both see the same thing) ----

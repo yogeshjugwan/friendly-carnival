@@ -40,7 +40,10 @@ function DmThread({ friend, onBack }: { friend: Friend; onBack: () => void }) {
     return () => void socket.off('dm:new', onNew);
   }, [friend.id]);
 
-  useEffect(() => endRef.current?.scrollIntoView({ block: 'end' }), [messages]);
+  useEffect(() => {
+    // (Newer browsers return a Promise here; an effect must not return it.)
+    void endRef.current?.scrollIntoView({ block: 'end' });
+  }, [messages]);
 
   const send = () => {
     const text = draft.trim();

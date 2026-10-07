@@ -10,7 +10,7 @@ import {
   CALL_REQUEST_MS,
   NEW_ACCOUNT_MS,
   NEW_DEVICE_MS,
-  GIFTS,
+  availableGifts,
   GIFT_SHARE,
   MATCHES_FOR_COINS,
   ICEBREAKERS,
@@ -737,7 +737,7 @@ export function createApp(opts: AppOptions = {}): App {
 
     socket.on('gift:send', async (giftId, ack) => {
       const done = typeof ack === 'function' ? ack : () => undefined;
-      const gift = GIFTS.find((g) => g.id === giftId);
+      const gift = availableGifts().find((g) => g.id === giftId);
       if (!gift) return done({ ok: false, reason: 'invalid' });
       const partner = matchmaker.partnerOf(socket.id);
       if (!partner) return done({ ok: false, reason: 'no-partner' });

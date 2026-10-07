@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { BOOST, GIFTS, type SpendResult, type Wallet } from '@rc/shared';
+import { availableGifts, BOOST, GIFTS, type SpendResult, type Wallet } from '@rc/shared';
 import { useAuth } from '@/lib/auth';
 import type { RandomCall } from '@/lib/useRandomCall';
 
@@ -73,8 +73,8 @@ export function GiftButton({ call }: { call: RandomCall }) {
                 </Link>
               )}
             </div>
-            <div className="grid grid-cols-5 gap-1.5">
-              {GIFTS.map((g) => (
+            <div className="grid max-h-56 grid-cols-5 gap-1.5 overflow-y-auto">
+              {availableGifts().map((g) => (
                 <button
                   key={g.id}
                   disabled={!!busy || !wallet || wallet.coins < g.coins}
@@ -87,10 +87,13 @@ export function GiftButton({ call }: { call: RandomCall }) {
                     if (err) setError(err);
                     else setOpen(false);
                   }}
-                  title={`${g.name} · ${g.coins} coins`}
+                  title={`${g.name} · ${g.coins} coins${g.season ? ` · ${g.season.label} special` : ''}`}
                   className="flex flex-col items-center rounded-lg py-1.5 transition hover:bg-white/10 disabled:opacity-40"
                 >
-                  <span className="text-2xl">{g.emoji}</span>
+                  <span className="relative text-2xl">
+                    {g.emoji}
+                    {g.season && <span className="absolute -right-1.5 -top-1 rounded bg-amber-400 px-0.5 text-[8px] font-bold text-black">NEW</span>}
+                  </span>
                   <span className="text-[10px] text-amber-200">{g.coins}</span>
                 </button>
               ))}

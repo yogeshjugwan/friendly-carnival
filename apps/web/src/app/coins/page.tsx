@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { COIN_PACKS, GIFTS, MATCHES_FOR_COINS, type CoinPackId, type SpendResult } from '@rc/shared';
+import { availableGifts, COIN_PACKS, MATCHES_FOR_COINS, type CoinPackId, type SpendResult } from '@rc/shared';
 import { BoostCard } from '@/components/Coins';
 import { SiteFooter, SiteHeader } from '@/components/SiteHeader';
 import { errorText, FormError, FormNote } from '@/components/forms/fields';
@@ -107,7 +107,12 @@ export default function CoinsPage() {
           <p className="text-lg font-bold">What coins do</p>
           <ul className="mt-2 space-y-1.5 text-sm">
             <li>
-              🎁 Gifts in a call: {GIFTS.map((g) => `${g.emoji} ${g.coins}`).join(' · ')} — they get half as coins.
+              🎁 Gifts in a call: {availableGifts().map((g) => `${g.emoji} ${g.coins}`).join(' · ')} — they get half as coins.
+              {availableGifts().some((g) => g.season) && (
+                <span className="ml-1 rounded bg-amber-400 px-1 text-[11px] font-bold text-black">
+                  {availableGifts().find((g) => g.season)!.season!.label} specials
+                </span>
+              )}
             </li>
             <li>🚀 Boost: be matched first for 30 minutes.</li>
             <li>

@@ -577,14 +577,41 @@ export const COIN_PACKS = [
 export type CoinPackId = (typeof COIN_PACKS)[number]['id'];
 
 /** Gifts sent during a call; the receiver gets GIFT_SHARE of the coins. */
-export const GIFTS = [
+/** A festival window, as month-day ('MM-DD', inclusive; may wrap the new year). */
+export interface GiftSeason {
+  from: string;
+  to: string;
+  label: string;
+}
+
+export const GIFTS: readonly { id: string; emoji: string; name: string; coins: number; season?: GiftSeason }[] = [
+  { id: 'chai', emoji: '☕', name: 'Chai', coins: 5 },
   { id: 'rose', emoji: '🌹', name: 'Rose', coins: 10 },
+  { id: 'chocolate', emoji: '🍫', name: 'Chocolate', coins: 15 },
   { id: 'heart', emoji: '💖', name: 'Heart', coins: 20 },
+  { id: 'cake', emoji: '🎂', name: 'Cake', coins: 30 },
   { id: 'gift', emoji: '🎁', name: 'Gift box', coins: 50 },
+  { id: 'teddy', emoji: '🧸', name: 'Teddy', coins: 75 },
   { id: 'diamond', emoji: '💎', name: 'Diamond', coins: 100 },
   { id: 'crown', emoji: '👑', name: 'Crown', coins: 200 },
-] as const;
-export type GiftId = (typeof GIFTS)[number]['id'];
+  { id: 'car', emoji: '🏎️', name: 'Sports car', coins: 500 },
+  // Festival specials
+  { id: 'diya', emoji: '🪔', name: 'Diya', coins: 25, season: { from: '10-15', to: '11-20', label: 'Diwali' } },
+  { id: 'fireworks', emoji: '🎆', name: 'Fireworks', coins: 60, season: { from: '10-15', to: '11-20', label: 'Diwali' } },
+  { id: 'tree', emoji: '🎄', name: 'Christmas tree', coins: 40, season: { from: '12-01', to: '12-31', label: 'Christmas' } },
+  { id: 'newyear', emoji: '🥂', name: 'Cheers', coins: 40, season: { from: '12-26', to: '01-07', label: 'New Year' } },
+  { id: 'loveletter', emoji: '💌', name: 'Love letter', coins: 35, season: { from: '02-01', to: '02-20', label: "Valentine's" } },
+  { id: 'colours', emoji: '🎨', name: 'Holi colours', coins: 30, season: { from: '03-01', to: '03-25', label: 'Holi' } },
+  { id: 'kite', emoji: '🪁', name: 'Kite', coins: 20, season: { from: '01-08', to: '01-20', label: 'Makar Sankranti' } },
+];
+export type GiftId = string;
+
+/** Gifts you can send right now: the regular ones plus festival specials in season (IST dates). */
+export function availableGifts(now = Date.now()) {
+  const md = new Date(now + 330 * 60_000).toISOString().slice(5, 10);
+  const inSeason = (s: GiftSeason) => (s.from <= s.to ? md >= s.from && md <= s.to : md >= s.from || md <= s.to);
+  return GIFTS.filter((g) => !g.season || inSeason(g.season));
+}
 export const GIFT_SHARE = 0.5;
 
 /** Boost: matched first for a while. */

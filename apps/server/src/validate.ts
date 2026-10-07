@@ -13,7 +13,7 @@ import {
 } from '@rc/shared';
 
 const GENDERS: Gender[] = ['male', 'female', 'couple'];
-const MODES: ChatMode[] = ['video', 'text'];
+const MODES: ChatMode[] = ['video', 'voice', 'text'];
 const MAX_SDP_LENGTH = 20_000;
 
 export function parseJoin(input: unknown): JoinPayload | null {

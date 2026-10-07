@@ -2,7 +2,8 @@
 export type Gender = 'male' | 'female' | 'couple';
 
 /** Video users only meet video users; text-only users only meet text-only users. */
-export type ChatMode = 'video' | 'text';
+/** 'voice': microphone only, matched with other voice users. */
+export type ChatMode = 'video' | 'voice' | 'text';
 
 /** Plus-only match filters. 'any' means no filter. */
 export interface MatchFilters {

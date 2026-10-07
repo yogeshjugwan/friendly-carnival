@@ -149,16 +149,18 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
           OnIcon={MicIcon}
           OffIcon={MicOffIcon}
         />
-        <DeviceButton
-          label="Camera"
-          on={call.cameraOn}
-          onToggle={call.toggleCamera}
-          devices={call.cameras}
-          currentId={call.cameraId}
-          onPick={(id) => void call.switchDevice('video', id)}
-          OnIcon={VideoIcon}
-          OffIcon={VideoOffIcon}
-        />
+        {call.mode === 'video' && (
+          <DeviceButton
+            label="Camera"
+            on={call.cameraOn}
+            onToggle={call.toggleCamera}
+            devices={call.cameras}
+            currentId={call.cameraId}
+            onPick={(id) => void call.switchDevice('video', id)}
+            OnIcon={VideoIcon}
+            OffIcon={VideoOffIcon}
+          />
+        )}
         {call.mode === 'video' && (
           // Phones reach effects through ⋮ to keep the bar narrow.
           <div className="hidden sm:block [@media(max-height:500px)]:hidden">

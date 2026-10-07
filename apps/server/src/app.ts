@@ -514,7 +514,7 @@ export function createApp(opts: AppOptions = {}): App {
       }
     }
     analytics.count('matches');
-    analytics.count(b.mode === 'video' ? 'videoMatches' : 'textMatches');
+    analytics.count(`${b.mode}Matches`);
     const base = { matchId, mode: b.mode, reconnected, iceServers: turn.current() };
     // b just joined (or pressed Back) and initiates, so a is ready to answer.
     const info = (s: Pairing['a']) => ({

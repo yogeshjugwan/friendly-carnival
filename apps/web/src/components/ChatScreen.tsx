@@ -22,6 +22,7 @@ import { SafetyMenu } from './SafetyMenu';
 import { SettingsMenu } from './SettingsMenu';
 import { VideoTile } from './VideoTile';
 import { VerifiedBadge } from './VerifiedBadge';
+import { VoiceStage } from './VoiceStage';
 
 const STATUS_TEXT: Record<string, string> = {
   searching: 'Looking for someone to chat with…',
@@ -115,6 +116,7 @@ function WidenSearch() {
 export function ChatScreen({ call }: { call: RandomCall }) {
   const matched = call.status === 'in-call' || call.status === 'connecting';
   const isText = call.mode === 'text';
+  const isVoice = call.mode === 'voice';
   const { user } = useAuth();
   const isPlus = !!user?.plus.active;
   const showAd = call.adBreak && !isPlus;
@@ -189,6 +191,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
           <span className="text-xl font-semibold sm:text-2xl [@media(max-height:500px)]:text-lg">
             random<span className="text-brand">Call</span>
             {isText && <span className="ml-2 text-sm font-normal text-slate-400">text chat</span>}
+            {isVoice && <span className="ml-2 text-sm font-normal text-slate-400">voice call</span>}
           </span>
           {/* Filters share the header row on wide and short screens; phones get their own row below. */}
           <div className="mr-auto hidden sm:block [@media(max-height:500px)]:block">
@@ -313,6 +316,9 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                   <VideoIcon className="h-16 w-16 sm:h-20 sm:w-20" />
                 </div>
               )}
+              {isVoice && !showAd && (
+                <VoiceStage call={call} matched={matched} partnerEmoji={call.partner ? GENDER_ICON[call.partner.gender] : '🙂'} />
+              )}
               <div className={`absolute inset-x-0 flex justify-center px-4 ${pipOnTop ? 'bottom-4' : 'top-14'}`}>
                 <Searching call={call} />
               </div>
@@ -364,13 +370,15 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                 </>
               )}
 
-              {/* You (picture-in-picture): drag it to any corner */}
-              <DraggablePip onCornerChange={setPipCorner} className="aspect-[3/4] h-[24%] max-h-[10rem] min-h-[5rem] max-w-[36%] sm:h-[30%] sm:max-h-[12rem] overflow-hidden rounded-xl border-2 border-slate-500/80 bg-slate-600 shadow-xl md:aspect-video landscape:aspect-video max-lg:landscape:h-[34%] lg:h-[26%] [@media(max-height:500px)]:h-[30%] [@media(max-height:500px)]:min-h-[3.5rem]">
-                <VideoTile stream={call.localStream} muted mirrored className="pointer-events-none h-full w-full rounded-none !bg-slate-600" />
-                {(!call.localStream || !call.cameraOn) && (
-                  <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-200">You</div>
-                )}
-              </DraggablePip>
+              {/* You (picture-in-picture): drag it to any corner; voice calls have no picture */}
+              {!isVoice && (
+                <DraggablePip onCornerChange={setPipCorner} className="aspect-[3/4] h-[24%] max-h-[10rem] min-h-[5rem] max-w-[36%] sm:h-[30%] sm:max-h-[12rem] overflow-hidden rounded-xl border-2 border-slate-500/80 bg-slate-600 shadow-xl md:aspect-video landscape:aspect-video max-lg:landscape:h-[34%] lg:h-[26%] [@media(max-height:500px)]:h-[30%] [@media(max-height:500px)]:min-h-[3.5rem]">
+                  <VideoTile stream={call.localStream} muted mirrored className="pointer-events-none h-full w-full rounded-none !bg-slate-600" />
+                  {(!call.localStream || !call.cameraOn) && (
+                    <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-200">You</div>
+                  )}
+                </DraggablePip>
+              )}
 
               {call.noFace && (
                 <div className="absolute inset-x-0 bottom-3 z-20 flex justify-center px-3" role="status">

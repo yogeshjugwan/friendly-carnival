@@ -762,15 +762,28 @@ export function useRandomCall() {
       setMessages([]);
       setHasPrevious(false);
 
-      if (chatMode === 'video' && !localRef.current) {
+      // Switching between video and voice: start over with the right devices.
+      const wantVideo = chatMode === 'video';
+      const current = localRef.current;
+      if (current && chatMode !== 'text' && current.getVideoTracks().length > 0 !== wantVideo) {
+        effectRef.current?.stop();
+        effectRef.current = null;
+        rawCameraRef.current?.stop();
+        rawCameraRef.current = null;
+        current.getTracks().forEach((t) => t.stop());
+        localRef.current = null;
+        setLocalStream(null);
+      }
+
+      if (chatMode !== 'text' && !localRef.current) {
         setStatus('requesting-media');
         try {
           const stream = await navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+            video: wantVideo ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false,
             audio: { echoCancellation: true, noiseSuppression: true },
           });
           adoptStream(stream);
-          setCameraOn(true);
+          setCameraOn(wantVideo);
           setMicOn(true);
           void refreshDevices();
           // Bring back the background the user picked last time.
@@ -780,7 +793,7 @@ export function useRandomCall() {
           } catch {
             /* ignore */
           }
-          if (saved !== 'none') void setBackground(saved);
+          if (wantVideo && saved !== 'none') void setBackground(saved);
         } catch {
           setStatus('media-denied');
           return;

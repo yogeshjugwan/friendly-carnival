@@ -185,6 +185,14 @@ export function Landing({ online, onStart }: Props) {
           <button
             type="button"
             disabled={!agreed}
+            onClick={() => begin('voice')}
+            className="mt-2 w-full rounded-lg border-2 border-emerald-300 py-2.5 font-semibold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            🎙️ Voice only — no camera
+          </button>
+          <button
+            type="button"
+            disabled={!agreed}
             onClick={() => begin('text')}
             className="mt-2 w-full rounded-lg py-2 text-sm font-medium text-brand hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
           >

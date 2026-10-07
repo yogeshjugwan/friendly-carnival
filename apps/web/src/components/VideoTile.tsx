@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface Props {
   stream: MediaStream | null;
@@ -18,11 +18,19 @@ interface Props {
 
 export function VideoTile({ stream, muted, mirrored, className = '', videoClassName = '', videoRef, forceVisible, children }: Props) {
   const ref = useRef<HTMLVideoElement>(null);
+  /** The browser refused to play sound without a tap (autoplay rules). */
+  const [needsTap, setNeedsTap] = useState(false);
 
   useEffect(() => {
     const video = ref.current;
-    if (video && video.srcObject !== stream) video.srcObject = stream;
-  }, [stream]);
+    if (!video) return;
+    if (video.srcObject !== stream) video.srcObject = stream;
+    if (!stream || muted) return setNeedsTap(false);
+    video.play().then(
+      () => setNeedsTap(false),
+      (e: DOMException) => setNeedsTap(e.name === 'NotAllowedError'),
+    );
+  }, [stream, muted]);
 
   useEffect(() => {
     videoRef?.(ref.current);
@@ -39,6 +47,14 @@ export function VideoTile({ stream, muted, mirrored, className = '', videoClassN
         className={`h-full w-full object-cover ${mirrored ? '-scale-x-100' : ''} ${stream || forceVisible ? '' : 'invisible'} ${videoClassName}`}
       />
       {children}
+      {needsTap && (
+        <button
+          onClick={() => void ref.current?.play().then(() => setNeedsTap(false), () => undefined)}
+          className="absolute left-1/2 top-1/2 z-30 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white px-5 py-2.5 font-semibold text-ink shadow-xl"
+        >
+          🔊 Tap to turn on sound
+        </button>
+      )}
     </div>
   );
 }

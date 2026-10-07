@@ -74,6 +74,7 @@ export function OnlineUsersPanel({ call, onClose, className = '' }: { call: Rand
             {u.verified && <VerifiedBadge />}
             {u.plus && <span title="Plus member">👑</span>}
             {u.mode === 'text' && <span className="rounded bg-white/10 px-1.5 text-[10px] font-semibold uppercase text-slate-300">text</span>}
+            {u.mode === 'voice' && <span className="rounded bg-white/10 px-1.5 text-[10px] font-semibold uppercase text-slate-300">voice</span>}
           </p>
           {u.interests.length > 0 && <p className="truncate text-xs text-slate-400">likes {u.interests.join(', ')}</p>}
         </div>

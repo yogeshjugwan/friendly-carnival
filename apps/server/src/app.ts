@@ -49,7 +49,8 @@ import { applyMove, newGame, viewFor, type GameState } from './games.ts';
 import { Rooms, type RoomSeat } from './rooms.ts';
 import { Razorpay } from './razorpay.ts';
 import { LOW_TRUST, SkipTracker, trustScore } from './trust.ts';
-import { RateLimiter } from './http.ts';
+import { Translator } from './translate.ts';
+import { cors, RateLimiter, readJson, sendJson } from './http.ts';
 import { isPlusActive, MAX_FRIENDS, MemoryAccountStore, NO_PLUS, type StoredMessage } from './accounts.ts';
 import type { BillingProvider } from './billing.ts';
 import { createBillingHandler } from './billing-http.ts';
@@ -142,6 +143,8 @@ export interface AppOptions {
   pushSender?: PushSender;
   /** Require a proof of work before matching (on in production; off in most tests). */
   requireProof?: boolean;
+  /** Chat translation (tests inject one with a fake fetch). */
+  translator?: Translator;
   /** Razorpay client (tests inject one with a fake fetch); null turns it off. */
   razorpay?: Razorpay | null;
   /** How long a ⭐ priority match waits for a verified partner before refunding (tests shorten it). */
@@ -265,6 +268,28 @@ export function createApp(opts: AppOptions = {}): App {
     razorpay: opts.razorpay !== undefined ? opts.razorpay : config.razorpay ? new Razorpay(config.razorpay) : null,
   });
 
+  // Chat translation for browsers that can't translate on the device: 60 per minute per IP.
+  const translator = opts.translator ?? new Translator(config.translate);
+  const translateLimit = new RateLimiter(60, 60_000);
+  const handleTranslate = async (req: IncomingMessage, res: ServerResponse) => {
+    if (!req.url?.startsWith('/translate')) return false;
+    if (cors(req, res, origins)) return true;
+    if (req.method !== 'POST') return sendJson(res, 405, { error: 'POST only' }), true;
+    const key = hashIp(clientIp(req.headers, req.socket.remoteAddress), ipSalt) ?? 'unknown';
+    if (!translateLimit.allow(key)) return sendJson(res, 429, { error: 'Too many translations — wait a minute' }), true;
+    try {
+      const { text, to } = await readJson(req);
+      if (typeof text !== 'string' || !text.trim() || text.length > 500 || typeof to !== 'string' || !/^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(to)) {
+        return sendJson(res, 400, { error: 'Invalid request' }), true;
+      }
+      const result = await translator.translate(text.trim(), to);
+      return result ? (sendJson(res, 200, result), true) : (sendJson(res, 502, { error: 'Could not translate' }), true);
+    } catch (e) {
+      if (!(e instanceof SyntaxError)) console.error('[translate]', e);
+      return sendJson(res, 400, { error: 'Invalid request' }), true;
+    }
+  };
+
   // Every HTTP route: 600 requests per 5 minutes per IP (Stripe webhooks and /health exempt).
   const httpLimit = new RateLimiter(600, 5 * 60_000);
   const http = createServer((req, res) => {
@@ -277,6 +302,7 @@ export function createApp(opts: AppOptions = {}): App {
           return void res.end(JSON.stringify({ error: 'Too many requests. Slow down and try again in a minute.' }));
         }
       }
+      if (await handleTranslate(req, res)) return;
       if (await handleBilling(req, res)) return;
       if (await handleGoogle(req, res)) return;
       if (await handleAuth(req, res)) return;

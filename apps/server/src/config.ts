@@ -40,6 +40,8 @@ export const config = {
   /** https://resend.com API key; without it emails are printed to the log. */
   resendApiKey: env.RESEND_API_KEY || undefined,
   mailFrom: env.MAIL_FROM || 'randomCall <onboarding@resend.dev>',
+  /** Chat translation fallback (see translate.ts). */
+  translate: { googleKey: env.GOOGLE_TRANSLATE_KEY?.trim() || null, myMemoryEmail: env.MYMEMORY_EMAIL?.trim() || null },
   /** Razorpay (India: UPI, cards, wallets in ₹); off unless the key id, key secret and webhook secret are set. */
   razorpay:
     env.RAZORPAY_KEY_ID && env.RAZORPAY_KEY_SECRET && env.RAZORPAY_WEBHOOK_SECRET

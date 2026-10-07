@@ -139,6 +139,14 @@ export interface AccountStore {
   /** Marks the invite reward paid; false if it already was (so it pays once). */
   markReferralRewarded(userId: string): Promise<boolean>;
   referralCounts(referrerId: string): Promise<{ invited: number; rewarded: number }>;
+  /** Stores a message between friends. */
+  addMessage(from: string, to: string, text: string): Promise<StoredMessage>;
+  /** The latest `limit` messages between two users, oldest first. */
+  messagesBetween(a: string, b: string, limit: number): Promise<StoredMessage[]>;
+  /** Marks messages from `from` to `to` as read. */
+  markRead(to: string, from: string): Promise<void>;
+  /** Unread messages for `to`, by sender. */
+  unreadCounts(to: string): Promise<Map<string, number>>;
   /** Records a daily claim; false if `day` was already claimed. */
   setStreak(userId: string, days: number, lastDay: string, previousDay: string | null): Promise<boolean>;
   /** Small server-wide secrets (e.g. the Web Push keys). */
@@ -167,6 +175,15 @@ export interface AccountStats {
   signups: number[];
   /** Coin purchases since `since`: when and how many coins. */
   purchases: { at: number; coins: number }[];
+}
+
+export interface StoredMessage {
+  id: string;
+  from: string;
+  to: string;
+  text: string;
+  at: number;
+  readAt: number | null;
 }
 
 export interface StoredFriend {
@@ -247,6 +264,7 @@ export class MemoryAccountStore implements AccountStore {
   async deleteUser(id: string) {
     this.users.delete(id);
     this.selfies.delete(id);
+    this.messages = this.messages.filter((m) => m.from !== id && m.to !== id);
     for (const [endpoint, p] of this.pushSubs) if (p.userId === id) this.pushSubs.delete(endpoint);
     await this.deleteTokensFor(id);
     for (const other of this.friends.get(id)?.keys() ?? []) this.friends.get(other)?.delete(id);
@@ -309,6 +327,29 @@ export class MemoryAccountStore implements AccountStore {
 
   async appSecret(key: string) {
     return this.secrets.get(key) ?? null;
+  }
+
+  private messages: StoredMessage[] = [];
+
+  async addMessage(from: string, to: string, text: string) {
+    const m: StoredMessage = { id: randomUUID(), from, to, text, at: Date.now(), readAt: null };
+    this.messages.push(m);
+    return m;
+  }
+
+  async messagesBetween(a: string, b: string, limit: number) {
+    return this.messages.filter((m) => (m.from === a && m.to === b) || (m.from === b && m.to === a)).slice(-limit);
+  }
+
+  async markRead(to: string, from: string) {
+    const now = Date.now();
+    for (const m of this.messages) if (m.to === to && m.from === from && !m.readAt) m.readAt = now;
+  }
+
+  async unreadCounts(to: string) {
+    const counts = new Map<string, number>();
+    for (const m of this.messages) if (m.to === to && !m.readAt) counts.set(m.from, (counts.get(m.from) ?? 0) + 1);
+    return counts;
   }
 
   async setStreak(userId: string, days: number, lastDay: string, previousDay: string | null) {
@@ -427,6 +468,7 @@ export class MemoryAccountStore implements AccountStore {
   async removeFriendship(a: string, b: string) {
     this.friends.get(a)?.delete(b);
     this.friends.get(b)?.delete(a);
+    this.messages = this.messages.filter((m) => !((m.from === a && m.to === b) || (m.from === b && m.to === a)));
   }
 
   async renameFriend(userId: string, friendId: string, nickname: string | null) {
@@ -481,6 +523,16 @@ CREATE TABLE IF NOT EXISTS verifications (
   photo TEXT NOT NULL,
   created_at BIGINT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS friend_messages (
+  id TEXT PRIMARY KEY,
+  from_user TEXT NOT NULL,
+  to_user TEXT NOT NULL,
+  text TEXT NOT NULL,
+  created_at BIGINT NOT NULL,
+  read_at BIGINT
+);
+CREATE INDEX IF NOT EXISTS friend_messages_pair_idx ON friend_messages (from_user, to_user, created_at);
+CREATE INDEX IF NOT EXISTS friend_messages_unread_idx ON friend_messages (to_user, read_at);
 CREATE TABLE IF NOT EXISTS app_secrets (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -573,6 +625,7 @@ export class PostgresAccountStore implements AccountStore {
     await this.pool.query('DELETE FROM coin_ledger WHERE user_id = $1', [id]);
     await this.pool.query('DELETE FROM verifications WHERE user_id = $1', [id]);
     await this.pool.query('DELETE FROM push_subscriptions WHERE user_id = $1', [id]);
+    await this.pool.query('DELETE FROM friend_messages WHERE from_user = $1 OR to_user = $1', [id]);
     await this.pool.query('DELETE FROM users WHERE id = $1', [id]);
   }
 
@@ -822,6 +875,42 @@ export class PostgresAccountStore implements AccountStore {
 
   async removeFriendship(a: string, b: string) {
     await this.pool.query('DELETE FROM friends WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)', [a, b]);
+    await this.pool.query('DELETE FROM friend_messages WHERE (from_user = $1 AND to_user = $2) OR (from_user = $2 AND to_user = $1)', [a, b]);
+  }
+
+  async addMessage(from: string, to: string, text: string) {
+    const m: StoredMessage = { id: randomUUID(), from, to, text, at: Date.now(), readAt: null };
+    await this.pool.query('INSERT INTO friend_messages (id, from_user, to_user, text, created_at) VALUES ($1,$2,$3,$4,$5)', [m.id, from, to, text, m.at]);
+    return m;
+  }
+
+  async messagesBetween(a: string, b: string, limit: number) {
+    const { rows } = await this.pool.query(
+      `SELECT * FROM friend_messages WHERE (from_user = $1 AND to_user = $2) OR (from_user = $2 AND to_user = $1)
+       ORDER BY created_at DESC LIMIT $3`,
+      [a, b, limit],
+    );
+    return rows
+      .map((r) => ({
+        id: r.id as string,
+        from: r.from_user as string,
+        to: r.to_user as string,
+        text: r.text as string,
+        at: Number(r.created_at),
+        readAt: r.read_at == null ? null : Number(r.read_at),
+      }))
+      .reverse();
+  }
+
+  async markRead(to: string, from: string) {
+    await this.pool.query('UPDATE friend_messages SET read_at = $3 WHERE to_user = $1 AND from_user = $2 AND read_at IS NULL', [to, from, Date.now()]);
+  }
+
+  async unreadCounts(to: string) {
+    const { rows } = await this.pool.query('SELECT from_user FROM friend_messages WHERE to_user = $1 AND read_at IS NULL', [to]);
+    const counts = new Map<string, number>();
+    for (const r of rows) counts.set(r.from_user as string, (counts.get(r.from_user as string) ?? 0) + 1);
+    return counts;
   }
 
   async renameFriend(userId: string, friendId: string, nickname: string | null) {

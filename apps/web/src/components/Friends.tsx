@@ -1,12 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
-import { MAX_FRIEND_NICKNAME, type Friend } from '@rc/shared';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { MAX_FRIEND_NICKNAME, MAX_MESSAGE_LENGTH, type DirectMessage, type DmSendResult, type Friend } from '@rc/shared';
 import { countryName, flagEmoji, GENDER_ICON, GENDER_LABEL } from '@/lib/format';
 import type { RandomCall } from '@/lib/useRandomCall';
 import { FAIL_TEXT, useSecondsLeft } from './OnlineUsers';
 import { NotificationsToggle } from './Pwa';
+import { getSocket } from '@/lib/socket';
 
 const REFRESH_MS = 5_000;
 
@@ -17,6 +18,96 @@ const STATUS: Record<Friend['status'], { dot: string; label: string }> = {
   offline: { dot: 'bg-slate-500', label: 'Offline' },
 };
 
+const time = (at: number) => new Date(at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+
+/** A conversation with one friend; works whether or not they're online. */
+function DmThread({ friend, onBack }: { friend: Friend; onBack: () => void }) {
+  const [messages, setMessages] = useState<DirectMessage[] | null>(null);
+  const [draft, setDraft] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const socket = getSocket();
+    socket.timeout(8_000).emit('dm:history', friend.id, (err, list) => setMessages(err || !list ? [] : list));
+    const onNew = (dm: { friendId: string; message: DirectMessage }) => {
+      if (dm.friendId !== friend.id) return;
+      setMessages((m) => (m && !m.some((x) => x.id === dm.message.id) ? [...m, dm.message] : m));
+      // Seen while open: mark it read.
+      if (!dm.message.fromMe) socket.emit('dm:history', friend.id, () => undefined);
+    };
+    socket.on('dm:new', onNew);
+    return () => void socket.off('dm:new', onNew);
+  }, [friend.id]);
+
+  useEffect(() => endRef.current?.scrollIntoView({ block: 'end' }), [messages]);
+
+  const send = () => {
+    const text = draft.trim();
+    if (!text) return;
+    setError(null);
+    getSocket()
+      .timeout(8_000)
+      .emit('dm:send', friend.id, text, (err: Error | null, r: DmSendResult) => {
+        if (err) return setError('Not sent — try again.');
+        if (!r.ok) return setError(r.reason === 'not-friends' ? 'You are no longer friends.' : 'Not sent.');
+        const sent = r.message;
+        setMessages((m) => [...(m ?? []), sent]);
+      });
+    setDraft('');
+  };
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex items-center gap-2 border-b border-white/10 px-4 py-2">
+        <button onClick={onBack} aria-label="Back to friends" className="rounded-full px-2 py-1 text-slate-300 hover:bg-white/10">
+          ←
+        </button>
+        <span className="text-xl" aria-hidden>
+          {friend.gender ? GENDER_ICON[friend.gender] : '🙂'}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold">{friend.nickname || describe(friend)}</p>
+          <p className="text-xs text-slate-400">{STATUS[friend.status].label}</p>
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-4 py-3">
+        {messages === null && <p className="py-8 text-center text-sm text-slate-400">Loading…</p>}
+        {messages?.length === 0 && <p className="py-8 text-center text-sm text-slate-400">No messages yet. Say hi — they&apos;ll see it even if they&apos;re away.</p>}
+        {messages?.map((m) => (
+          <div key={m.id} className={`flex ${m.fromMe ? 'justify-end' : 'justify-start'}`}>
+            <p className={`max-w-[80%] whitespace-pre-wrap break-words rounded-2xl px-3 py-1.5 text-sm ${m.fromMe ? 'bg-brand text-white' : 'bg-white/10'}`}>
+              {m.text}
+              <span className="ml-2 align-bottom text-[10px] opacity-60">{time(m.at)}</span>
+            </p>
+          </div>
+        ))}
+        <div ref={endRef} />
+      </div>
+      {error && <p className="mx-4 mb-1 text-xs text-amber-300">{error}</p>}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          send();
+        }}
+        className="flex gap-2 border-t border-white/10 p-3"
+      >
+        <input
+          value={draft}
+          maxLength={MAX_MESSAGE_LENGTH}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Message…"
+          aria-label={`Message ${friend.nickname || 'your friend'}`}
+          className="min-w-0 flex-1 rounded-full bg-white/10 px-4 py-2 text-sm text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand"
+        />
+        <button disabled={!draft.trim()} className="rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">
+          Send
+        </button>
+      </form>
+    </div>
+  );
+}
+
 const describe = (f: Friend) =>
   `${f.gender ? GENDER_LABEL[f.gender] : 'Friend'} · ${f.country ? `${flagEmoji(f.country)} ${countryName(f.country)}` : '🌐'}`;
 
@@ -26,6 +117,7 @@ export function FriendsPanel({ call, onClose, className = '' }: { call: RandomCa
   const [friends, setFriends] = useState<Friend[] | null | 'guest'>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  const [thread, setThread] = useState<Friend | null>(null);
   const [draft, setDraft] = useState('');
   const left = useSecondsLeft(outgoingCall?.expiresAt ?? null);
 
@@ -105,6 +197,10 @@ export function FriendsPanel({ call, onClose, className = '' }: { call: RandomCa
             ))}
         </div>
         <div className="mt-1.5 flex gap-3 pl-9 text-xs">
+          <button onClick={() => setThread(f)} className="font-semibold text-sky-300 hover:text-sky-200">
+            💬 Message
+            {!!f.unread && <span className="ml-1 rounded-full bg-red-500 px-1.5 text-[10px] text-white">{f.unread}</span>}
+          </button>
           <button
             onClick={() => {
               setEditing(editing === f.id ? null : f.id);
@@ -149,38 +245,48 @@ export function FriendsPanel({ call, onClose, className = '' }: { call: RandomCa
         </button>
       </header>
       {error && <p className="mx-4 mb-1 rounded-lg bg-amber-500/15 px-3 py-2 text-sm text-amber-200">{error}</p>}
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
-        {friends === null && <p className="py-10 text-center text-sm text-slate-400">Loading…</p>}
-        {friends === 'guest' && (
-          <div className="py-10 text-center text-sm text-slate-300">
-            <p>Log in to keep friends and call them again.</p>
-            <Link href="/login?next=/" className="mt-3 inline-block rounded-full bg-brand px-4 py-2 font-semibold text-white">
-              Log in
-            </Link>
-          </div>
-        )}
-        {Array.isArray(friends) && friends.length === 0 && (
-          <p className="py-10 text-center text-sm text-slate-400">No friends yet. In a chat, tap ❤️ Add friend — when you both tap it, you&apos;re friends.</p>
-        )}
-        {available.length > 0 && (
-          <>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Available now</p>
-            <ul className="space-y-2">{available.map(row)}</ul>
-          </>
-        )}
-        {others.length > 0 && (
-          <>
-            <p className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-slate-400">All friends</p>
-            <ul className="space-y-2">{others.map(row)}</ul>
-          </>
-        )}
-        {Array.isArray(friends) && friends.length > 0 && (
-          <div className="mt-5">
-            <NotificationsToggle compact />
-          </div>
-        )}
-      </div>
-      <p className="px-5 py-3 text-center text-xs text-slate-500">Friends can call you while you&apos;re in the call screen. Emails are never shown.</p>
+      {thread ? (
+        <DmThread
+          friend={(Array.isArray(friends) && friends.find((f) => f.id === thread.id)) || thread}
+          onBack={() => {
+            setThread(null);
+            void refresh();
+          }}
+        />
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
+          {friends === null && <p className="py-10 text-center text-sm text-slate-400">Loading…</p>}
+          {friends === 'guest' && (
+            <div className="py-10 text-center text-sm text-slate-300">
+              <p>Log in to keep friends and call them again.</p>
+              <Link href="/login?next=/" className="mt-3 inline-block rounded-full bg-brand px-4 py-2 font-semibold text-white">
+                Log in
+              </Link>
+            </div>
+          )}
+          {Array.isArray(friends) && friends.length === 0 && (
+            <p className="py-10 text-center text-sm text-slate-400">No friends yet. In a chat, tap ❤️ Add friend — when you both tap it, you&apos;re friends.</p>
+          )}
+          {available.length > 0 && (
+            <>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Available now</p>
+              <ul className="space-y-2">{available.map(row)}</ul>
+            </>
+          )}
+          {others.length > 0 && (
+            <>
+              <p className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-slate-400">All friends</p>
+              <ul className="space-y-2">{others.map(row)}</ul>
+            </>
+          )}
+          {Array.isArray(friends) && friends.length > 0 && (
+            <div className="mt-5">
+              <NotificationsToggle compact />
+            </div>
+          )}
+        </div>
+      )}
+      {!thread && <p className="px-5 py-3 text-center text-xs text-slate-500">Friends can call you while you&apos;re in the call screen. Emails are never shown.</p>}
     </section>
   );
 }

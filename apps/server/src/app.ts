@@ -26,6 +26,7 @@ import {
   type CallAnswer,
   type CallRequestResult,
   type SpendResult,
+  type DirectMessage,
   type UserProfile,
   type Wallet,
   type Friend,
@@ -41,7 +42,7 @@ import { PushService, type PushSender } from './push.ts';
 import { Guard, looksLikeLink } from './guard.ts';
 import { applyMove, newGame, viewFor, type GameState } from './games.ts';
 import { RateLimiter } from './http.ts';
-import { isPlusActive, MAX_FRIENDS, MemoryAccountStore, NO_PLUS } from './accounts.ts';
+import { isPlusActive, MAX_FRIENDS, MemoryAccountStore, NO_PLUS, type StoredMessage } from './accounts.ts';
 import type { BillingProvider } from './billing.ts';
 import { createBillingHandler } from './billing-http.ts';
 import { handleAdmin } from './admin.ts';
@@ -943,7 +944,7 @@ export function createApp(opts: AppOptions = {}): App {
       const me = myUser();
       if (!me) return ack(null);
       try {
-        const list = await accounts.listFriends(me);
+        const [list, unread] = await Promise.all([accounts.listFriends(me), accounts.unreadCounts(me)]);
         ack(
           list.map((f) => {
             const socks = socketsOfUser(f.friendId);
@@ -955,12 +956,67 @@ export function createApp(opts: AppOptions = {}): App {
                 : socks.length
                   ? 'online'
                   : 'offline';
-            return { id: friendHandle(f.friendId), nickname: f.nickname, gender: (f.gender as Friend['gender']) ?? null, country: f.country, since: f.createdAt, status };
+            return {
+              id: friendHandle(f.friendId),
+              nickname: f.nickname,
+              gender: (f.gender as Friend['gender']) ?? null,
+              country: f.country,
+              since: f.createdAt,
+              status,
+              unread: unread.get(f.friendId) ?? 0,
+            };
           }),
         );
       } catch (e) {
         console.error('[friends:list]', e);
         ack([]);
+      }
+    });
+
+    // ---- Messages between friends (kept until read, pushed when they're away) ----
+    const dmView = (m: StoredMessage, me: string): DirectMessage => ({ id: m.id, fromMe: m.from === me, text: m.text, at: m.at });
+    socket.on('dm:send', async (handle, text, ack) => {
+      if (typeof ack !== 'function') return;
+      const me = myUser();
+      if (!me) return ack({ ok: false, reason: 'login-required' });
+      const clean = parseChatText(text);
+      if (!clean) return ack({ ok: false, reason: 'invalid' });
+      try {
+        const f = await resolveFriend(handle);
+        if (!f) return ack({ ok: false, reason: 'not-friends' });
+        const stored = await accounts.addMessage(me, f.friendId, clean);
+        ack({ ok: true, message: dmView(stored, me) });
+        const theirSockets = socketsOfUser(f.friendId);
+        for (const x of theirSockets) x.emit('dm:new', { friendId: friendHandleFor(f.friendId, me), message: dmView(stored, f.friendId) });
+        // Your other tabs see it too.
+        for (const x of socketsOfUser(me)) if (x.id !== socket.id) x.emit('dm:new', { friendId: handle as string, message: dmView(stored, me) });
+        if (!theirSockets.length) {
+          const theirs = (await accounts.listFriends(f.friendId)).find((x) => x.friendId === me);
+          void push.send(f.friendId, {
+            title: `💬 ${theirs?.nickname || 'A friend'}`,
+            body: clean.length > 120 ? `${clean.slice(0, 117)}…` : clean,
+            url: '/?friends=1',
+            tag: `dm-${friendHandleFor(f.friendId, me)}`,
+          });
+        }
+      } catch (e) {
+        console.error('[dm:send]', e);
+        ack({ ok: false, reason: 'invalid' });
+      }
+    });
+    socket.on('dm:history', async (handle, ack) => {
+      if (typeof ack !== 'function') return;
+      const me = myUser();
+      if (!me) return ack(null);
+      try {
+        const f = await resolveFriend(handle);
+        if (!f) return ack(null);
+        const messages = await accounts.messagesBetween(me, f.friendId, 50);
+        await accounts.markRead(me, f.friendId);
+        ack(messages.map((m) => dmView(m, me)));
+      } catch (e) {
+        console.error('[dm:history]', e);
+        ack(null);
       }
     });
 

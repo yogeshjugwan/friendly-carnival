@@ -145,7 +145,18 @@ export interface Friend {
   since: number;
   /** available = in the call screen and free to be called. */
   status: 'available' | 'in-call' | 'online' | 'offline';
+  /** Messages from them you haven't read. */
+  unread?: number;
 }
+
+/** A message between friends (kept, so it reaches them when they come back). */
+export interface DirectMessage {
+  id: string;
+  fromMe: boolean;
+  text: string;
+  at: number;
+}
+export type DmSendResult = { ok: true; message: DirectMessage } | { ok: false; reason: 'login-required' | 'not-friends' | 'invalid' };
 
 export const MAX_FRIEND_NICKNAME = 40;
 
@@ -275,6 +286,10 @@ export interface ClientToServerEvents {
   'friends:call': (id: string, ack: (result: CallRequestResult) => void) => void;
   'friends:remove': (id: string, ack: (ok: boolean) => void) => void;
   'friends:rename': (id: string, nickname: string, ack: (ok: boolean) => void) => void;
+  /** Message a friend (online or not). */
+  'dm:send': (friendId: string, text: string, ack: (r: DmSendResult) => void) => void;
+  /** The latest messages with a friend (marks theirs as read). */
+  'dm:history': (friendId: string, ack: (messages: DirectMessage[] | null) => void) => void;
   /** People this device blocked (ack gets the list). */
   'blocks:list': (ack: (blocked: BlockedUser[]) => void) => void;
   /** Unblock one of them. */
@@ -336,6 +351,8 @@ export interface ServerToClientEvents {
   gift: (gift: GiftEvent) => void;
   /** An icebreaker question for both people in this chat. */
   icebreaker: (question: string) => void;
+  /** A friend messaged you. */
+  'dm:new': (dm: { friendId: string; message: DirectMessage }) => void;
   /** The current mini-game as this person sees it; null when it ended. */
   'game:state': (view: GameView | null) => void;
   /** The partner sent a reaction. */

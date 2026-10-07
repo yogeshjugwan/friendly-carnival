@@ -41,6 +41,8 @@ export const EVENT_LIMITS: Record<string, [number, number]> = {
   'report:submit': [10, 0.1],
   'user:block': [10, 0.1],
   'gift:send': [10, 0.5],
+  'dm:send': [10, 0.5],
+  'dm:history': [30, 1],
   default: [60, 5],
 };
 /** Dropped events before the socket is cut off. */

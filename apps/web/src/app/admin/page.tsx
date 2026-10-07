@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { VERIFY_GESTURES, type PendingVerification } from '@rc/shared';
 import { AdminAnalytics } from '@/components/AdminAnalytics';
 
@@ -82,6 +82,8 @@ export default function AdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [banIp, setBanIp] = useState<Set<string>>(new Set());
+  /** Keyboard-selected card in the current tab. */
+  const [cursor, setCursor] = useState(0);
 
   useEffect(() => {
     try {
@@ -148,6 +150,66 @@ export default function AdminPage() {
       setError(e instanceof Error ? e.message : 'Action failed');
     }
   };
+
+  /** Open reports per target device: repeat offenders stand out. */
+  const perDevice = new Map<string, number>();
+  for (const r of reports) if (r.status === 'open') perDevice.set(r.targetDevice, (perDevice.get(r.targetDevice) ?? 0) + 1);
+
+  // Keyboard moderation: j/k move, v reveal, 1–4 ban, d dismiss, i +IP; on Verify a approve, x reject.
+  const keyState = useRef({ tab, reports, verifications, cursor, banIp, act });
+  keyState.current = { tab, reports, verifications, cursor, banIp, act };
+  useEffect(() => setCursor(0), [tab]);
+  // The list shrinks as items are handled: keep the selection on a real card.
+  const listLength = tab === 'verify' ? verifications.length : reports.length;
+  useEffect(() => {
+    if (cursor > 0 && cursor >= listLength) setCursor(listLength - 1);
+  }, [cursor, listLength]);
+  useEffect(() => {
+    void document.querySelector('[data-cursor="true"]')?.scrollIntoView({ block: 'nearest' });
+  }, [cursor, tab]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (e.metaKey || e.ctrlKey || e.altKey || (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable))) return;
+      const k = keyState.current;
+      const list = k.tab === 'verify' ? k.verifications : k.tab === 'reports' || k.tab === 'history' ? k.reports : [];
+      if (!list.length) return;
+      const move = (d: number) => setCursor(Math.max(0, Math.min(list.length - 1, k.cursor + d)));
+      if (e.key === 'j' || e.key === 'ArrowDown') return void (e.preventDefault(), move(1));
+      if (e.key === 'k' || e.key === 'ArrowUp') return void (e.preventDefault(), move(-1));
+      if (k.tab === 'verify') {
+        const v = k.verifications[k.cursor];
+        if (!v) return;
+        if (e.key === 'a') void k.act(`/admin/verifications/${encodeURIComponent(v.userId)}/resolve`, { approve: true });
+        if (e.key === 'x') void k.act(`/admin/verifications/${encodeURIComponent(v.userId)}/resolve`, { approve: false });
+        return;
+      }
+      const r = k.reports[k.cursor];
+      if (!r) return;
+      if (e.key === 'v' || e.key === ' ') {
+        e.preventDefault();
+        setRevealed((s) => {
+          const n = new Set(s);
+          if (n.has(r.id)) n.delete(r.id);
+          else n.add(r.id);
+          return n;
+        });
+      }
+      if (r.status !== 'open') return;
+      if (e.key === 'i')
+        setBanIp((s) => {
+          const n = new Set(s);
+          if (n.has(r.id)) n.delete(r.id);
+          else n.add(r.id);
+          return n;
+        });
+      if (e.key === 'd') void k.act(`/admin/reports/${r.id}/action`, { action: 'dismiss' });
+      const d = DURATIONS[Number(e.key) - 1];
+      if (d) void k.act(`/admin/reports/${r.id}/action`, { action: 'ban', durationHours: d.hours, includeIp: k.banIp.has(r.id) });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   if (!token) {
     return (
@@ -253,11 +315,31 @@ export default function AdminPage() {
         ))}
       </nav>
 
+      {(tab === 'reports' || tab === 'history' || tab === 'verify') && (
+        <p className="mt-2 text-xs text-slate-500">
+          ⌨️ <kbd>j</kbd>/<kbd>k</kbd> move ·{' '}
+          {tab === 'verify' ? (
+            <>
+              <kbd>a</kbd> approve · <kbd>x</kbd> reject
+            </>
+          ) : (
+            <>
+              <kbd>v</kbd> reveal · <kbd>1</kbd>–<kbd>4</kbd> ban 1 h / 24 h / 7 d / permanent · <kbd>d</kbd> dismiss · <kbd>i</kbd> also ban IP
+            </>
+          )}
+        </p>
+      )}
+
       {(tab === 'reports' || tab === 'history') && (
         <section className="mt-4 grid gap-3 md:grid-cols-2">
           {reports.length === 0 && <p className="text-slate-400">No reports. 🎉</p>}
-          {reports.map((r) => (
-            <article key={r.id} className="flex gap-3 rounded-xl bg-white p-3 text-ink">
+          {reports.map((r, i) => (
+            <article
+              key={r.id}
+              data-cursor={i === cursor || undefined}
+              onClick={() => setCursor(i)}
+              className={`flex gap-3 rounded-xl bg-white p-3 text-ink ${i === cursor ? 'ring-4 ring-brand' : ''}`}
+            >
               <button
                 className="relative h-28 w-40 shrink-0 overflow-hidden rounded-lg bg-slate-200"
                 onClick={() => setRevealed((s) => new Set(s).add(r.id))}
@@ -286,6 +368,11 @@ export default function AdminPage() {
                 </p>
                 <p className="text-slate-500">
                   Device {short(r.targetDevice)} · {ago(r.createdAt)}
+                  {(perDevice.get(r.targetDevice) ?? 0) > 1 && (
+                    <span className="ml-1 rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700" title="Open reports against this device">
+                      ×{perDevice.get(r.targetDevice)} reports
+                    </span>
+                  )}
                 </p>
                 {r.note && <p className="mt-1 line-clamp-3 text-slate-700">“{r.note}”</p>}
                 {r.status === 'open' ? (
@@ -337,10 +424,15 @@ export default function AdminPage() {
       {tab === 'verify' && (
         <section className="mt-4 grid gap-3 md:grid-cols-2">
           {verifications.length === 0 && <p className="text-slate-400">No selfies waiting.</p>}
-          {verifications.map((v) => {
+          {verifications.map((v, i) => {
             const g = VERIFY_GESTURES.find((x) => x.id === v.gesture);
             return (
-              <article key={v.userId} className="rounded-xl bg-white p-4 text-sm text-ink">
+              <article
+                key={v.userId}
+                data-cursor={i === cursor || undefined}
+                onClick={() => setCursor(i)}
+                className={`rounded-xl bg-white p-4 text-sm text-ink ${i === cursor ? 'ring-4 ring-brand' : ''}`}
+              >
                 <p className="text-slate-500">
                   {ago(v.createdAt)} · {v.email}
                 </p>

@@ -6,6 +6,7 @@ import {
   GAMES,
   REPORT_REASONS,
   TOPICS,
+  PRIORITY_MATCH,
   REFERRAL,
   CALL_REQUEST_MS,
   NEW_ACCOUNT_MS,
@@ -134,6 +135,8 @@ export interface AppOptions {
   pushSender?: PushSender;
   /** Require a proof of work before matching (on in production; off in most tests). */
   requireProof?: boolean;
+  /** How long a ⭐ priority match waits for a verified partner before refunding (tests shorten it). */
+  priorityWaitMs?: number;
   /** Bot / flood shield (tests pass their own to tune it). */
   guard?: Guard;
   /** TURN provider (defaults to the environment); fetch is injectable for tests. */
@@ -402,6 +405,8 @@ export function createApp(opts: AppOptions = {}): App {
   };
 
   const rooms = new Rooms();
+  /** ⭐ Priority matches waiting for a verified partner (refund timers). */
+  const priorityTimers = new Map<string, NodeJS.Timeout>();
 
   /** Mini-game per match. */
   const games = new Map<string, GameState>();
@@ -543,6 +548,13 @@ export function createApp(opts: AppOptions = {}): App {
       if (userId) chatDay.set(userId, dayOf(Date.now()));
     }
     if (chatDay.size > 200_000) chatDay.clear();
+    for (const id of [a.id, b.id]) {
+      const t = priorityTimers.get(id);
+      if (t) {
+        clearTimeout(t);
+        priorityTimers.delete(id);
+      }
+    }
     analytics.count('matches');
     analytics.count(`${b.mode}Matches`);
     const base = { matchId, mode: b.mode, reconnected, iceServers: turn.current() };
@@ -777,6 +789,39 @@ export function createApp(opts: AppOptions = {}): App {
         done({ ok: true, wallet: w });
       } catch (e) {
         console.error('[boost]', e);
+        done({ ok: false, reason: 'invalid' });
+      }
+    });
+
+    socket.on('match:priority', async (ack) => {
+      const done = typeof ack === 'function' ? ack : () => undefined;
+      const session = matchmaker.get(socket.id);
+      if (!session || session.partnerId || session.priority || priorityTimers.has(socket.id) || stillBanned()) {
+        return done({ ok: false, reason: 'invalid' });
+      }
+      try {
+        const r = await spend(PRIORITY_MATCH.coins, 'priority');
+        if (!r.ok) return done(r);
+        analytics.count('priorityMatches');
+        const me = socket.data.userId!;
+        // No verified person in time: give the coins back.
+        priorityTimers.set(
+          socket.id,
+          setTimeout(() => {
+            priorityTimers.delete(socket.id);
+            matchmaker.setPriority(socket.id, false);
+            void accounts
+              .changeCoins(me, PRIORITY_MATCH.coins, 'priority-refund')
+              .then(() => pushWallet(me))
+              .catch((e) => console.error('[priority]', e));
+            socket.emit('priority:expired');
+          }, opts.priorityWaitMs ?? PRIORITY_MATCH.waitMinutes * 60_000),
+        );
+        done(r);
+        const pairing = matchmaker.setPriority(socket.id, true);
+        if (pairing) announce(pairing);
+      } catch (e) {
+        console.error('[priority]', e);
         done({ ok: false, reason: 'invalid' });
       }
     });
@@ -1406,6 +1451,7 @@ export function createApp(opts: AppOptions = {}): App {
       clearInterval(sweepTimer);
       turn.stop();
       for (const r of callRequests.values()) clearTimeout(r.timer);
+      for (const t of priorityTimers.values()) clearTimeout(t);
       clearInterval(purgeTimer);
       await analytics.stop();
       await io.close();

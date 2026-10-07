@@ -460,6 +460,7 @@ export function useRandomCall() {
       setFriendState('none');
       setIcebreaker(null);
       setGame(null);
+      setPriorityOn(false);
       if (pcRef.current || matchRef.current) setHasPrevious(true);
       closePeer();
       matchRef.current = { id: match.matchId, startedAt: Date.now(), reported: false };
@@ -604,6 +605,11 @@ export function useRandomCall() {
     socket.on('chat:typing', onTyping);
     socket.on('chat:rejected', onRejected);
     socket.on('guard:slow-down', onSlowDown);
+    const onPriorityExpired = () => {
+      setPriorityOn(false);
+      flash('No verified person was free right now — your coins were refunded.');
+    };
+    socket.on('priority:expired', onPriorityExpired);
     socket.on('error:message', onError);
     socket.on('banned', onBanned);
     socket.on('report:received', onReported);
@@ -650,6 +656,7 @@ export function useRandomCall() {
       socket.off('chat:typing', onTyping);
       socket.off('chat:rejected', onRejected);
       socket.off('guard:slow-down', onSlowDown);
+      socket.off('priority:expired', onPriorityExpired);
       socket.off('error:message', onError);
       socket.off('banned', onBanned);
       socket.off('report:received', onReported);
@@ -890,7 +897,7 @@ export function useRandomCall() {
     [showReaction],
   );
 
-  const ask = (event: 'boost:buy' | 'limit:buy') =>
+  const ask = (event: 'boost:buy' | 'limit:buy' | 'match:priority') =>
     new Promise<SpendResult>((resolve) =>
       getSocket()
         .timeout(8_000)
@@ -909,6 +916,13 @@ export function useRandomCall() {
   );
   /** 🚀 Boost: matched first for a while. */
   const buyBoost = useCallback(() => ask('boost:buy'), []);
+  /** ⭐ Next match is a verified person (refunded if none comes in time). */
+  const [priorityOn, setPriorityOn] = useState(false);
+  const buyPriority = useCallback(async () => {
+    const r = await ask('match:priority');
+    if (r.ok) setPriorityOn(true);
+    return r;
+  }, []);
   /** Out of free matches: spend coins for more. */
   const buyMatches = useCallback(() => ask('limit:buy'), []);
 
@@ -1325,6 +1339,8 @@ export function useRandomCall() {
     gifts,
     sendGift,
     buyBoost,
+    buyPriority,
+    priorityOn,
     buyMatches,
     icebreaker,
     askIcebreaker,

@@ -23,6 +23,8 @@ export interface Session {
   plus: boolean;
   /** Has the ✓ Verified badge. */
   verified: boolean;
+  /** ⭐ Priority (paid, one match): only verified partners, picked first. */
+  priority: boolean;
   /** Plus match filters (always NO_FILTERS without Plus). */
   filters: MatchFilters;
   /** Persistent browser id (from the handshake); falls back to the socket id. */
@@ -112,6 +114,7 @@ export class Matchmaker {
       userId,
       plus: identity.plus ?? false,
       verified: identity.verified ?? false,
+      priority: false,
       boostUntil: identity.boostUntil ?? null,
       filters: { ...NO_FILTERS },
       deviceId,
@@ -379,7 +382,8 @@ export class Matchmaker {
       const sameTopic = session.topic === other.topic;
       if (!sameTopic && (relaxedAt === undefined || relaxedAt - (this.queuedAt.get(otherId) ?? relaxedAt) < this.relaxAfterMs)) continue;
       const boosted = other.boostUntil !== null && other.boostUntil > Date.now();
-      const score = sharedInterests(session.interests, other.interests).length + (sameTopic && session.topic ? 10 : 0) + (boosted ? 5 : 0);
+      const score =
+        sharedInterests(session.interests, other.interests).length + (sameTopic && session.topic ? 10 : 0) + (boosted ? 5 : 0) + (other.priority ? 50 : 0);
       // Queue is oldest-first, so strict ">" keeps the longest waiter on ties.
       if (score > bestScore) {
         best = otherId;
@@ -389,8 +393,23 @@ export class Matchmaker {
     return best;
   }
 
+  /** Turns ⭐ Priority on or off for a session (and tries to match it right away). */
+  setPriority(id: string, on: boolean): Pairing | null {
+    const session = this.sessions.get(id);
+    if (!session) return null;
+    session.priority = on;
+    if (!on || session.partnerId || !this.queue.includes(id)) return null;
+    const candidateId = this.pickCandidate(session);
+    if (!candidateId) return null;
+    this.dequeue(candidateId);
+    this.dequeue(id);
+    return this.pair(this.sessions.get(candidateId)!, session, false);
+  }
+
   private pair(a: Session, b: Session, reconnected: boolean): Pairing {
     const matchId = randomUUID();
+    a.priority = false;
+    b.priority = false;
     a.partnerId = b.id;
     b.partnerId = a.id;
     a.matchId = matchId;
@@ -415,7 +434,8 @@ export class Matchmaker {
 const wants = (a: Session, b: Session) =>
   (a.filters.gender === 'any' || a.filters.gender === b.gender) &&
   (a.filters.country === 'any' || (!b.hideCountry && b.country === a.filters.country)) &&
-  (!a.filters.verifiedOnly || b.verified);
+  (!a.filters.verifiedOnly || b.verified) &&
+  (!a.priority || b.verified);
 
 const isBlocked = (a: Session, b: Session) => a.blocked.has(b.deviceId) || b.blocked.has(a.deviceId);
 

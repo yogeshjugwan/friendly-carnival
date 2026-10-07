@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { NO_FILTERS, TOPICS } from '@rc/shared';
+import { NO_FILTERS, PRIORITY_MATCH, TOPICS } from '@rc/shared';
 import { useAuth } from '@/lib/auth';
 import { countryName, flagEmoji, GENDER_ICON, GENDER_LABEL } from '@/lib/format';
 import { loadSettings } from '@/lib/settings';
@@ -13,7 +13,7 @@ import { VideoIcon } from './icons';
 import { CallControls, ReactionLayer } from './CallControls';
 import { FilterBar } from './FilterBar';
 import { LimitModal } from './LimitModal';
-import { CoinChip, GiftButton, GiftLayer } from './Coins';
+import { CoinChip, GiftButton, GiftLayer, spendError } from './Coins';
 import { FriendButton, FriendsPanel } from './Friends';
 import { IncomingCallModal, OnlineUsersPanel } from './OnlineUsers';
 import { PlusUpsell } from './PlusUpsell';
@@ -100,6 +100,30 @@ function Searching({ call }: { call: RandomCall }) {
         <p className="text-xs text-slate-500 sm:text-sm">Your partner left. Finding someone new.</p>
       )}
       {call.searchingLong && <WidenSearch />}
+      {call.status === 'searching' && <PriorityButton call={call} />}
+    </div>
+  );
+}
+
+/** ⭐ Pay a few coins to meet a verified person next. */
+function PriorityButton({ call }: { call: RandomCall }) {
+  const { user } = useAuth();
+  const [error, setError] = useState<string | null>(null);
+  if (!user) return null;
+  if (call.priorityOn) return <p className="text-xs text-amber-200">⭐ Looking for a ✓ Verified person for you…</p>;
+  return (
+    <div className="pointer-events-auto mt-1 flex flex-col items-center">
+      <button
+        onClick={async () => {
+          setError(null);
+          const r = await call.buyPriority();
+          setError(spendError(r));
+        }}
+        className="rounded-full bg-amber-400/90 px-3 py-1 text-xs font-semibold text-black hover:bg-amber-300"
+      >
+        ⭐ Meet a ✓ Verified person next · {PRIORITY_MATCH.coins} 🪙
+      </button>
+      {error && <p className="mt-1 text-xs text-red-300">{error}</p>}
     </div>
   );
 }

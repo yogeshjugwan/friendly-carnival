@@ -310,6 +310,8 @@ export interface ClientToServerEvents {
   'users:list': (ack: (users: ActiveUser[] | null) => void) => void;
   /** Answer to guard:challenge. */
   'guard:proof': (nonce: string) => void;
+  /** Spend coins so the next match is a verified person. */
+  'match:priority': (ack: (r: SpendResult) => void) => void;
   /** Group rooms: how many people are in each topic's rooms right now. */
   'rooms:list': (ack: (counts: Record<string, number>) => void) => void;
   'room:join': (topic: string, mode: 'video' | 'voice', gender: Gender, ack: (r: RoomJoinResult) => void) => void;
@@ -364,6 +366,8 @@ export interface ServerToClientEvents {
   'room:member-left': (id: string) => void;
   'room:signal': (s: { from: string; msg: SignalMessage }) => void;
   'room:chat': (c: RoomChat) => void;
+  /** No verified person turned up in time: coins refunded. */
+  'priority:expired': () => void;
   /** A friend messaged you. */
   'dm:new': (dm: { friendId: string; message: DirectMessage }) => void;
   /** The current mini-game as this person sees it; null when it ended. */
@@ -613,6 +617,9 @@ export function availableGifts(now = Date.now()) {
   return GIFTS.filter((g) => !g.season || inSeason(g.season));
 }
 export const GIFT_SHARE = 0.5;
+
+/** ⭐ Priority match: your next match is a ✓ Verified person, ahead of the queue (refunded if none in time). */
+export const PRIORITY_MATCH = { coins: 25, waitMinutes: 2 } as const;
 
 /** Boost: matched first for a while. */
 export const BOOST = { coins: 100, minutes: 30 } as const;

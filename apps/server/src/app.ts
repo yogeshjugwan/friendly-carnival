@@ -29,6 +29,7 @@ import {
   type CallAnswer,
   type CallRequestResult,
   type SpendResult,
+  type AgeHold,
   type DirectMessage,
   type RoomMember,
   type UserProfile,
@@ -53,7 +54,7 @@ import { isPlusActive, MAX_FRIENDS, MemoryAccountStore, NO_PLUS, type StoredMess
 import type { BillingProvider } from './billing.ts';
 import { createBillingHandler } from './billing-http.ts';
 import { handleAdmin } from './admin.ts';
-import { createAuthHandler } from './auth.ts';
+import { ageHoldOf, createAuthHandler } from './auth.ts';
 import { createGoogleHandler, type GoogleConfig } from './google.ts';
 import { MatchLimits, type LimitOptions } from './limits.ts';
 import { TurnCredentials, type TurnConfig } from './turn.ts';
@@ -76,6 +77,8 @@ interface SocketData {
   verified?: boolean;
   /** No invite reward can be due any more (checked on matches). */
   referralDone?: boolean;
+  /** Chatting paused: under 18, or an underage report awaiting ✓ verification. */
+  ageHold?: AgeHold;
   /** 0–100; below LOW_TRUST means the shadow pool. */
   trust?: number;
   /** Passed the proof-of-work check (a real browser, not a script). */
@@ -190,6 +193,18 @@ export function createApp(opts: AppOptions = {}): App {
 
   const push = new PushService(accounts, opts.webUrl ?? config.webUrl, opts.pushSender);
 
+  /** Updates live sessions after an age hold changes; a new hold ends their chat. */
+  const setAgeHold = (userId: string, hold: AgeHold) => {
+    for (const s of io.sockets.sockets.values()) {
+      if (s.data.userId !== userId) continue;
+      s.data.ageHold = hold;
+      if (!hold) continue;
+      matchmaker.leaveQueue(s.id);
+      notifyLeft(matchmaker.endMatch(s.id)?.id, 'stop');
+      s.emit('age:hold', hold);
+    }
+  };
+
   /** Users who had a chat today (IST), for daily rewards. */
   const chatDay = new Map<string, string>();
   const handleAuth = createAuthHandler({
@@ -197,6 +212,7 @@ export function createApp(opts: AppOptions = {}): App {
     chattedToday: (userId) => chatDay.get(userId) === dayOf(Date.now()),
     onCoins: (userId) => void pushWallet(userId),
     onPlusChanged: (userId) => onPlusChanged(userId),
+    onAgeChanged: (userId, hold) => setAgeHold(userId, hold),
     accounts,
     mailer: opts.mailer ?? new ConsoleMailer(),
     webUrl: opts.webUrl ?? config.webUrl,
@@ -278,6 +294,14 @@ export function createApp(opts: AppOptions = {}): App {
           onPlusChanged,
           onVerifiedChanged: (userId, verified) => {
             matchmaker.setVerified(userId, verified);
+            // Passing verification clears an underage review.
+            if (verified) {
+              void accounts
+                .setAgeReview(userId, false)
+                .then(() => accounts.userById(userId))
+                .then((u) => u && setAgeHold(userId, ageHoldOf(u)))
+                .catch((e) => console.error('[age]', e));
+            }
             if (verified) {
               void push.send(userId, { title: '✓ You are verified', body: 'Your blue badge is live — people now see you are real.', url: '/', tag: 'verified' });
             }
@@ -370,6 +394,7 @@ export function createApp(opts: AppOptions = {}): App {
         socket.data.userId = user?.id ?? null;
         socket.data.accountCreatedAt = user?.createdAt ?? null;
         socket.data.verified = !!user?.verifiedAt;
+        socket.data.ageHold = user ? ageHoldOf(user) : null;
         socket.data.plus = !!user && isPlusActive(user.plus);
         socket.data.boostUntil = user?.boostUntil ?? null;
         return Promise.all([
@@ -721,6 +746,10 @@ export function createApp(opts: AppOptions = {}): App {
       const ban = socket.data.ban;
       if (ban && ban.expiresAt !== null && ban.expiresAt <= Date.now()) socket.data.ban = null;
       if (socket.data.ban) socket.emit('banned', socket.data.ban);
+      if (!socket.data.ban && socket.data.ageHold) {
+        socket.emit('age:hold', socket.data.ageHold);
+        return true;
+      }
       return !!socket.data.ban;
     };
 
@@ -1332,6 +1361,14 @@ export function createApp(opts: AppOptions = {}): App {
         await safety.report({ deviceId, ipHash, userId }, target, report);
         analytics.count('reports');
         if (targetId) void refreshTrust(targetId).catch(() => undefined);
+        // Reported as underage: pause their account until they pass ✓ verification.
+        if (report.reason === 'underage' && target.userId) {
+          const t = await accounts.userById(target.userId);
+          if (t && !t.verifiedAt) {
+            await accounts.setAgeReview(t.id, true);
+            setAgeHold(t.id, 'review');
+          }
+        }
         // People you report are never matched with you again.
         if (report.source === 'user') {
           await store.addBlock(deviceId, target.deviceId);

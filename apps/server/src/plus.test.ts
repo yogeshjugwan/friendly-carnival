@@ -137,7 +137,7 @@ describe('Plus over HTTP and sockets', () => {
   const me = async (token: string) => (await fetch(url + '/auth/me', { headers: { authorization: `Bearer ${token}` } })).json();
   const signup = async () => {
     const email = `p-${randomUUID().slice(0, 8)}@example.com`;
-    const { token, user } = await (await post('/auth/signup', { email, password: 'plus password' })).json();
+    const { token, user } = await (await post('/auth/signup', { email, password: 'plus password', birthDate: '1995-05-05' })).json();
     return { email, token: token as string, userId: user.id as string };
   };
 

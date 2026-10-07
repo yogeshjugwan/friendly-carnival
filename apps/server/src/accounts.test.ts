@@ -105,11 +105,11 @@ describe('auth HTTP API and sockets', () => {
     assert.equal((await post('/auth/signup', { email, password: 'short' })).status, 400);
     assert.equal((await post('/auth/signup', { email: 'not-an-email', password: 'long enough' })).status, 400);
 
-    const signup = await post('/auth/signup', { email, password: 'first password' });
+    const signup = await post('/auth/signup', { email, password: 'first password', birthDate: '1995-05-05' });
     assert.equal(signup.status, 201);
     const { token, user } = await signup.json();
     assert.equal(user.emailVerified, false);
-    assert.equal((await post('/auth/signup', { email: email.toUpperCase(), password: 'first password' })).status, 409);
+    assert.equal((await post('/auth/signup', { email: email.toUpperCase(), password: 'first password', birthDate: '1995-05-05' })).status, 409);
 
     const link = mailer.sent.at(-1)!;
     assert.match(link.text, /^Welcome/);
@@ -123,7 +123,7 @@ describe('auth HTTP API and sockets', () => {
 
     assert.equal((await post('/auth/login', { email, password: 'nope nope' })).status, 401);
     assert.equal((await post('/auth/login', { email: 'ghost@example.com', password: 'nope nope' })).status, 401);
-    const login = await post('/auth/login', { email, password: 'first password' });
+    const login = await post('/auth/login', { email, password: 'first password', birthDate: '1995-05-05' });
     assert.equal(login.status, 200);
     const session2 = (await login.json()).token;
 
@@ -154,7 +154,7 @@ describe('auth HTTP API and sockets', () => {
 
   test('forgot password: same reply for unknown emails, reset signs out everywhere', async () => {
     const email = `reset-${randomUUID().slice(0, 6)}@example.com`;
-    const { token } = await (await post('/auth/signup', { email, password: 'old password' })).json();
+    const { token } = await (await post('/auth/signup', { email, password: 'old password', birthDate: '1995-05-05' })).json();
     const before = mailer.sent.length;
     assert.equal((await post('/auth/forgot', { email: 'nobody@example.com' })).status, 200);
     assert.equal(mailer.sent.length, before, 'no email for unknown address');
@@ -170,7 +170,7 @@ describe('auth HTTP API and sockets', () => {
 
   test('a ban on an account follows the user to a new device; hidden country is hidden', async () => {
     const email = `ban-${randomUUID().slice(0, 6)}@example.com`;
-    const { token } = await (await post('/auth/signup', { email, password: 'some password' })).json();
+    const { token } = await (await post('/auth/signup', { email, password: 'some password', birthDate: '1995-05-05' })).json();
     type C = Socket<ServerToClientEvents, ClientToServerEvents>;
     const sock = async (auth: object): Promise<C> => {
       const c: C = connect(url, { transports: ['websocket'], forceNew: true, auth });

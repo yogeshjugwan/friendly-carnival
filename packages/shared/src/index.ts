@@ -368,6 +368,8 @@ export interface ServerToClientEvents {
   'room:chat': (c: RoomChat) => void;
   /** No verified person turned up in time: coins refunded. */
   'priority:expired': () => void;
+  /** You can't chat right now: under 18, or an age review (verify to continue). */
+  'age:hold': (hold: Exclude<AgeHold, null>) => void;
   /** A friend messaged you. */
   'dm:new': (dm: { friendId: string; message: DirectMessage }) => void;
   /** The current mini-game as this person sees it; null when it ended. */
@@ -781,6 +783,26 @@ export interface PublicUser {
   verification: VerificationStatus;
   /** A free Plus day can still be started (once per account, confirmed email). */
   trialAvailable: boolean;
+  /** Date of birth given (asked once before chatting). */
+  birthDateSet: boolean;
+  /** Why chatting is on hold: under 18, or an underage report awaiting ✓ verification. */
+  ageHold: AgeHold;
+}
+
+export const MIN_AGE = 18;
+export type AgeHold = 'under-18' | 'review' | null;
+
+/** Whole years between a 'YYYY-MM-DD' birth date and now; null if the date is invalid. */
+export function ageFrom(birthDate: string, now = new Date()): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(birthDate);
+  if (!m) return null;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const date = new Date(Date.UTC(y, mo - 1, d));
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== mo - 1 || date.getUTCDate() !== d) return null;
+  if (y < 1900 || date.getTime() > now.getTime()) return null;
+  let age = now.getUTCFullYear() - y;
+  if (now.getUTCMonth() + 1 < mo || (now.getUTCMonth() + 1 === mo && now.getUTCDate() < d)) age--;
+  return age;
 }
 
 /** Length of the one-time free Plus trial. */

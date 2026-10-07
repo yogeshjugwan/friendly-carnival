@@ -8,6 +8,7 @@ import { loadSettings, onSettingsChange } from '@/lib/settings';
 import { SiteFooter, SiteHeader } from './SiteHeader';
 import { InstallButton } from './Pwa';
 import { DailyRewardCard } from './DailyReward';
+import { AgeHoldNotice } from './AgeGate';
 
 interface Props {
   online: number | null;
@@ -83,129 +84,132 @@ export function Landing({ online, onStart }: Props) {
           </ul>
         </div>
 
-        <form
-          className="rounded-2xl bg-white p-6 text-ink shadow-xl"
-          onSubmit={(e) => {
-            e.preventDefault();
-            begin('video');
-          }}
-        >
-          <label className="text-sm font-medium text-slate-600" htmlFor="gender">
-            I am
-          </label>
-          <select
-            id="gender"
-            value={gender}
-            onChange={(e) => setGender(e.target.value as Gender)}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base"
+        <div className="flex flex-col gap-3">
+          <AgeHoldNotice />
+          <form
+            className="rounded-2xl bg-white p-6 text-ink shadow-xl"
+            onSubmit={(e) => {
+              e.preventDefault();
+              begin('video');
+            }}
           >
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-            <option value="couple">We are a couple</option>
-          </select>
+            <label className="text-sm font-medium text-slate-600" htmlFor="gender">
+              I am
+            </label>
+            <select
+              id="gender"
+              value={gender}
+              onChange={(e) => setGender(e.target.value as Gender)}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base"
+            >
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="couple">We are a couple</option>
+            </select>
 
-          <label className="mt-4 block text-sm font-medium text-slate-600" htmlFor="interests">
-            Interests <span className="font-normal text-slate-400">(optional, comma separated)</span>
-          </label>
-          <input
-            id="interests"
-            value={interestText}
-            onChange={(e) => setInterestText(e.target.value)}
-            placeholder="music, travel, cricket"
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base"
-          />
+            <label className="mt-4 block text-sm font-medium text-slate-600" htmlFor="interests">
+              Interests <span className="font-normal text-slate-400">(optional, comma separated)</span>
+            </label>
+            <input
+              id="interests"
+              value={interestText}
+              onChange={(e) => setInterestText(e.target.value)}
+              placeholder="music, travel, cricket"
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base"
+            />
 
-          <p className="mt-4 text-sm font-medium text-slate-600">
-            Topic <span className="font-normal text-slate-400">(optional — meet people into the same thing)</span>
-          </p>
-          <div className="mt-1.5 flex flex-wrap gap-1.5" role="radiogroup" aria-label="Topic">
-            {TOPICS.map((t) => {
-              const on = topic === t.id;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={on}
-                  onClick={() => pickTopic(on ? null : t.id)}
-                  className={`rounded-full border px-3 py-1 text-sm transition ${
-                    on ? 'border-brand bg-brand text-white' : 'border-slate-300 text-slate-700 hover:border-brand'
-                  }`}
-                >
-                  {t.emoji} {t.label}
-                </button>
-              );
-            })}
-          </div>
+            <p className="mt-4 text-sm font-medium text-slate-600">
+              Topic <span className="font-normal text-slate-400">(optional — meet people into the same thing)</span>
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5" role="radiogroup" aria-label="Topic">
+              {TOPICS.map((t) => {
+                const on = topic === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => pickTopic(on ? null : t.id)}
+                    className={`rounded-full border px-3 py-1 text-sm transition ${
+                      on ? 'border-brand bg-brand text-white' : 'border-slate-300 text-slate-700 hover:border-brand'
+                    }`}
+                  >
+                    {t.emoji} {t.label}
+                  </button>
+                );
+              })}
+            </div>
 
-          <label className="mt-5 flex items-start gap-2 text-sm text-slate-600">
-            <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 h-4 w-4" />
-            <span>
-              I confirm I am 18 or older and agree to the{' '}
-              <Link href="/terms" className="text-brand underline" target="_blank">
-                Terms of Use
-              </Link>{' '}
-              and{' '}
-              <Link href="/guidelines" className="text-brand underline" target="_blank">
-                Community Guidelines
-              </Link>
-              .
-            </span>
-          </label>
+            <label className="mt-5 flex items-start gap-2 text-sm text-slate-600">
+              <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 h-4 w-4" />
+              <span>
+                I confirm I am 18 or older and agree to the{' '}
+                <Link href="/terms" className="text-brand underline" target="_blank">
+                  Terms of Use
+                </Link>{' '}
+                and{' '}
+                <Link href="/guidelines" className="text-brand underline" target="_blank">
+                  Community Guidelines
+                </Link>
+                .
+              </span>
+            </label>
 
-          <button
-            type="submit"
-            disabled={!agreed}
-            className="mt-5 w-full rounded-lg bg-brand py-3 text-lg font-semibold text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Start Chat
-          </button>
-          {user && friendOnline && (
-            <p className="mt-3 text-center text-sm font-medium text-pink-600">❤️ A friend is online — tick the box above, then call them.</p>
-          )}
-          {user && (
+            <button
+              type="submit"
+              disabled={!agreed}
+              className="mt-5 w-full rounded-lg bg-brand py-3 text-lg font-semibold text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Start Chat
+            </button>
+            {user && friendOnline && (
+              <p className="mt-3 text-center text-sm font-medium text-pink-600">❤️ A friend is online — tick the box above, then call them.</p>
+            )}
+            {user && (
+              <button
+                type="button"
+                disabled={!agreed}
+                onClick={() => begin('video', 'friends')}
+                className={`mt-2 w-full rounded-lg border-2 border-pink-300 ${friendOnline ? 'ring-4 ring-pink-300/60' : ''} py-2.5 font-semibold text-pink-600 transition hover:bg-pink-50 disabled:cursor-not-allowed disabled:opacity-50`}
+              >
+                ❤️ Call a friend
+              </button>
+            )}
+            {isPlus && (
+              <button
+                type="button"
+                disabled={!agreed}
+                onClick={() => begin('video', 'online')}
+                className="mt-2 w-full rounded-lg border-2 border-amber-400 py-2.5 font-semibold text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                👥 See who&apos;s online <span className="text-xs font-medium">👑 Plus</span>
+              </button>
+            )}
             <button
               type="button"
               disabled={!agreed}
-              onClick={() => begin('video', 'friends')}
-              className={`mt-2 w-full rounded-lg border-2 border-pink-300 ${friendOnline ? 'ring-4 ring-pink-300/60' : ''} py-2.5 font-semibold text-pink-600 transition hover:bg-pink-50 disabled:cursor-not-allowed disabled:opacity-50`}
+              onClick={() => begin('voice')}
+              className="mt-2 w-full rounded-lg border-2 border-emerald-300 py-2.5 font-semibold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              ❤️ Call a friend
+              🎙️ Voice only — no camera
             </button>
-          )}
-          {isPlus && (
+            <Link
+              href="/rooms"
+              className="mt-2 block w-full rounded-lg border-2 border-violet-300 py-2.5 text-center font-semibold text-violet-700 transition hover:bg-violet-50"
+            >
+              👥 Group rooms — up to 4 people
+            </Link>
             <button
               type="button"
               disabled={!agreed}
-              onClick={() => begin('video', 'online')}
-              className="mt-2 w-full rounded-lg border-2 border-amber-400 py-2.5 font-semibold text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => begin('text')}
+              className="mt-2 w-full rounded-lg py-2 text-sm font-medium text-brand hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              👥 See who&apos;s online <span className="text-xs font-medium">👑 Plus</span>
+              Don&apos;t want your camera on? Start Text Chat
             </button>
-          )}
-          <button
-            type="button"
-            disabled={!agreed}
-            onClick={() => begin('voice')}
-            className="mt-2 w-full rounded-lg border-2 border-emerald-300 py-2.5 font-semibold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            🎙️ Voice only — no camera
-          </button>
-          <Link
-            href="/rooms"
-            className="mt-2 block w-full rounded-lg border-2 border-violet-300 py-2.5 text-center font-semibold text-violet-700 transition hover:bg-violet-50"
-          >
-            👥 Group rooms — up to 4 people
-          </Link>
-          <button
-            type="button"
-            disabled={!agreed}
-            onClick={() => begin('text')}
-            className="mt-2 w-full rounded-lg py-2 text-sm font-medium text-brand hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Don&apos;t want your camera on? Start Text Chat
-          </button>
-        </form>
+          </form>
+        </div>
         {user && <DailyRewardCard className="mt-4" />}
         <InstallButton className="mt-4 text-center" />
       </section>

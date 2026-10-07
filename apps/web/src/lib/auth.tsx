@@ -46,7 +46,7 @@ interface AuthState {
   token: string | null;
   /** True until the stored session has been checked. */
   loading: boolean;
-  signup: (email: string, password: string) => Promise<void>;
+  signup: (email: string, password: string, birthDate: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   /** Signs in with a session token from Google sign-in; `isNew` keeps the guest's preferences. */
   adoptSession: (token: string, isNew: boolean) => Promise<void>;
@@ -127,8 +127,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       token,
       loading,
-      signup: async (email, password) => {
-        const res = await api<{ token: string; user: PublicUser }>('/auth/signup', { email, password });
+      signup: async (email, password, birthDate) => {
+        const res = await api<{ token: string; user: PublicUser }>('/auth/signup', { email, password, birthDate });
         // Keep the preferences the guest already chose.
         const local = loadSettings();
         const merged = await api<PublicUser>('/auth/settings', { settings: local }, res.token).catch(() => res.user);

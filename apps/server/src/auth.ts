@@ -8,6 +8,9 @@ import {
   type PublicUser,
   streakReward,
   PLUS_TRIAL_HOURS,
+  ageFrom,
+  MIN_AGE,
+  type AgeHold,
   type DailyStatus,
   type ReferralInfo,
   type VerifyGestureId,
@@ -34,6 +37,8 @@ export interface AuthDeps {
   onCoins?: (userId: string) => void;
   /** Plus changed: refresh the user's live sessions. */
   onPlusChanged?: (userId: string) => void;
+  /** Age hold changed: refresh the user's live sessions. */
+  onAgeChanged?: (userId: string, hold: AgeHold) => void;
 }
 
 /** An invite link can be attached up to a day after sign-up. */
@@ -54,7 +59,17 @@ export const publicUser = (u: User): PublicUser => ({
   verification: u.verifiedAt ? 'verified' : (u.verifyStatus ?? 'none'),
   // Never had Plus in any form (paid, gift or trial).
   trialAvailable: !u.trialUsed && !u.plus.status && !u.stripeCustomerId,
+  birthDateSet: !!u.birthDate,
+  ageHold: ageHoldOf(u),
 });
+
+/** Chatting on hold: a stated age under 18, or an underage report until ✓ verified. */
+export const ageHoldOf = (u: Pick<User, 'birthDate' | 'ageReview' | 'verifiedAt'>): AgeHold => {
+  const age = u.birthDate ? ageFrom(u.birthDate) : null;
+  if (age !== null && age < MIN_AGE) return 'under-18';
+  if (u.ageReview && !u.verifiedAt) return 'review';
+  return null;
+};
 
 const passwordProblem = (p: unknown): string | null => {
   if (typeof p !== 'string') return 'Password is required';
@@ -118,12 +133,17 @@ export function createAuthHandler(deps: AuthDeps) {
       }
 
       if (route === 'POST /auth/signup') {
-        const { email, password } = await readJson(req);
+        const { email, password, birthDate } = await readJson(req);
         if (typeof email !== 'string' || !EMAIL.test(email.trim())) return fail(400, 'Enter a valid email address');
+        const age = typeof birthDate === 'string' ? ageFrom(birthDate) : null;
+        if (age === null) return fail(400, 'Enter your date of birth');
+        if (age < MIN_AGE) return fail(403, `You must be ${MIN_AGE} or older to use randomCall`);
         const problem = passwordProblem(password);
         if (problem) return fail(400, problem);
         const user = await accounts.createUser(email, await hashPassword(password as string));
         if (user === 'exists') return fail(409, 'An account with this email already exists');
+        await accounts.setBirthDate(user.id, birthDate as string);
+        user.birthDate = birthDate as string;
         await sendVerification(user).catch((e) => console.error('[mail]', e));
         const token = await accounts.createToken(user.id, 'session');
         return sendJson(res, 201, { token, user: publicUser(user) }), true;
@@ -217,6 +237,18 @@ export function createAuthHandler(deps: AuthDeps) {
         const mine = await accounts.pushSubscriptions(user.id);
         if (mine.some((s) => s.endpoint === endpoint)) await accounts.removePushSubscription(endpoint);
         return sendJson(res, 200, { ok: true }), true;
+      }
+
+      // Accounts made without one (e.g. Google sign-in) give their date of birth once.
+      if (route === 'POST /auth/birthdate') {
+        const { birthDate } = await readJson(req);
+        const age = typeof birthDate === 'string' ? ageFrom(birthDate) : null;
+        if (age === null) return fail(400, 'Enter a valid date of birth');
+        if (user.birthDate) return fail(409, 'Your date of birth is already set');
+        await accounts.setBirthDate(user.id, birthDate as string);
+        const fresh = { ...user, birthDate: birthDate as string };
+        deps.onAgeChanged?.(user.id, ageHoldOf(fresh));
+        return sendJson(res, 200, publicUser(fresh)), true;
       }
 
       // One free Plus day per account, for people who never had Plus.

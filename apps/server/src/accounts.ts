@@ -75,6 +75,10 @@ export interface User {
   streakLastDay: string | null;
   /** The free Plus trial was used. */
   trialUsed: boolean;
+  /** 'YYYY-MM-DD', or null if not given yet. */
+  birthDate: string | null;
+  /** Reported as underage: chatting paused until ✓ verified. */
+  ageReview: boolean;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -152,6 +156,9 @@ export interface AccountStore {
   unreadCounts(to: string): Promise<Map<string, number>>;
   /** Records a payment once; false if this reference was already recorded. */
   recordPayment(ref: string, userId: string, product: string, amount: number): Promise<boolean>;
+  /** Sets the birth date once; false if one is already stored. */
+  setBirthDate(userId: string, birthDate: string): Promise<boolean>;
+  setAgeReview(userId: string, on: boolean): Promise<void>;
   /** Marks the free trial used; false if it already was. */
   useTrial(userId: string): Promise<boolean>;
   /** Records a daily claim; false if `day` was already claimed. */
@@ -240,6 +247,8 @@ export class MemoryAccountStore implements AccountStore {
       streakDays: 0,
       streakLastDay: null,
       trialUsed: false,
+      birthDate: null,
+      ageReview: false,
     };
     this.users.set(user.id, user);
     return user;
@@ -338,6 +347,18 @@ export class MemoryAccountStore implements AccountStore {
   }
 
   private messages: StoredMessage[] = [];
+
+  async setBirthDate(userId: string, birthDate: string) {
+    const u = this.users.get(userId);
+    if (!u || u.birthDate) return false;
+    u.birthDate = birthDate;
+    return true;
+  }
+
+  async setAgeReview(userId: string, on: boolean) {
+    const u = this.users.get(userId);
+    if (u) u.ageReview = on;
+  }
 
   private payments = new Set<string>();
   async recordPayment(ref: string) {
@@ -536,6 +557,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS ref_code TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_days INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_last_day TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_used BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS birth_date TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS age_review BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_rewarded BOOLEAN NOT NULL DEFAULT FALSE;
 CREATE UNIQUE INDEX IF NOT EXISTS users_ref_code_idx ON users (ref_code);
@@ -604,6 +627,8 @@ const toUser = (r: Record<string, unknown>): User => ({
   streakDays: Number(r.streak_days ?? 0),
   streakLastDay: (r.streak_last_day as string | null) ?? null,
   trialUsed: !!r.trial_used,
+  birthDate: (r.birth_date as string | null) ?? null,
+  ageReview: !!r.age_review,
 });
 
 export class PostgresAccountStore implements AccountStore {
@@ -811,6 +836,15 @@ export class PostgresAccountStore implements AccountStore {
       [userId],
     );
     return !!rowCount;
+  }
+
+  async setBirthDate(userId: string, birthDate: string) {
+    const { rowCount } = await this.pool.query('UPDATE users SET birth_date = $2 WHERE id = $1 AND birth_date IS NULL', [userId, birthDate]);
+    return !!rowCount;
+  }
+
+  async setAgeReview(userId: string, on: boolean) {
+    await this.pool.query('UPDATE users SET age_review = $2 WHERE id = $1', [userId, on]);
   }
 
   async recordPayment(ref: string, userId: string, product: string, amount: number) {

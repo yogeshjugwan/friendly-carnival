@@ -610,6 +610,14 @@ export function useRandomCall() {
       flash('No verified person was free right now — your coins were refunded.');
     };
     socket.on('priority:expired', onPriorityExpired);
+    // Chatting is on hold for this account (age): stop and let the page explain.
+    const onAgeHold = () => {
+      activeRef.current = false;
+      closePeer();
+      setStatus('idle');
+      window.dispatchEvent(new Event(ACCOUNT_CHANGED));
+    };
+    socket.on('age:hold', onAgeHold);
     socket.on('error:message', onError);
     socket.on('banned', onBanned);
     socket.on('report:received', onReported);
@@ -657,6 +665,7 @@ export function useRandomCall() {
       socket.off('chat:rejected', onRejected);
       socket.off('guard:slow-down', onSlowDown);
       socket.off('priority:expired', onPriorityExpired);
+      socket.off('age:hold', onAgeHold);
       socket.off('error:message', onError);
       socket.off('banned', onBanned);
       socket.off('report:received', onReported);

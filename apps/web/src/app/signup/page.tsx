@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { MIN_PASSWORD_LENGTH } from '@rc/shared';
+import { MIN_AGE, MIN_PASSWORD_LENGTH } from '@rc/shared';
 import { AuthCard } from '@/components/SiteHeader';
 import { errorText, Field, FormError, Submit } from '@/components/forms/fields';
 import { Agreement, GoogleSignIn } from '@/components/forms/social';
@@ -21,6 +21,7 @@ export default function SignupPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [birthDate, setBirthDate] = useState('');
   const [adult, setAdult] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +58,7 @@ export default function SignupPage() {
           setBusy(true);
           setError(null);
           try {
-            await signup(email, password);
+            await signup(email, password, birthDate);
             router.push(safeNext() ?? '/settings?welcome=1');
           } catch (err) {
             setError(errorText(err));
@@ -76,6 +77,16 @@ export default function SignupPage() {
           minLength={MIN_PASSWORD_LENGTH}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+        />
+        <Field
+          id="birthDate"
+          label={`Date of birth (you must be ${MIN_AGE}+)`}
+          type="date"
+          autoComplete="bday"
+          required
+          max={new Date().toISOString().slice(0, 10)}
+          value={birthDate}
+          onChange={(e) => setBirthDate(e.target.value)}
         />
         <Agreement adult={adult} terms={terms} onAdult={setAdult} onTerms={setTerms} highlight={highlight} />
         <FormError error={error} />

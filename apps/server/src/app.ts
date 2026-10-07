@@ -46,6 +46,7 @@ import { PushService, type PushSender } from './push.ts';
 import { Guard, looksLikeLink } from './guard.ts';
 import { applyMove, newGame, viewFor, type GameState } from './games.ts';
 import { Rooms, type RoomSeat } from './rooms.ts';
+import { Razorpay } from './razorpay.ts';
 import { RateLimiter } from './http.ts';
 import { isPlusActive, MAX_FRIENDS, MemoryAccountStore, NO_PLUS, type StoredMessage } from './accounts.ts';
 import type { BillingProvider } from './billing.ts';
@@ -135,6 +136,8 @@ export interface AppOptions {
   pushSender?: PushSender;
   /** Require a proof of work before matching (on in production; off in most tests). */
   requireProof?: boolean;
+  /** Razorpay client (tests inject one with a fake fetch); null turns it off. */
+  razorpay?: Razorpay | null;
   /** How long a ⭐ priority match waits for a verified partner before refunding (tests shorten it). */
   priorityWaitMs?: number;
   /** Bot / flood shield (tests pass their own to tune it). */
@@ -240,6 +243,7 @@ export function createApp(opts: AppOptions = {}): App {
     webUrl: opts.webUrl ?? config.webUrl,
     origins,
     onPlusChanged,
+    razorpay: opts.razorpay !== undefined ? opts.razorpay : config.razorpay ? new Razorpay(config.razorpay) : null,
   });
 
   // Every HTTP route: 600 requests per 5 minutes per IP (Stripe webhooks and /health exempt).
@@ -247,7 +251,7 @@ export function createApp(opts: AppOptions = {}): App {
   const http = createServer((req, res) => {
     void (async () => {
       const path = (req.url ?? '').split('?')[0];
-      if (path !== '/health' && path !== '/billing/webhook') {
+      if (path !== '/health' && path !== '/billing/webhook' && path !== '/billing/razorpay/webhook') {
         const key = hashIp(clientIp(req.headers, req.socket.remoteAddress), ipSalt) ?? 'unknown';
         if (!httpLimit.allow(key)) {
           res.writeHead(429, { 'content-type': 'application/json', 'retry-after': '60' });

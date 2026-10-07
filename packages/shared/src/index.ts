@@ -580,6 +580,20 @@ export const COIN_PACKS = [
 ] as const;
 export type CoinPackId = (typeof COIN_PACKS)[number]['id'];
 
+// ---- India: Razorpay (UPI, cards, wallets) in rupees ----
+
+/** Coin packs in paise. */
+export const INR_COIN_PRICES: Record<CoinPackId, number> = { small: 2_900, medium: 14_900, large: 29_900 };
+/** Plus passes: prepaid, no auto-renew. */
+export const PLUS_PASSES: readonly { plan: PlusPlan; paise: number; days: number }[] = [
+  { plan: 'week', paise: 4_900, days: 7 },
+  { plan: 'month', paise: 14_900, days: 30 },
+  { plan: 'halfyear', paise: 69_900, days: 182 },
+];
+/** What can be bought with Razorpay: 'coins:<pack>' or 'plus:<plan>'. */
+export type RazorpayProduct = `coins:${CoinPackId}` | `plus:${PlusPlan}`;
+export const inr = (paise: number) => `₹${(paise / 100).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+
 /** Gifts sent during a call; the receiver gets GIFT_SHARE of the coins. */
 /** A festival window, as month-day ('MM-DD', inclusive; may wrap the new year). */
 export interface GiftSeason {

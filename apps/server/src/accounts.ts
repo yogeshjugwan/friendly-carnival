@@ -35,7 +35,8 @@ export interface StoredPlus {
 export const NO_PLUS: StoredPlus = { status: null, plan: null, until: null, cancelAtPeriodEnd: false, subscriptionId: null };
 
 /** Statuses that keep Plus on until the paid period ends ('past_due' = Stripe retrying a failed payment). */
-const ACTIVE_STATUSES = new Set(['active', 'trialing', 'past_due', 'admin']);
+/** 'pass' = prepaid Plus bought with Razorpay. */
+const ACTIVE_STATUSES = new Set(['active', 'trialing', 'past_due', 'admin', 'pass']);
 
 export const isPlusActive = (plus: StoredPlus, now = Date.now()) =>
   !!plus.status && ACTIVE_STATUSES.has(plus.status) && plus.until !== null && plus.until > now;
@@ -149,6 +150,8 @@ export interface AccountStore {
   markRead(to: string, from: string): Promise<void>;
   /** Unread messages for `to`, by sender. */
   unreadCounts(to: string): Promise<Map<string, number>>;
+  /** Records a payment once; false if this reference was already recorded. */
+  recordPayment(ref: string, userId: string, product: string, amount: number): Promise<boolean>;
   /** Marks the free trial used; false if it already was. */
   useTrial(userId: string): Promise<boolean>;
   /** Records a daily claim; false if `day` was already claimed. */
@@ -335,6 +338,13 @@ export class MemoryAccountStore implements AccountStore {
   }
 
   private messages: StoredMessage[] = [];
+
+  private payments = new Set<string>();
+  async recordPayment(ref: string) {
+    if (this.payments.has(ref)) return false;
+    this.payments.add(ref);
+    return true;
+  }
 
   async useTrial(userId: string) {
     const u = this.users.get(userId);
@@ -546,6 +556,13 @@ CREATE TABLE IF NOT EXISTS friend_messages (
 );
 CREATE INDEX IF NOT EXISTS friend_messages_pair_idx ON friend_messages (from_user, to_user, created_at);
 CREATE INDEX IF NOT EXISTS friend_messages_unread_idx ON friend_messages (to_user, read_at);
+CREATE TABLE IF NOT EXISTS payments (
+  ref TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  product TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  created_at BIGINT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS app_secrets (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -794,6 +811,18 @@ export class PostgresAccountStore implements AccountStore {
       [userId],
     );
     return !!rowCount;
+  }
+
+  async recordPayment(ref: string, userId: string, product: string, amount: number) {
+    try {
+      await this.pool.query('INSERT INTO payments (ref, user_id, product, amount, created_at) VALUES ($1,$2,$3,$4,$5)', [ref, userId, product, amount, Date.now()]);
+      return true;
+    } catch (e) {
+      // Already recorded (unique ref); anything else is a real error.
+      const err = e as { code?: string; message?: string };
+      if (err.code === '23505' || /duplicate|unique/i.test(err.message ?? '')) return false;
+      throw e;
+    }
   }
 
   async useTrial(userId: string) {

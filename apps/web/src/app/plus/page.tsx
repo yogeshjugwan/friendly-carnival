@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { PLUS_TRIAL_HOURS, type PlanPrice, type PlusPlan } from '@rc/shared';
+import { inr, PLUS_PASSES, PLUS_TRIAL_HOURS, type PlanPrice, type PlusPlan } from '@rc/shared';
+import { payWithRazorpay, razorpayEnabled } from '@/lib/razorpay';
 import { PLUS_FEATURES } from '@/components/PlusUpsell';
 import { SiteFooter, SiteHeader } from '@/components/SiteHeader';
 import { errorText, FormError, FormNote } from '@/components/forms/fields';
@@ -37,7 +38,11 @@ export default function PlusPage() {
   const router = useRouter();
   const [plans, setPlans] = useState<PlanPrice[] | null>(null);
   const [enabled, setEnabled] = useState(true);
-  const [busy, setBusy] = useState<PlusPlan | 'portal' | null>(null);
+  const [busy, setBusy] = useState<PlusPlan | 'portal' | `upi:${PlusPlan}` | null>(null);
+  const [upi, setUpi] = useState(false);
+  useEffect(() => {
+    void razorpayEnabled().then(setUpi);
+  }, []);
   const [trialBusy, setTrialBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -169,15 +174,17 @@ export default function PlusPage() {
           <p className="mt-2 text-slate-600">
             {plus.status === 'admin'
               ? `Complimentary Plus until ${new Date(plus.until!).toLocaleDateString()}.`
-              : plus.cancelAtPeriodEnd
-                ? `Your plan ends on ${new Date(plus.until!).toLocaleDateString()} and will not renew.`
-                : `Your ${plus.plan ? PLAN_INFO[plus.plan].name : ''} plan renews on ${new Date(plus.until!).toLocaleDateString()}.`}
+              : plus.status === 'pass'
+                ? `Your Plus pass lasts until ${new Date(plus.until!).toLocaleDateString()} (no auto-renew).`
+                : plus.cancelAtPeriodEnd
+                  ? `Your plan ends on ${new Date(plus.until!).toLocaleDateString()} and will not renew.`
+                  : `Your ${plus.plan ? PLAN_INFO[plus.plan].name : ''} plan renews on ${new Date(plus.until!).toLocaleDateString()}.`}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Link href="/" className="rounded-lg bg-brand px-4 py-2 font-semibold text-white">
               Start chatting
             </Link>
-            {plus.status !== 'admin' && (
+            {plus.status !== 'admin' && plus.status !== 'pass' && (
               <button onClick={manage} disabled={busy === 'portal'} className="rounded-lg bg-slate-200 px-4 py-2 font-semibold disabled:opacity-50">
                 {busy === 'portal' ? 'Opening…' : 'Manage or cancel subscription'}
               </button>
@@ -210,6 +217,42 @@ export default function PlusPage() {
               </div>
             );
           })}
+        </section>
+      )}
+
+      {upi && (!plus?.active || plus.status === 'pass' || plus.status === 'admin') && (
+        <section className="rounded-2xl bg-white p-5 text-ink">
+          <h2 className="text-lg font-semibold">🇮🇳 Plus passes — pay with UPI</h2>
+          <p className="text-sm text-slate-500">One-time payment in rupees (UPI, cards, wallets). No auto-renew{plus?.active ? ' — adds to your current Plus' : ''}.</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            {PLUS_PASSES.map((p) => (
+              <button
+                key={p.plan}
+                disabled={busy !== null}
+                onClick={async () => {
+                  if (!user || !token) return router.push('/signup?next=/plus');
+                  setBusy(`upi:${p.plan}`);
+                  setError(null);
+                  try {
+                    const done = await payWithRazorpay(`plus:${p.plan}`, token, { email: user.email }, `Plus for ${p.days} days`);
+                    if (done === 'paid') {
+                      await refresh();
+                      setNotice(`👑 Plus is on for ${p.days} more days. Enjoy!`);
+                    }
+                  } catch (e) {
+                    setError(errorText(e));
+                  } finally {
+                    setBusy(null);
+                  }
+                }}
+                className="rounded-xl border-2 border-emerald-500 p-3 text-left hover:bg-emerald-50 disabled:opacity-50"
+              >
+                <span className="block font-semibold">{p.days === 7 ? '1 week' : p.days === 30 ? '1 month' : '6 months'}</span>
+                <span className="text-xl font-bold text-emerald-700">{inr(p.paise)}</span>
+                {busy === `upi:${p.plan}` && <span className="ml-2 text-xs text-slate-500">Opening…</span>}
+              </button>
+            ))}
+          </div>
         </section>
       )}
 

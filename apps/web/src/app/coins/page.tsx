@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { availableGifts, COIN_PACKS, MATCHES_FOR_COINS, type CoinPackId, type SpendResult } from '@rc/shared';
+import { availableGifts, COIN_PACKS, INR_COIN_PRICES, inr, MATCHES_FOR_COINS, type CoinPackId, type SpendResult } from '@rc/shared';
+import { payWithRazorpay, razorpayEnabled } from '@/lib/razorpay';
 import { BoostCard } from '@/components/Coins';
 import { SiteFooter, SiteHeader } from '@/components/SiteHeader';
 import { errorText, FormError, FormNote } from '@/components/forms/fields';
@@ -16,7 +17,29 @@ const money = (cents: number) => new Intl.NumberFormat('en-US', { style: 'curren
 export default function CoinsPage() {
   const { user, token, loading, refresh } = useAuth();
   const router = useRouter();
-  const [busy, setBusy] = useState<CoinPackId | null>(null);
+  const [busy, setBusy] = useState<CoinPackId | `upi:${CoinPackId}` | null>(null);
+  const [upi, setUpi] = useState(false);
+  useEffect(() => {
+    void razorpayEnabled().then(setUpi);
+  }, []);
+
+  /** India: Razorpay (UPI, cards, wallets) in rupees. */
+  const buyUpi = async (pack: CoinPackId) => {
+    if (!user || !token) return router.push('/signup?next=/coins');
+    setBusy(`upi:${pack}`);
+    setError(null);
+    try {
+      const done = await payWithRazorpay(`coins:${pack}`, token, { email: user.email }, `${COIN_PACKS.find((p) => p.id === pack)!.coins} coins`);
+      if (done === 'paid') {
+        await refresh();
+        setNotice('Payment received — your coins are in! 🪙');
+      }
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(null);
+    }
+  };
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -95,6 +118,15 @@ export default function CoinsPage() {
             >
               {busy === p.id ? 'Opening checkout…' : `Buy for ${money(p.cents)}`}
             </button>
+            {upi && (
+              <button
+                onClick={() => void buyUpi(p.id)}
+                disabled={busy !== null}
+                className="mt-2 w-full rounded-lg border-2 border-emerald-500 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+              >
+                {busy === `upi:${p.id}` ? 'Opening…' : `Pay ${inr(INR_COIN_PRICES[p.id])} · UPI / card`}
+              </button>
+            )}
           </div>
         ))}
       </section>

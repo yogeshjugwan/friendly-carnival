@@ -1,7 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { COIN_PACKS, PLUS_PLANS, type CoinPackId, type PlusPlan } from '@rc/shared';
-import type { AccountStore } from './accounts.ts';
+import { COIN_PACKS, PLUS_PLANS, type CoinPackId, type PlusPlan, type RazorpayProduct } from '@rc/shared';
+import { isPlusActive, type AccountStore } from './accounts.ts';
 import { applyBillingEvent, type BillingProvider } from './billing.ts';
+import { applyPaidOrder, priceOf, type Razorpay } from './razorpay.ts';
 import { bearer, cors, readJson, sendJson } from './http.ts';
 
 const MAX_WEBHOOK_BODY = 1024 * 1024;
@@ -13,6 +14,8 @@ export interface BillingDeps {
   origins: (string | RegExp)[];
   /** Called after a user's Plus status may have changed (to update live sessions). */
   onPlusChanged: (userId: string) => void;
+  /** India: UPI / cards in rupees. */
+  razorpay?: Razorpay | null;
 }
 
 async function readRaw(req: IncomingMessage): Promise<Buffer> {
@@ -61,8 +64,43 @@ export function createBillingHandler(deps: BillingDeps) {
       }
     }
 
+    // Razorpay webhook (server-to-server): applies paid orders the browser didn't confirm.
+    if (route === 'POST /billing/razorpay/webhook') {
+      const rp = deps.razorpay;
+      if (!rp) return sendJson(res, 503, { error: 'Razorpay is not configured' }), true;
+      let raw: Buffer;
+      try {
+        raw = await readRaw(req);
+      } catch {
+        return sendJson(res, 413, { error: 'Too large' }), true;
+      }
+      const sig = req.headers['x-razorpay-signature'];
+      if (!rp.verifyWebhook(raw, Array.isArray(sig) ? sig[0]! : (sig ?? ''))) return sendJson(res, 400, { error: 'Invalid signature' }), true;
+      try {
+        const event = JSON.parse(raw.toString('utf8')) as {
+          event?: string;
+          payload?: { order?: { entity?: { id: string; amount: number; notes: Record<string, string> } }; payment?: { entity?: { order_id?: string } } };
+        };
+        let order = event.event === 'order.paid' ? event.payload?.order?.entity : undefined;
+        const orderId = event.event === 'payment.captured' ? event.payload?.payment?.entity?.order_id : undefined;
+        if (!order && orderId) order = await rp.fetchOrder(orderId);
+        if (order) {
+          const userId = await applyPaidOrder(order, accounts);
+          if (userId) deps.onPlusChanged(userId);
+        }
+        return sendJson(res, 200, { received: true }), true;
+      } catch (e) {
+        console.error('[razorpay:webhook]', e);
+        return sendJson(res, 500, { error: 'Processing failed' }), true;
+      }
+    }
+
     if (cors(req, res, deps.origins)) return true;
     const fail = (status: number, error: string) => (sendJson(res, status, { error }), true);
+
+    if (route === 'GET /billing/razorpay') {
+      return sendJson(res, 200, deps.razorpay ? { enabled: true, keyId: deps.razorpay.cfg.keyId } : { enabled: false }), true;
+    }
 
     try {
       if (route === 'GET /billing/plans') {
@@ -73,6 +111,32 @@ export function createBillingHandler(deps: BillingDeps) {
       const token = bearer(req);
       const user = token ? await accounts.useToken(token, 'session') : null;
       if (!user) return fail(401, 'Please log in');
+
+      if (route === 'POST /billing/razorpay/order') {
+        const rp = deps.razorpay;
+        if (!rp) return fail(503, 'UPI payments are not set up yet');
+        const { product } = await readJson(req);
+        if (typeof product !== 'string' || !priceOf(product)) return fail(400, 'Unknown product');
+        if (product.startsWith('plus:') && ['active', 'trialing', 'past_due'].includes(user.plus.status ?? '') && isPlusActive(user.plus)) {
+          return fail(409, 'You already have a Plus subscription');
+        }
+        const order = await rp.createOrder(user.id, product as RazorpayProduct);
+        return sendJson(res, 200, { orderId: order.id, amount: order.amount, currency: order.currency, keyId: rp.cfg.keyId }), true;
+      }
+
+      if (route === 'POST /billing/razorpay/verify') {
+        const rp = deps.razorpay;
+        if (!rp) return fail(503, 'UPI payments are not set up yet');
+        const { orderId, paymentId, signature } = await readJson(req);
+        if (typeof orderId !== 'string' || typeof paymentId !== 'string' || typeof signature !== 'string') return fail(400, 'Invalid request');
+        if (!rp.verifyPayment(orderId, paymentId, signature)) return fail(400, 'Payment could not be verified');
+        const order = await rp.fetchOrder(orderId);
+        if (order.notes?.userId !== user.id) return fail(403, 'This payment belongs to another account');
+        const applied = await applyPaidOrder(order, accounts);
+        if (applied) deps.onPlusChanged(applied);
+        return sendJson(res, 200, { ok: true }), true;
+      }
+
       if (!billing) return fail(503, 'Payments are not set up yet');
 
       if (route === 'POST /billing/checkout') {

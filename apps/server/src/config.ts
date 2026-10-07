@@ -40,6 +40,11 @@ export const config = {
   /** https://resend.com API key; without it emails are printed to the log. */
   resendApiKey: env.RESEND_API_KEY || undefined,
   mailFrom: env.MAIL_FROM || 'randomCall <onboarding@resend.dev>',
+  /** Razorpay (India: UPI, cards, wallets in ₹); off unless the key id, key secret and webhook secret are set. */
+  razorpay:
+    env.RAZORPAY_KEY_ID && env.RAZORPAY_KEY_SECRET && env.RAZORPAY_WEBHOOK_SECRET
+      ? { keyId: env.RAZORPAY_KEY_ID.trim(), keySecret: env.RAZORPAY_KEY_SECRET.trim(), webhookSecret: env.RAZORPAY_WEBHOOK_SECRET.trim() }
+      : null,
   /** Stripe for Plus; billing is disabled unless the key, webhook secret and all 3 prices are set. */
   stripe:
     env.STRIPE_SECRET_KEY && env.STRIPE_WEBHOOK_SECRET && env.STRIPE_PRICE_WEEK && env.STRIPE_PRICE_MONTH && env.STRIPE_PRICE_HALFYEAR

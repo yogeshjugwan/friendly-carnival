@@ -30,7 +30,9 @@ interface Props {
 }
 
 /** A message from the stranger, with an on-device "Translate". */
-function TheirMessage({ text, bubble, muted, auto }: { text: string; bubble: string; muted: string; auto: boolean }) {
+const clock = (at: number) => new Date(at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+
+function TheirMessage({ text, at, bubble, muted, auto }: { text: string; at: number; bubble: string; muted: string; auto: boolean }) {
   const { t: tr } = useI18n();
   const [result, setResult] = useState<Translation | 'loading' | 'failed' | undefined>(undefined);
   const supported = translationSupported();
@@ -45,9 +47,10 @@ function TheirMessage({ text, bubble, muted, auto }: { text: string; bubble: str
   const translated = result && typeof result === 'object' && 'text' in result ? result : null;
   return (
     <div className="flex max-w-[80%] flex-col items-start">
-      <p className={`whitespace-pre-wrap break-words rounded-2xl px-3 py-1.5 text-sm ${bubble}`}>
+      <p className={`whitespace-pre-wrap break-words rounded-lg px-2.5 py-1.5 text-sm ${bubble}`}>
         <span className="sr-only">{tr('chat.stranger')}: </span>
         {translated ? translated.text : text}
+        <span className={`float-right ml-2 mt-1 translate-y-0.5 text-[10px] ${muted}`}>{clock(at)}</span>
       </p>
       {supported && (
         <button
@@ -128,26 +131,28 @@ export function ChatPanel({
 
   const t = meet
     ? {
-        section: 'bg-[#202124] text-slate-100',
-        system: 'text-slate-400',
-        mine: 'bg-brand text-white',
-        theirs: 'bg-[#3c4043] text-slate-100',
+        // WhatsApp dark
+        section: 'bg-[#0b141a] text-[#e9edef]',
+        system: 'text-[#8696a0]',
+        mine: 'bg-[#005c4b] text-[#e9edef] rounded-tr-none',
+        theirs: 'bg-[#202c33] text-[#e9edef] rounded-tl-none',
         footer: 'p-3',
         emojiBox: 'border-slate-700 bg-[#2a2b2e]',
         emojiBtn: 'hover:bg-white/10',
         input:
-          'min-w-0 flex-1 rounded-full border border-slate-600 bg-transparent py-2.5 pl-4 pr-2 text-base text-slate-100 placeholder:text-slate-400 focus:border-sky-300 focus:outline-none disabled:opacity-50',
+          'min-w-0 flex-1 rounded-lg bg-[#2a3942] py-2.5 pl-4 pr-2 text-base text-[#e9edef] placeholder:text-[#8696a0] focus:outline-none disabled:opacity-50',
         icon: 'text-slate-300 hover:bg-white/10',
       }
     : {
-        section: 'bg-white text-ink',
-        system: 'text-slate-500',
-        mine: 'bg-brand text-white',
-        theirs: 'bg-slate-100',
+        // WhatsApp light
+        section: 'bg-[#efeae2] text-[#111b21]',
+        system: 'text-[#667781]',
+        mine: 'bg-[#d9fdd3] text-[#111b21] shadow-sm rounded-tr-none',
+        theirs: 'bg-white text-[#111b21] shadow-sm rounded-tl-none',
         footer: 'border-t border-slate-200 p-2',
         emojiBox: 'border-slate-200 bg-white',
         emojiBtn: 'hover:bg-slate-100',
-        input: 'min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-base disabled:bg-slate-50',
+        input: 'min-w-0 flex-1 rounded-lg bg-white px-3 py-2.5 text-base shadow-sm focus:outline-none disabled:bg-slate-50',
         icon: 'hover:bg-slate-100',
       };
 
@@ -193,18 +198,23 @@ export function ChatPanel({
       <div ref={listRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3" aria-live="polite">
         {messages.map((m) =>
           m.from === 'system' ? (
-            <p key={m.id} className={`text-center text-xs ${t.system}`}>
-              {m.text}
+            <p key={m.id} className="text-center">
+              <span className={`inline-block rounded-lg px-3 py-1 text-xs shadow-sm ${meet ? 'bg-[#182229] text-[#ffd279]' : 'bg-[#ffeecd] text-[#54656f]'}`}>
+                {m.text}
+              </span>
             </p>
           ) : (
             <div key={m.id} className={`flex ${m.from === 'me' ? 'justify-end' : 'justify-start'}`}>
               {m.from === 'me' ? (
-                <p className={`max-w-[80%] whitespace-pre-wrap break-words rounded-2xl px-3 py-1.5 text-sm ${t.mine}`}>
+                <p className={`max-w-[80%] whitespace-pre-wrap break-words rounded-lg px-2.5 py-1.5 text-sm ${t.mine}`}>
                   <span className="sr-only">{tr('chat.you')}: </span>
                   {m.text}
+                  <span className={`float-right ml-2 mt-1 translate-y-0.5 text-[10px] ${t.system}`}>
+                    {clock(m.at)} <span aria-hidden>✓</span>
+                  </span>
                 </p>
               ) : (
-                <TheirMessage text={m.text} bubble={t.theirs} muted={t.system} auto={auto} />
+                <TheirMessage text={m.text} at={m.at} bubble={t.theirs} muted={t.system} auto={auto} />
               )}
             </div>
           ),
@@ -266,7 +276,7 @@ export function ChatPanel({
               type="submit"
               disabled={!enabled || !draft.trim()}
               aria-label={tr('chat.send')}
-              className="rounded-full p-2.5 text-sky-300 hover:bg-white/10 disabled:text-slate-500 disabled:hover:bg-transparent"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-white transition disabled:opacity-40"
             >
               <SendIcon />
             </button>
@@ -274,9 +284,10 @@ export function ChatPanel({
             <button
               type="submit"
               disabled={!enabled || !draft.trim()}
-              className="rounded-lg bg-brand px-4 py-2 font-semibold text-white hover:bg-brand-dark disabled:opacity-40"
+              aria-label={tr('chat.send')}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-white transition disabled:opacity-40"
             >
-              Send
+              <SendIcon />
             </button>
           )}
         </form>

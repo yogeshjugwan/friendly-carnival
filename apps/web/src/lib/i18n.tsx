@@ -95,6 +95,27 @@ const EN = {
   'perm.blocked': 'Camera or microphone blocked',
   'face.title': "We can't see your face",
   'lang.label': 'Language',
+  'header.onlineNow': 'online now',
+  'header.inviteShort': 'Invite',
+  'landing.badge': 'Free · no sign-up needed',
+  'landing.titleA': 'Meet someone new in',
+  'landing.titleB': 'seconds.',
+  'landing.startVideo': 'Start video chat',
+  'landing.or': 'Or try another way',
+  'landing.voiceTitle': 'Voice only',
+  'landing.voiceSub': 'No camera needed',
+  'landing.textTitle': 'Text chat',
+  'landing.textSub': 'Camera stays off',
+  'landing.roomsTitle': 'Group rooms',
+  'landing.roomsSub': 'Up to 4 people',
+  'landing.friendTitle': 'Call a friend',
+  'landing.friendSub': 'From your friends list',
+  'landing.online': 'See who\'s online right now',
+  'landing.feat1': 'Video, voice or text chat',
+  'landing.feat2': 'Report, block & blur in every chat',
+  'landing.feat3': 'Automatic nudity screening',
+  'gender.coupleShort': 'Couple',
+  'landing.topicHint2': '· match with people into the same thing',
 } as const;
 export type TKey = keyof typeof EN;
 
@@ -177,6 +198,27 @@ const DICT: Record<Exclude<Lang, 'en'>, Partial<Record<TKey, string>>> = {
     'perm.blocked': 'कैमरा या माइक्रोफ़ोन ब्लॉक है',
     'face.title': 'आपका चेहरा नहीं दिख रहा',
     'lang.label': 'भाषा',
+    'header.onlineNow': 'ऑनलाइन',
+    'header.inviteShort': 'बुलाएँ',
+    'landing.badge': 'मुफ़्त · साइन-अप ज़रूरी नहीं',
+    'landing.titleA': 'किसी नए से मिलिए',
+    'landing.titleB': 'सेकंडों में।',
+    'landing.startVideo': 'वीडियो चैट शुरू करें',
+    'landing.or': 'या दूसरा तरीका आज़माएँ',
+    'landing.voiceTitle': 'सिर्फ़ आवाज़',
+    'landing.voiceSub': 'कैमरा नहीं चाहिए',
+    'landing.textTitle': 'टेक्स्ट चैट',
+    'landing.textSub': 'कैमरा बंद रहेगा',
+    'landing.roomsTitle': 'ग्रुप रूम',
+    'landing.roomsSub': '4 लोगों तक',
+    'landing.friendTitle': 'दोस्त को कॉल करें',
+    'landing.friendSub': 'आपकी दोस्त सूची से',
+    'landing.online': 'देखें अभी कौन ऑनलाइन है',
+    'landing.feat1': 'वीडियो, वॉइस या टेक्स्ट चैट',
+    'landing.feat2': 'हर चैट में रिपोर्ट, ब्लॉक और ब्लर',
+    'landing.feat3': 'अपने-आप अश्लीलता की जाँच',
+    'gender.coupleShort': 'कपल',
+    'landing.topicHint2': '· एक जैसी पसंद वालों से मिलें',
   },
   es: {
     'landing.title': 'Conoce a alguien nuevo en segundos.',
@@ -256,6 +298,27 @@ const DICT: Record<Exclude<Lang, 'en'>, Partial<Record<TKey, string>>> = {
     'perm.blocked': 'Cámara o micrófono bloqueados',
     'face.title': 'No vemos tu cara',
     'lang.label': 'Idioma',
+    'header.onlineNow': 'en línea',
+    'header.inviteShort': 'Invitar',
+    'landing.badge': 'Gratis · sin registro',
+    'landing.titleA': 'Conoce a alguien nuevo en',
+    'landing.titleB': 'segundos.',
+    'landing.startVideo': 'Empezar videochat',
+    'landing.or': 'O prueba otra forma',
+    'landing.voiceTitle': 'Solo voz',
+    'landing.voiceSub': 'Sin cámara',
+    'landing.textTitle': 'Chat de texto',
+    'landing.textSub': 'La cámara sigue apagada',
+    'landing.roomsTitle': 'Salas de grupo',
+    'landing.roomsSub': 'Hasta 4 personas',
+    'landing.friendTitle': 'Llamar a un amigo',
+    'landing.friendSub': 'De tu lista de amigos',
+    'landing.online': 'Ver quién está en línea ahora',
+    'landing.feat1': 'Chat de video, voz o texto',
+    'landing.feat2': 'Denunciar, bloquear y difuminar en cada chat',
+    'landing.feat3': 'Detección automática de desnudos',
+    'gender.coupleShort': 'Pareja',
+    'landing.topicHint2': '· conoce gente con tus gustos',
   },
   pt: {
     'landing.title': 'Conheça alguém novo em segundos.',
@@ -335,6 +398,27 @@ const DICT: Record<Exclude<Lang, 'en'>, Partial<Record<TKey, string>>> = {
     'perm.blocked': 'Câmera ou microfone bloqueados',
     'face.title': 'Não conseguimos ver seu rosto',
     'lang.label': 'Idioma',
+    'header.onlineNow': 'online agora',
+    'header.inviteShort': 'Convidar',
+    'landing.badge': 'Grátis · sem cadastro',
+    'landing.titleA': 'Conheça alguém novo em',
+    'landing.titleB': 'segundos.',
+    'landing.startVideo': 'Começar chat de vídeo',
+    'landing.or': 'Ou tente outro jeito',
+    'landing.voiceTitle': 'Só voz',
+    'landing.voiceSub': 'Sem câmera',
+    'landing.textTitle': 'Chat de texto',
+    'landing.textSub': 'A câmera fica desligada',
+    'landing.roomsTitle': 'Salas em grupo',
+    'landing.roomsSub': 'Até 4 pessoas',
+    'landing.friendTitle': 'Ligar para um amigo',
+    'landing.friendSub': 'Da sua lista de amigos',
+    'landing.online': 'Ver quem está online agora',
+    'landing.feat1': 'Chat por vídeo, voz ou texto',
+    'landing.feat2': 'Denunciar, bloquear e desfocar em todo chat',
+    'landing.feat3': 'Detecção automática de nudez',
+    'gender.coupleShort': 'Casal',
+    'landing.topicHint2': '· conheça quem curte o mesmo',
   },
   fr: {
     'landing.title': 'Rencontrez quelqu’un de nouveau en quelques secondes.',
@@ -414,6 +498,27 @@ const DICT: Record<Exclude<Lang, 'en'>, Partial<Record<TKey, string>>> = {
     'perm.blocked': 'Caméra ou micro bloqués',
     'face.title': 'Nous ne voyons pas votre visage',
     'lang.label': 'Langue',
+    'header.onlineNow': 'en ligne',
+    'header.inviteShort': 'Inviter',
+    'landing.badge': 'Gratuit · sans inscription',
+    'landing.titleA': 'Rencontrez quelqu’un en',
+    'landing.titleB': 'quelques secondes.',
+    'landing.startVideo': 'Lancer le chat vidéo',
+    'landing.or': 'Ou essayez autrement',
+    'landing.voiceTitle': 'Voix uniquement',
+    'landing.voiceSub': 'Sans caméra',
+    'landing.textTitle': 'Chat texte',
+    'landing.textSub': 'La caméra reste éteinte',
+    'landing.roomsTitle': 'Salons de groupe',
+    'landing.roomsSub': 'Jusqu’à 4 personnes',
+    'landing.friendTitle': 'Appeler un ami',
+    'landing.friendSub': 'Depuis votre liste d’amis',
+    'landing.online': 'Voir qui est en ligne',
+    'landing.feat1': 'Chat vidéo, vocal ou texte',
+    'landing.feat2': 'Signaler, bloquer et flouter dans chaque chat',
+    'landing.feat3': 'Détection automatique de la nudité',
+    'gender.coupleShort': 'Couple',
+    'landing.topicHint2': '· rencontrez des gens qui aiment la même chose',
   },
   id: {
     'landing.title': 'Kenalan dengan orang baru dalam hitungan detik.',
@@ -493,6 +598,27 @@ const DICT: Record<Exclude<Lang, 'en'>, Partial<Record<TKey, string>>> = {
     'perm.blocked': 'Kamera atau mikrofon diblokir',
     'face.title': 'Wajahmu tidak terlihat',
     'lang.label': 'Bahasa',
+    'header.onlineNow': 'online',
+    'header.inviteShort': 'Undang',
+    'landing.badge': 'Gratis · tanpa daftar',
+    'landing.titleA': 'Kenalan dengan orang baru dalam',
+    'landing.titleB': 'hitungan detik.',
+    'landing.startVideo': 'Mulai video chat',
+    'landing.or': 'Atau coba cara lain',
+    'landing.voiceTitle': 'Suara saja',
+    'landing.voiceSub': 'Tanpa kamera',
+    'landing.textTitle': 'Chat teks',
+    'landing.textSub': 'Kamera tetap mati',
+    'landing.roomsTitle': 'Ruang grup',
+    'landing.roomsSub': 'Hingga 4 orang',
+    'landing.friendTitle': 'Telepon teman',
+    'landing.friendSub': 'Dari daftar temanmu',
+    'landing.online': 'Lihat siapa yang online sekarang',
+    'landing.feat1': 'Chat video, suara, atau teks',
+    'landing.feat2': 'Lapor, blokir & blur di setiap chat',
+    'landing.feat3': 'Penyaringan konten tidak senonoh otomatis',
+    'gender.coupleShort': 'Pasangan',
+    'landing.topicHint2': '· bertemu orang dengan minat yang sama',
   },
 };
 
@@ -572,14 +698,15 @@ export function useI18n(): I18n {
 export function LanguagePicker({ className = '' }: { className?: string }) {
   const { lang, setLang, t } = useI18n();
   return (
-    <label className={`inline-flex items-center gap-1 text-sm ${className}`}>
-      <span aria-hidden>🌐</span>
+    <label
+      className={`inline-flex h-10 items-center gap-1.5 rounded-[10px] border border-[#1e2330] px-3 text-sm text-[#b7becc] hover:text-white ${className}`}
+    >
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+      </svg>
       <span className="sr-only">{t('lang.label')}</span>
-      <select
-        value={lang}
-        onChange={(e) => setLang(e.target.value as Lang)}
-        className="rounded-md bg-transparent py-1 text-slate-300 hover:text-white focus:outline-none"
-      >
+      <select value={lang} onChange={(e) => setLang(e.target.value as Lang)} className="cursor-pointer bg-transparent focus:outline-none">
         {LANGS.map((l) => (
           <option key={l.code} value={l.code} className="text-ink">
             {l.name}

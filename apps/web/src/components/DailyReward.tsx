@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { STREAK_REWARDS, type DailyStatus } from '@rc/shared';
 import { ACCOUNT_CHANGED, api, useAuth } from '@/lib/auth';
+import { FlameIcon } from './UiIcons';
 
 /** Daily streak status for the logged-in user, plus a claim action. */
 function useDaily(refreshKey?: unknown) {
@@ -42,45 +43,62 @@ export function DailyRewardCard({ className = '' }: { className?: string }) {
   const { status, busy, message, claim } = useDaily();
   if (!status) return null;
   const day = status.claimedToday ? status.streak : status.streak + 1;
+  const canClaim = !status.claimedToday && !status.needsChat && !status.needsEmail;
+  const hint =
+    message ??
+    (status.claimedToday
+      ? 'Come back tomorrow to keep your streak.'
+      : status.needsEmail
+        ? 'Confirm your email to start collecting.'
+        : status.needsChat
+          ? `Have one chat today to unlock ${status.reward} coins`
+          : 'Your reward is ready!');
   return (
-    <section className={`rounded-2xl bg-gradient-to-br from-orange-500 to-rose-500 p-4 text-white ${className}`}>
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-lg font-bold">🔥 {status.streak}-day streak</p>
+    <section className={`flex flex-col gap-4 rounded-[18px] border border-[#3a2a1a] bg-[#16130f] p-4 sm:p-5 ${className}`}>
+      <div className="flex items-center gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#2a1c10]">
+          <FlameIcon className="h-5 w-5" color="#ff8a3d" />
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="text-base font-semibold text-[#f4f6fa]">{status.streak}-day streak</span>
+          <span className="text-[13px] text-mute">{hint}</span>
+        </div>
         {status.claimedToday ? (
-          <span className="rounded-full bg-white/20 px-3 py-1 text-sm font-semibold">Claimed ✓</span>
+          <span className="rounded-[10px] border border-[#3a2a1a] px-3.5 py-2 text-[13px] font-semibold text-[#ff8a3d]">Claimed ✓</span>
         ) : (
           <button
             onClick={() => void claim()}
-            disabled={busy || status.needsChat || status.needsEmail}
-            className="rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-rose-600 disabled:opacity-60"
+            disabled={busy || !canClaim}
+            className={`h-9 rounded-[10px] px-3.5 text-[13px] font-semibold ${
+              canClaim ? 'bg-[#ff8a3d] text-[#1a0f06] hover:brightness-110' : 'cursor-not-allowed border border-[#3a2a1a] text-[#b39a80]'
+            }`}
           >
-            {busy ? 'Claiming…' : `Claim ${status.reward} 🪙`}
+            {busy ? 'Claiming…' : `Claim ${status.reward}`}
           </button>
         )}
       </div>
-      <ol className="mt-3 grid grid-cols-7 gap-1 text-center text-[11px]">
+      <ol className="m-0 grid list-none grid-cols-7 gap-1 p-0 text-center sm:gap-1.5">
         {STREAK_REWARDS.map((coins, i) => {
           const n = i + 1;
           const done = n <= status.streak;
           const today = n === Math.min(day, STREAK_REWARDS.length) && !status.claimedToday;
           return (
-            <li key={n} className={`rounded-lg py-1.5 ${done ? 'bg-white/35' : today ? 'bg-white text-rose-600' : 'bg-white/15'}`}>
-              <span className="block font-semibold">Day {n}</span>
-              {coins}🪙
+            <li
+              key={n}
+              className={`flex flex-col items-center gap-0.5 rounded-[10px] py-1.5 sm:py-2 ${
+                today ? 'bg-[#ff8a3d] text-[#1a0f06]' : done ? 'bg-[#4a2c12] text-[#ffb27a]' : 'bg-[#211a12] text-[#c9b09a]'
+              }`}
+            >
+              <span className="text-[10px] opacity-80 sm:text-[11px]">
+                <span className="max-sm:hidden">Day </span>
+                <span className="sm:hidden">D</span>
+                {n}
+              </span>
+              <span className="text-[13px] font-semibold sm:text-sm">{coins}</span>
             </li>
           );
         })}
       </ol>
-      <p className="mt-2 text-xs text-white/90">
-        {message ??
-          (status.claimedToday
-            ? 'Come back tomorrow to keep your streak.'
-            : status.needsEmail
-              ? 'Confirm your email to start collecting.'
-              : status.needsChat
-                ? 'Have one chat today to unlock your reward.'
-                : 'Your reward is ready!')}
-      </p>
     </section>
   );
 }

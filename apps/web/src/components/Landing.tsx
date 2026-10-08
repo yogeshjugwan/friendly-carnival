@@ -6,10 +6,10 @@ import { TOPICS, MAX_INTERESTS, MAX_NAME, type ChatMode, type Gender, type JoinP
 import { useAuth } from '@/lib/auth';
 import { loadSettings, onSettingsChange } from '@/lib/settings';
 import { SiteFooter, SiteHeader } from './SiteHeader';
-import { InstallButton } from './Pwa';
 import { DailyRewardCard } from './DailyReward';
 import { AgeHoldNotice } from './AgeGate';
 import { useI18n } from '@/lib/i18n';
+import { BoltIcon, BubbleLinesIcon, CameraIcon, ChevronRightIcon, CrownIcon, EyeOffIcon, HeartIcon, MicIcon2, ShieldIcon, UsersIcon } from './UiIcons';
 
 interface Props {
   online: number | null;
@@ -71,100 +71,138 @@ export function Landing({ online, onStart }: Props) {
     onStart({ gender, interests, topic }, mode, browse);
   };
 
+  const genders: [Gender, string][] = [
+    ['male', t('gender.male')],
+    ['female', t('gender.female')],
+    ['couple', t('gender.coupleShort')],
+  ];
+  const label = 'flex flex-col gap-2 text-[13px] font-medium text-mute';
+  const field =
+    'h-[46px] w-full rounded-xl border border-line-2 bg-night px-3.5 text-[15px] text-[#e8ebf2] placeholder:text-[#6b7385] focus:outline-2 focus:outline-offset-1 focus:outline-lime';
+  const alt =
+    'flex items-center gap-3 rounded-[14px] border border-line-2 bg-card-2 p-3.5 text-left text-[#e8ebf2] transition hover:border-[#384056] disabled:cursor-not-allowed disabled:opacity-50';
+  const altIcon = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px]';
+
   return (
-    <main className="mx-auto flex min-h-full max-w-5xl flex-col px-4 py-6 sm:px-6">
+    <main className="flex min-h-dvh flex-col px-4 sm:px-6">
       <SiteHeader online={online} />
 
-      <section className="grid flex-1 items-center gap-10 py-10 md:grid-cols-2">
-        <div>
-          <h1 className="text-4xl font-bold leading-tight sm:text-5xl">{t('landing.title')}</h1>
-          <p className="mt-4 text-lg text-slate-300">{t('landing.subtitle')}</p>
-          <ul className="mt-6 space-y-2 text-slate-300">
-            <li>{t('landing.point1')}</li>
-            <li>{t('landing.point2')}</li>
-            <li>{t('landing.point3')}</li>
-          </ul>
-        </div>
+      {/* Phones: pitch → start card → features & streak. Desktop: pitch and features left, start card right. */}
+      <div className="mx-auto grid w-full max-w-[1200px] flex-1 content-start gap-6 pb-12 pt-6 sm:gap-8 sm:pt-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,520px)] lg:grid-rows-[auto_1fr] lg:gap-x-14">
+        {/* Pitch */}
+        <section className="flex min-w-0 flex-col gap-4 sm:gap-6 lg:col-start-1 lg:row-start-1 lg:pt-6">
+          <span className="flex items-center gap-2 self-start rounded-full border border-[#2b3320] bg-[#141a0c] px-3 py-1.5 text-[13px] font-medium text-lime">
+            <BoltIcon className="h-3.5 w-3.5" />
+            {t('landing.badge')}
+          </span>
+          <h1 className="m-0 font-display text-[44px] font-extrabold leading-none tracking-[-0.035em] text-[#f4f6fa] sm:text-[72px] sm:leading-[0.98]">
+            {t('landing.titleA')} <span className="text-lime">{t('landing.titleB')}</span>
+          </h1>
+          <p className="m-0 max-w-[480px] text-[15px] leading-relaxed text-mute sm:text-lg">{t('landing.subtitle')}</p>
+        </section>
 
-        <div className="flex flex-col gap-3">
+        {/* Right: the start card */}
+        <section aria-label="Start a chat" className="flex min-w-0 flex-col gap-3 lg:col-start-2 lg:row-span-2 lg:row-start-1">
           <AgeHoldNotice />
           <form
-            className="rounded-2xl bg-white p-6 text-ink shadow-xl"
+            className="flex flex-col gap-[22px] rounded-3xl border border-[#222838] bg-card p-5 sm:p-7"
             onSubmit={(e) => {
               e.preventDefault();
               begin('video');
             }}
           >
-            <label className="text-sm font-medium text-slate-600" htmlFor="gender">
-              {t('landing.iam')}
-            </label>
-            <select
-              id="gender"
-              value={gender}
-              onChange={(e) => setGender(e.target.value as Gender)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base"
-            >
-              <option value="male">{t('gender.male')}</option>
-              <option value="female">{t('gender.female')}</option>
-              <option value="couple">{t('gender.couple')}</option>
-            </select>
-
-            <label className="mt-4 block text-sm font-medium text-slate-600" htmlFor="name">
-              {t('landing.name')} <span className="font-normal text-slate-400">{t('landing.optional')}</span>
-            </label>
-            <input
-              id="name"
-              value={name}
-              maxLength={MAX_NAME}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t('landing.namePlaceholder')}
-              autoComplete="nickname"
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base"
-            />
-
-            <label className="mt-4 block text-sm font-medium text-slate-600" htmlFor="interests">
-              {t('landing.interests')} <span className="font-normal text-slate-400">{t('landing.interestsHint')}</span>
-            </label>
-            <input
-              id="interests"
-              value={interestText}
-              onChange={(e) => setInterestText(e.target.value)}
-              placeholder={t('landing.interestsPlaceholder')}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base"
-            />
-
-            <p className="mt-4 text-sm font-medium text-slate-600">
-              {t('landing.topic')} <span className="font-normal text-slate-400">{t('landing.topicHint')}</span>
-            </p>
-            <div className="mt-1.5 flex flex-wrap gap-1.5" role="radiogroup" aria-label="Topic">
-              {TOPICS.map((tp) => {
-                const on = topic === tp.id;
-                return (
+            <div className="flex flex-col gap-2.5">
+              <span className="text-[13px] font-medium text-mute" id="gender-label">
+                {t('landing.iam')}
+              </span>
+              <div role="radiogroup" aria-labelledby="gender-label" className="grid grid-cols-3 gap-1 rounded-xl border border-line bg-night p-1">
+                {genders.map(([value, text]) => (
                   <button
-                    key={tp.id}
+                    key={value}
                     type="button"
                     role="radio"
-                    aria-checked={on}
-                    onClick={() => pickTopic(on ? null : tp.id)}
-                    className={`rounded-full border px-3 py-1 text-sm transition ${
-                      on ? 'border-brand bg-brand text-white' : 'border-slate-300 text-slate-700 hover:border-brand'
-                    }`}
+                    aria-checked={gender === value}
+                    onClick={() => setGender(value)}
+                    className={`h-10 rounded-[9px] text-sm font-semibold transition ${gender === value ? 'bg-line-2 text-[#f4f6fa]' : 'text-dim hover:text-[#d6dae3]'}`}
                   >
-                    {tp.emoji} {t(`topic.${tp.id}`)}
+                    {text}
                   </button>
-                );
-              })}
+                ))}
+              </div>
             </div>
 
-            <label className="mt-5 flex items-start gap-2 text-sm text-slate-600">
-              <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 h-4 w-4" />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className={label} htmlFor="name">
+                <span>
+                  {t('landing.name')} <span className="font-normal text-[#6b7385]">· {t('landing.optional').replace(/[()]/g, '')}</span>
+                </span>
+                <input
+                  id="name"
+                  value={name}
+                  maxLength={MAX_NAME}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={t('landing.namePlaceholder')}
+                  autoComplete="nickname"
+                  className={field}
+                />
+              </label>
+              <label className={label} htmlFor="interests">
+                <span>
+                  {t('landing.interests')} <span className="font-normal text-[#6b7385]">· {t('landing.optional').replace(/[()]/g, '')}</span>
+                </span>
+                <input
+                  id="interests"
+                  value={interestText}
+                  onChange={(e) => setInterestText(e.target.value)}
+                  placeholder={t('landing.interestsPlaceholder')}
+                  className={field}
+                />
+              </label>
+            </div>
+
+            <div className="flex flex-col gap-2.5">
+              <span className="text-[13px] font-medium text-mute" id="topic-label">
+                {t('landing.topic')} <span className="font-normal text-[#6b7385]">{t('landing.topicHint2')}</span>
+              </span>
+              <div
+                role="radiogroup"
+                aria-labelledby="topic-label"
+                className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
+              >
+                {TOPICS.map((tp) => {
+                  const on = topic === tp.id;
+                  return (
+                    <button
+                      key={tp.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      onClick={() => pickTopic(on ? null : tp.id)}
+                      className={`h-9 shrink-0 whitespace-nowrap rounded-full border px-3.5 text-sm font-medium transition ${
+                        on ? 'border-lime bg-lime text-night' : 'border-[#2b3243] text-[#d6dae3] hover:border-[#3a4257]'
+                      }`}
+                    >
+                      {t(`topic.${tp.id}`)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <label className="flex items-start gap-2.5 text-[13px] leading-normal text-mute">
+              <input
+                type="checkbox"
+                checked={agreed}
+                onChange={(e) => setAgreed(e.target.checked)}
+                className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-lime"
+              />
               <span>
                 {t('landing.agreePrefix')}{' '}
-                <Link href="/terms" className="text-brand underline" target="_blank">
+                <Link href="/terms" className="text-lime underline-offset-2 hover:text-lime-hover hover:underline" target="_blank">
                   {t('footer.terms')}
                 </Link>{' '}
                 {t('landing.and')}{' '}
-                <Link href="/guidelines" className="text-brand underline" target="_blank">
+                <Link href="/guidelines" className="text-lime underline-offset-2 hover:text-lime-hover hover:underline" target="_blank">
                   {t('footer.guidelines')}
                 </Link>
                 .
@@ -174,60 +212,122 @@ export function Landing({ online, onStart }: Props) {
             <button
               type="submit"
               disabled={!agreed}
-              className="mt-5 w-full rounded-lg bg-brand py-3 text-lg font-semibold text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex h-14 items-center justify-center gap-2.5 rounded-2xl bg-lime text-[17px] font-bold tracking-[-0.01em] text-night transition hover:bg-lime-hover disabled:cursor-not-allowed disabled:opacity-40 sm:h-[60px] sm:text-lg"
             >
-              {t('landing.start')}
+              <CameraIcon className="h-5 w-5" strokeWidth={2.4} />
+              {t('landing.startVideo')}
             </button>
-            {user && friendOnline && (
-              <p className="mt-3 text-center text-sm font-medium text-pink-600">{t('landing.friendOnline')}</p>
-            )}
-            {user && (
-              <button
-                type="button"
-                disabled={!agreed}
-                onClick={() => begin('video', 'friends')}
-                className={`mt-2 w-full rounded-lg border-2 border-pink-300 ${friendOnline ? 'ring-4 ring-pink-300/60' : ''} py-2.5 font-semibold text-pink-600 transition hover:bg-pink-50 disabled:cursor-not-allowed disabled:opacity-50`}
-              >
-                {t('landing.callFriend')}
+            {!agreed && <p className="-mt-3 text-center text-xs text-dim">Tick the box above to start.</p>}
+
+            {user && friendOnline && <p className="-mt-2 text-center text-sm font-medium text-[#ff7aa8]">{t('landing.friendOnline')}</p>}
+
+            <div className="flex items-center gap-3 text-xs uppercase tracking-[0.06em] text-[#6b7385]">
+              <span className="h-px flex-1 bg-[#222838]" />
+              <span>{t('landing.or')}</span>
+              <span className="h-px flex-1 bg-[#222838]" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <button type="button" disabled={!agreed} onClick={() => begin('voice')} className={alt}>
+                <span className={`${altIcon} bg-[#12241b]`}>
+                  <MicIcon2 color="#3ddc84" />
+                </span>
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="text-sm font-semibold">{t('landing.voiceTitle')}</span>
+                  <span className="text-xs text-dim max-sm:hidden">{t('landing.voiceSub')}</span>
+                </span>
               </button>
-            )}
-            {isPlus && (
+              <button type="button" disabled={!agreed} onClick={() => begin('text')} className={alt}>
+                <span className={`${altIcon} bg-[#13202e]`}>
+                  <BubbleLinesIcon color="#5ab0ff" />
+                </span>
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="text-sm font-semibold">{t('landing.textTitle')}</span>
+                  <span className="text-xs text-dim max-sm:hidden">{t('landing.textSub')}</span>
+                </span>
+              </button>
+              <Link href="/rooms" className={alt}>
+                <span className={`${altIcon} bg-[#1f1830]`}>
+                  <UsersIcon color="#b18cff" />
+                </span>
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="text-sm font-semibold">{t('landing.roomsTitle')}</span>
+                  <span className="text-xs text-dim max-sm:hidden">{t('landing.roomsSub')}</span>
+                </span>
+              </Link>
+              {user ? (
+                <button
+                  type="button"
+                  disabled={!agreed}
+                  onClick={() => begin('video', 'friends')}
+                  className={`${alt} ${friendOnline ? 'ring-2 ring-[#ff7aa8]' : ''}`}
+                >
+                  <span className={`${altIcon} bg-[#2a1520]`}>
+                    <HeartIcon color="#ff7aa8" />
+                  </span>
+                  <span className="flex min-w-0 flex-col gap-0.5">
+                    <span className="text-sm font-semibold">{t('landing.friendTitle')}</span>
+                    <span className="text-xs text-dim max-sm:hidden">{t('landing.friendSub')}</span>
+                  </span>
+                </button>
+              ) : (
+                <Link href="/login?next=/" className={alt}>
+                  <span className={`${altIcon} bg-[#2a1520]`}>
+                    <HeartIcon color="#ff7aa8" />
+                  </span>
+                  <span className="flex min-w-0 flex-col gap-0.5">
+                    <span className="text-sm font-semibold">{t('landing.friendTitle')}</span>
+                    <span className="text-xs text-dim max-sm:hidden">{t('header.login')}</span>
+                  </span>
+                </Link>
+              )}
+            </div>
+
+            {isPlus ? (
               <button
                 type="button"
                 disabled={!agreed}
                 onClick={() => begin('video', 'online')}
-                className="mt-2 w-full rounded-lg border-2 border-amber-400 py-2.5 font-semibold text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex items-center gap-3 rounded-[14px] border border-[#3a3418] bg-[#1b1a10] px-4 py-3.5 text-left text-gold transition hover:border-[#4a4220] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {t('landing.seeOnline')} <span className="text-xs font-medium">👑 Plus</span>
+                <CrownIcon />
+                <span className="flex-1 text-sm font-semibold">{t('landing.online')}</span>
+                <ChevronRightIcon className="h-4 w-4" />
               </button>
+            ) : (
+              <Link
+                href="/plus"
+                className="flex items-center gap-3 rounded-[14px] border border-[#3a3418] bg-[#1b1a10] px-4 py-3.5 text-gold transition hover:border-[#4a4220]"
+              >
+                <CrownIcon />
+                <span className="flex-1 text-sm font-semibold">{t('landing.online')}</span>
+                <span className="text-xs text-[#c9b25a]">Plus</span>
+                <ChevronRightIcon className="h-4 w-4" />
+              </Link>
             )}
-            <button
-              type="button"
-              disabled={!agreed}
-              onClick={() => begin('voice')}
-              className="mt-2 w-full rounded-lg border-2 border-emerald-300 py-2.5 font-semibold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {t('landing.voice')}
-            </button>
-            <Link
-              href="/rooms"
-              className="mt-2 block w-full rounded-lg border-2 border-violet-300 py-2.5 text-center font-semibold text-violet-700 transition hover:bg-violet-50"
-            >
-              {t('landing.rooms')}
-            </Link>
-            <button
-              type="button"
-              disabled={!agreed}
-              onClick={() => begin('text')}
-              className="mt-2 w-full rounded-lg py-2 text-sm font-medium text-brand hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {t('landing.text')}
-            </button>
           </form>
-        </div>
-        {user && <DailyRewardCard className="mt-4" />}
-        <InstallButton className="mt-4 text-center" />
-      </section>
+        </section>
+
+        {/* Features and streak */}
+        <section className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-2">
+          <ul className="m-0 grid max-w-[540px] list-none gap-3 p-0 sm:grid-cols-3">
+            {(
+              [
+                [<CameraIcon key="1" className="h-5 w-5" color="#c6f432" />, t('landing.feat1')],
+                [<ShieldIcon key="2" className="h-5 w-5" color="#c6f432" />, t('landing.feat2')],
+                [<EyeOffIcon key="3" className="h-5 w-5" color="#c6f432" />, t('landing.feat3')],
+              ] as const
+            ).map(([icon, text]) => (
+              <li key={text} className="flex items-center gap-2.5 rounded-[14px] sm:flex-col sm:items-start sm:border sm:border-line sm:bg-card sm:p-4">
+                {icon}
+                <span className="text-sm leading-snug text-[#d6dae3]">{text}</span>
+              </li>
+            ))}
+          </ul>
+
+          {user && <DailyRewardCard className="max-w-[540px]" />}
+        </section>
+      </div>
 
       <SiteFooter />
     </main>

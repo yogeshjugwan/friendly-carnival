@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { Bricolage_Grotesque, Geist } from 'next/font/google';
 import { PwaSetup } from '@/components/Pwa';
 import { AuthProvider } from '@/lib/auth';
 import './globals.css';
@@ -13,11 +14,15 @@ export const metadata: Metadata = {
   icons: { icon: '/icon-192.png', apple: '/apple-touch-icon.png' },
 };
 
-export const viewport: Viewport = { themeColor: '#0b1424' };
+export const viewport: Viewport = { themeColor: '#0c0e14' };
+
+/** Display face for headings and the wordmark; Geist for everything else. */
+const display = Bricolage_Grotesque({ subsets: ['latin'], weight: ['500', '700', '800'], variable: '--font-bricolage', display: 'swap' });
+const sans = Geist({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-geist', display: 'swap' });
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${display.variable} ${sans.variable}`}>
       <head>
         {/* Chrome may offer "install" before the app's JS loads; keep the event for the Install button. */}
         <script

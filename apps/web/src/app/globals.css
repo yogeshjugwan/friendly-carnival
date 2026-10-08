@@ -5,6 +5,19 @@
   --color-brand-dark: #1f5fb3;
   --color-ink: #0f1a2b;
   --color-panel: #16233a;
+  /* 2026 look: near-black ground, lime accent */
+  --color-night: #0c0e14;
+  --color-card: #131722;
+  --color-card-2: #171b27;
+  --color-line: #1e2330;
+  --color-line-2: #262c3b;
+  --color-lime: #c6f432;
+  --color-lime-hover: #ddfb7a;
+  --color-mute: #a7afbe;
+  --color-dim: #8a92a3;
+  --color-gold: #f5d76e;
+  --font-display: var(--font-bricolage), 'Bricolage Grotesque', system-ui, sans-serif;
+  --font-sans: var(--font-geist), Geist, system-ui, sans-serif;
 }
 
 html,
@@ -13,8 +26,9 @@ body {
 }
 
 body {
-  background: #0b1424;
-  color: #e7edf7;
+  background: #0c0e14;
+  color: #e8ebf2;
+  font-family: var(--font-sans);
 }
 
 /* Reactions rising over the video, like Meet. */

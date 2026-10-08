@@ -9,16 +9,16 @@ import { loadSettings } from '@/lib/settings';
 import type { RandomCall } from '@/lib/useRandomCall';
 import { AdSlot } from './AdSlot';
 import { DraggablePip, type Corner } from './DraggablePip';
-import { VideoIcon } from './icons';
-import { CallControls, ReactionLayer } from './CallControls';
+import { CallControls, ReactionLayer, StopNext } from './CallControls';
 import { FilterBar } from './FilterBar';
 import { LimitModal } from './LimitModal';
-import { CoinChip, GiftButton, GiftLayer, spendError } from './Coins';
+import { GiftButton, GiftLayer, spendError } from './Coins';
 import { FriendButton, FriendsPanel } from './Friends';
 import { IncomingCallModal, OnlineUsersPanel } from './OnlineUsers';
 import { PlusUpsell } from './PlusUpsell';
 import { ChatPanel } from './ChatPanel';
-import { SafetyMenu } from './SafetyMenu';
+import { ReportButton, SafetyMenu } from './SafetyMenu';
+import { AccountMenu, Brand } from './SiteHeader';
 import { SettingsMenu } from './SettingsMenu';
 import { VideoTile } from './VideoTile';
 import { VerifiedBadge } from './VerifiedBadge';
@@ -32,17 +32,6 @@ const STATUS_TEXT: Record<string, TKey> = {
   searching: 'status.searching',
   connecting: 'status.connecting',
 };
-
-/** Meet-style clock in the bottom bar. */
-function Clock() {
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => {
-    setNow(new Date());
-    const t = window.setInterval(() => setNow(new Date()), 15_000);
-    return () => window.clearInterval(t);
-  }, []);
-  return <span className="tabular-nums">{now ? now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}</span>;
-}
 
 function PartnerBadge({ call }: { call: RandomCall }) {
   const { partner } = call;
@@ -115,7 +104,7 @@ function PriorityButton({ call }: { call: RandomCall }) {
   const { user } = useAuth();
   const [error, setError] = useState<string | null>(null);
   if (!user) return null;
-  if (call.priorityOn) return <p className="text-xs text-amber-200">⭐ Looking for a ✓ Verified person for you…</p>;
+  if (call.priorityOn) return <p className="text-sm text-gold">Looking for a ✓ Verified person for you…</p>;
   return (
     <div className="pointer-events-auto mt-1 flex flex-col items-center">
       <button
@@ -124,9 +113,14 @@ function PriorityButton({ call }: { call: RandomCall }) {
           const r = await call.buyPriority();
           setError(spendError(r));
         }}
-        className="rounded-full bg-amber-400/90 px-3 py-1 text-xs font-semibold text-black hover:bg-amber-300"
+        className="flex items-center gap-3 rounded-[14px] border border-[#3a3418] bg-[#1b1a10] py-2 pl-4 pr-2 text-left text-gold transition hover:border-[#4a4220]"
       >
-        ⭐ Meet a ✓ Verified person next · {PRIORITY_MATCH.coins} 🪙
+        <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6z" />
+          <path d="M9 12l2 2 4-4" />
+        </svg>
+        <span className="text-sm font-semibold">Meet a verified person next</span>
+        <span className="flex h-8 items-center rounded-[9px] bg-gold px-3 text-[13px] font-bold text-[#1a1608]">{PRIORITY_MATCH.coins} coins</span>
       </button>
       {error && <p className="mt-1 text-xs text-red-300">{error}</p>}
     </div>
@@ -149,6 +143,131 @@ function WidenSearch() {
   );
 }
 
+
+/** "Finding someone for you…" on the video stage: pulse rings, what you're matching on, Priority. */
+function SearchingStage({ call }: { call: RandomCall }) {
+  const { t } = useI18n();
+  const { user } = useAuth();
+  const [matching, setMatching] = useState('');
+  useEffect(() => {
+    const s = loadSettings();
+    const f = user?.plus.active ? s.filters : NO_FILTERS;
+    let topic: string | null = null;
+    try {
+      topic = window.localStorage.getItem('rc.topic');
+    } catch {
+      /* ignore */
+    }
+    const who = f.gender === 'any' ? 'anyone' : f.gender === 'female' ? 'girls' : f.gender === 'male' ? 'boys' : 'couples';
+    const parts = [
+      f.verifiedOnly ? `✓ verified ${who}` : who,
+      f.country !== 'any' ? countryName(f.country) : null,
+      topic ? t(`topic.${topic}` as TKey) : null,
+    ].filter(Boolean);
+    setMatching(parts.join(' · '));
+  }, [user, call.status, t]);
+
+  if (call.status === 'browsing') {
+    return (
+      <p className="max-w-xs px-4 text-center text-sm text-mute sm:text-base">
+        Pick someone from <span className="font-semibold text-white">Online</span> or <span className="font-semibold text-white">Friends</span> to call,
+        or press <span className="font-semibold text-white">Next</span> for a random stranger.
+      </p>
+    );
+  }
+  if (call.status !== 'searching' && call.status !== 'connecting') return null;
+  return (
+    <div className="flex flex-col items-center gap-5 px-4 text-center sm:gap-7">
+      <div className="relative flex h-36 w-36 items-center justify-center sm:h-[200px] sm:w-[200px]" aria-hidden>
+        <span className="rc-pulse absolute inset-0 rounded-full border-2 border-lime" />
+        <span className="rc-pulse-late absolute inset-0 rounded-full border-2 border-lime" />
+        <span className="flex h-20 w-20 items-center justify-center rounded-full border border-[#2b3243] bg-[#1a1f2c] sm:h-24 sm:w-24">
+          <svg viewBox="0 0 24 24" className="h-9 w-9 sm:h-10 sm:w-10" fill="none" stroke="#c6f432" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 10l5-3v10l-5-3z" />
+            <rect x="3" y="6" width="12" height="12" rx="2" />
+          </svg>
+        </span>
+      </div>
+      <div className="flex flex-col items-center gap-2.5">
+        <h1 className="m-0 font-display text-2xl font-bold tracking-[-0.02em] text-[#f4f6fa] sm:text-[28px]" role="status">
+          {call.status === 'connecting' ? t('status.connecting') : t('status.searching')}
+        </h1>
+        {call.status === 'searching' && call.lastLeftReason ? (
+          <p className="m-0 text-sm text-mute">{t('status.partnerLeft')}</p>
+        ) : (
+          matching && <p className="m-0 text-sm text-mute">Matching: {matching}</p>
+        )}
+      </div>
+      {call.searchingLong && <WidenSearch />}
+      {call.status === 'searching' && <PriorityButton call={call} />}
+    </div>
+  );
+}
+
+/** Who you're talking to: name · country, what you share, and Add friend / Gift / Play. */
+function PartnerCard({ call }: { call: RandomCall }) {
+  const p = call.partner;
+  if (!p) return null;
+  const where = p.locationHidden ? 'Location hidden' : p.country ? `${flagEmoji(p.country)} ${countryName(p.country)}` : '';
+  const topic = p.topic ? TOPICS.find((x) => x.id === p.topic) : null;
+  const line = p.sharedInterests.length
+    ? `You both like ${p.sharedInterests.join(', ')}`
+    : topic
+      ? `You're both in ${topic.emoji} ${topic.label}`
+      : p.bio
+        ? `“${p.bio}”`
+        : null;
+  return (
+    <div className="flex max-w-[calc(100vw-7rem)] flex-wrap items-center gap-2.5 sm:max-w-[calc(100vw-2.5rem)] rounded-[14px] border border-line-2 bg-night/80 py-2 pl-3.5 pr-2 backdrop-blur sm:flex-nowrap [&_button]:whitespace-nowrap">
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="flex min-w-0 items-center gap-1.5 text-[15px] font-semibold text-[#f4f6fa]">
+          {p.avatar && <span aria-hidden>{p.avatar}</span>}
+          <span className="truncate">
+            {p.name || (
+              <span title={GENDER_LABEL[p.gender]} aria-label={GENDER_LABEL[p.gender]}>
+                {GENDER_ICON[p.gender]} Stranger
+              </span>
+            )}
+            {where && <span className="font-normal text-mute"> · {where}</span>}
+          </span>
+          {p.verified && <VerifiedBadge />}
+          {p.plus && (
+            <span title="Plus member" aria-label="Plus member">
+              👑
+            </span>
+          )}
+          {p.isNew && <span className="rounded bg-gold px-1.5 text-[10px] font-bold text-[#1a1608]">NEW</span>}
+        </span>
+        {line && <span className="truncate text-xs text-lime">{line}</span>}
+      </span>
+      <span className="flex shrink-0 items-center gap-1.5">
+        <FriendButton call={call} />
+        <GiftButton call={call} />
+        <GamesButton call={call} />
+      </span>
+    </div>
+  );
+}
+
+/** mm:ss since the match started (00:00 between matches). */
+function CallTimer({ since }: { since: number | null }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!since) return;
+    const t = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, [since]);
+  const s = since ? Math.max(0, Math.floor((now - since) / 1000)) : 0;
+  const h = Math.floor(s / 3600);
+  const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+  const ss = String(s % 60).padStart(2, '0');
+  return (
+    <span className="font-medium tabular-nums text-[#e8ebf2]" aria-label="Call length">
+      {h ? `${h}:` : ''}
+      {mm}:{ss}
+    </span>
+  );
+}
 
 export function ChatScreen({ call }: { call: RandomCall }) {
   const { t } = useI18n();
@@ -205,6 +324,21 @@ export function ChatScreen({ call }: { call: RandomCall }) {
       setShowFriends(true);
     } else openOnline();
   }, [call.status, call.browseFor, openOnline]);
+  // Space = Next (like the button says), unless you're typing.
+  const nextRef = useRef(call.next);
+  nextRef.current = call.next;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.tagName === 'BUTTON' || el.isContentEditable)) return;
+      if (call.mode === 'text' || !['searching', 'in-call', 'connecting', 'browsing'].includes(call.status)) return;
+      e.preventDefault();
+      nextRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [call.mode, call.status]);
   const [pipCorner, setPipCorner] = useState<Corner>('br');
   const pipOnTop = pipCorner[0] === 't';
 
@@ -222,17 +356,22 @@ export function ChatScreen({ call }: { call: RandomCall }) {
 
   return (
     // Full-screen dark call view, like Google Meet.
-    <main ref={mainRef} className="flex h-[100dvh] w-full flex-col overflow-hidden bg-[#202124] px-2 pb-2 pt-2 sm:px-4 sm:pb-4 sm:pt-3">
+    <main ref={mainRef} className="flex h-[100dvh] w-full flex-col overflow-hidden bg-night px-2 pb-2 pt-2 sm:px-5 sm:pb-5 sm:pt-3">
       <div className="flex min-h-0 flex-1 flex-col gap-2 sm:gap-3 [@media(max-height:500px)]:gap-1.5">
         {/* Header: logo · online · settings · upgrade */}
         <header className="flex items-center gap-2 sm:gap-3">
-          <span className="text-xl font-semibold sm:text-2xl [@media(max-height:500px)]:text-lg">
-            random<span className="text-brand">Call</span>
-            {isText && <span className="ml-2 text-sm font-normal text-slate-400">text chat</span>}
-            {isVoice && <span className="ml-2 text-sm font-normal text-slate-400">voice call</span>}
+          <span className="flex items-center gap-2">
+            <span className="sm:hidden">
+              <Brand compact />
+            </span>
+            <span className="max-sm:hidden">
+              <Brand compact />
+            </span>
+            {isText && <span className="text-sm text-dim max-md:hidden">text chat</span>}
+            {isVoice && <span className="text-sm text-dim max-md:hidden">voice call</span>}
           </span>
           {/* Filters share the header row on wide and short screens; phones get their own row below. */}
-          <div className="mr-auto hidden sm:block [@media(max-height:500px)]:block">
+          <div className="ml-2 mr-auto hidden min-w-0 sm:block [@media(max-height:500px)]:block">
             <FilterBar />
           </div>
           <span className="mr-auto sm:hidden [@media(max-height:500px)]:hidden" aria-hidden />
@@ -240,18 +379,21 @@ export function ChatScreen({ call }: { call: RandomCall }) {
             onClick={toggleFriends}
             aria-pressed={showFriends}
             title="Friends"
-            className={`flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium transition ${showFriends ? 'bg-pink-200 text-slate-900' : 'bg-[#3c4043] text-slate-100 hover:bg-[#4a4e52]'}`}
+            className={`flex h-10 items-center gap-2 rounded-[10px] border px-3 text-sm transition sm:px-3.5 ${showFriends ? 'border-[#ff7aa8] bg-[#2a1520] text-[#ffd0e0]' : 'border-line bg-card text-[#e8ebf2] hover:border-line-2'}`}
           >
-            <span aria-hidden>❤️</span>
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="#ff7aa8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />
+            </svg>
             <span className="hidden sm:inline">Friends</span>
           </button>
           {/* Online count and the Online list are Plus-only. */}
           <button
             onClick={() => (isPlus ? (showOnline ? closeOnline() : openOnline()) : setOnlineUpsell(true))}
-            className={`flex items-center gap-1.5 rounded-full bg-[#3c4043] px-3 py-2 text-sm font-medium text-slate-100 hover:bg-[#4a4e52]`}
+            aria-pressed={showOnline}
+            className={`flex h-10 items-center gap-2 rounded-[10px] border px-3 text-sm transition sm:px-3.5 ${showOnline ? 'border-lime text-[#e8ebf2]' : 'border-line bg-card text-[#b7becc] hover:border-line-2'}`}
             title={isPlus ? 'See who is online and call them' : 'See who is online (Plus)'}
           >
-            <span aria-hidden>👥</span>
+            <span className="h-2 w-2 rounded-full bg-[#3ddc84]" aria-hidden />
             {isPlus && call.online !== null ? (
               <span>
                 {Math.max(0, call.online - 1).toLocaleString()}
@@ -264,14 +406,32 @@ export function ChatScreen({ call }: { call: RandomCall }) {
             )}
           </button>
           {user && <DailyRewardChip refreshKey={call.status === 'in-call' ? call.partner : null} />}
-          <CoinChip call={call} className="max-sm:hidden" />
+          {user && (
+            <Link
+              href="/coins"
+              target="_blank"
+              className="flex h-10 items-center gap-2 rounded-[10px] border border-[#3a3418] bg-[#1b1a10] px-3 text-sm font-semibold text-gold max-sm:hidden"
+              title="Coins"
+            >
+              <svg viewBox="0 0 24 24" className="h-[15px] w-[15px]" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
+                <circle cx="12" cy="12" r="8" />
+                <path d="M12 8v8M9.5 10.5h4a1.5 1.5 0 0 1 0 3h-3" />
+              </svg>
+              {(call.wallet ?? user.wallet).coins.toLocaleString()}
+            </Link>
+          )}
           {/* Video calls have settings under ⋮ in the call bar. */}
           {isText && <SettingsMenu call={call} />}
-          {isPlus ? (
-            <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-sm font-semibold text-amber-300" title="Your Plus membership">👑 Plus member</span>
-          ) : (
-            <Link href="/plus" className="rounded-full bg-amber-500 px-4 py-2 font-semibold text-white hover:bg-amber-600">
+          {!isPlus && (
+            <Link href="/plus" target="_blank" className="flex h-10 items-center rounded-[10px] bg-gold px-3.5 text-sm font-semibold text-[#1a1608] hover:brightness-105 max-sm:hidden">
               Upgrade
+            </Link>
+          )}
+          {user ? (
+            <AccountMenu />
+          ) : (
+            <Link href="/login" target="_blank" className="flex h-10 items-center rounded-[10px] border border-line bg-card px-3.5 text-sm text-[#e8ebf2] max-sm:hidden">
+              Log in
             </Link>
           )}
         </header>
@@ -330,13 +490,8 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                   )}
                 </div>
               )}
-              <div className="absolute bottom-16 left-0 right-0 z-20 flex justify-center gap-3">
-                <button onClick={call.stop} className="rounded-full bg-red-500 px-6 py-2.5 font-semibold text-white shadow-lg hover:bg-red-600">
-                  {t('call.stop')}
-                </button>
-                <button onClick={call.next} className="rounded-full bg-brand px-6 py-2.5 font-semibold text-white shadow-lg hover:bg-brand-dark">
-                  {t('call.next')}
-                </button>
+              <div className="absolute bottom-16 left-0 right-0 z-20 flex justify-center">
+                <StopNext call={call} compact />
               </div>
             </div>
           </div>
@@ -351,22 +506,24 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               stream={matched ? call.remoteStream : null}
               videoRef={call.setPartnerVideo}
               forceVisible={call.relayActive}
-              className="min-h-0 rounded-2xl !bg-[#2d2e31]"
+              className="min-h-0 rounded-3xl border border-line !bg-[#121520]"
               videoClassName={`transition-[filter] duration-700 ${fit ? '!object-contain' : ''} ${
                 call.partnerHidden || call.aiHidden ? 'blur-3xl brightness-50' : call.blurPartner ? 'blur-xl' : ''
               }`}
             >
-              {!matched && !showAd && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-slate-500 max-lg:landscape:hidden">
-                  <VideoIcon className="h-16 w-16 sm:h-20 sm:w-20" />
+              {!matched && !showAd && !isVoice && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center">
+                  <SearchingStage call={call} />
                 </div>
               )}
               {isVoice && !showAd && (
                 <VoiceStage call={call} matched={matched} partnerEmoji={call.partner ? (call.partner.avatar ?? GENDER_ICON[call.partner.gender]) : '🙂'} />
               )}
-              <div className={`absolute inset-x-0 flex justify-center px-4 ${pipOnTop ? 'bottom-4' : 'top-14'}`}>
-                <Searching call={call} />
-              </div>
+              {isVoice && (
+                <div className={`absolute inset-x-0 flex justify-center px-4 ${pipOnTop ? 'bottom-4' : 'top-14'}`}>
+                  <Searching call={call} />
+                </div>
+              )}
               {matched && (call.partnerHidden || call.aiHidden) && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
                   <p className="font-medium">
@@ -392,15 +549,13 @@ export function ChatScreen({ call }: { call: RandomCall }) {
 
               {!showAd && (
                 <>
-                  <div className="absolute left-3 top-3 flex flex-col items-start gap-1">
-                    <PartnerBadge call={call} />
-                    {matched && (
-                      <div className="flex gap-1.5">
-                        <FriendButton call={call} />
-                        <GiftButton call={call} />
-                        <GamesButton call={call} />
-                      </div>
-                    )}
+                  {matched && (
+                    // Phones: top-left (the self-view sits at the bottom); larger screens: bottom-left, like the design.
+                    <div className={`absolute left-3 z-20 sm:left-5 ${pipCorner === 'bl' || pipCorner === 'tr' ? 'top-3 sm:top-5' : 'top-3 sm:bottom-5 sm:top-auto'}`}>
+                      <PartnerCard call={call} />
+                    </div>
+                  )}
+                  <div className="absolute left-3 top-3 flex flex-col items-start gap-1 sm:left-5 sm:top-5">
                     {call.relayActive && (
                       <span
                         className="rounded-full bg-amber-500/90 px-2 py-0.5 text-[11px] font-medium text-white"
@@ -410,18 +565,27 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                       </span>
                     )}
                   </div>
-                  <div className="absolute right-3 top-3">
+                  <div className="absolute right-3 top-3 z-20 flex flex-col items-end gap-2 sm:right-4 sm:top-4">
                     <SafetyMenu call={call} />
+                    {matched && <ReportButton />}
                   </div>
                 </>
               )}
 
               {/* You (picture-in-picture): drag it to any corner; voice calls have no picture */}
               {!isVoice && (
-                <DraggablePip onCornerChange={setPipCorner} className="aspect-[3/4] h-[24%] max-h-[10rem] min-h-[5rem] max-w-[36%] sm:h-[30%] sm:max-h-[12rem] overflow-hidden rounded-xl border-2 border-slate-500/80 bg-slate-600 shadow-xl md:aspect-video landscape:aspect-video max-lg:landscape:h-[34%] lg:h-[26%] [@media(max-height:500px)]:h-[30%] [@media(max-height:500px)]:min-h-[3.5rem]">
-                  <VideoTile stream={call.localStream} muted mirrored className="pointer-events-none h-full w-full rounded-none !bg-slate-600" />
+                <DraggablePip onCornerChange={setPipCorner} className="aspect-[3/4] h-[24%] max-h-[10rem] min-h-[5rem] max-w-[36%] sm:h-[30%] sm:max-h-[168px] overflow-hidden rounded-2xl border-2 border-[#2b3243] bg-[#232836] shadow-xl md:aspect-[264/168] landscape:aspect-video max-lg:landscape:h-[34%] lg:h-[26%] [@media(max-height:500px)]:h-[30%] [@media(max-height:500px)]:min-h-[3.5rem]">
+                  <VideoTile stream={call.localStream} muted mirrored className="pointer-events-none h-full w-full rounded-none !bg-[#232836]" />
                   {(!call.localStream || !call.cameraOn) && (
-                    <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-200">You</div>
+                    <div className="absolute inset-0 flex items-center justify-center text-xs uppercase tracking-[0.08em] text-[#6b7385]">Camera off</div>
+                  )}
+                  <span className="absolute bottom-2 left-2 rounded-md bg-night/80 px-2 py-0.5 text-xs text-[#e8ebf2]">You</span>
+                  {!call.micOn && (
+                    <span className="absolute bottom-2 right-2 flex h-6 w-6 items-center justify-center rounded-md bg-[#e5484d]" aria-label="Your microphone is off">
+                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="#fff" strokeWidth={2.4} strokeLinecap="round" aria-hidden>
+                        <path d="M3 3l18 18M9 9v2a3 3 0 0 0 5 2.2M15 9.3V6a3 3 0 0 0-5.6-1.5" />
+                      </svg>
+                    </span>
                   )}
                 </DraggablePip>
               )}
@@ -485,11 +649,13 @@ export function ChatScreen({ call }: { call: RandomCall }) {
 
         {/* Meet-style bottom bar under the video: clock | your name · controls */}
         {!isText && (
-          <div className="grid shrink-0 grid-cols-1 items-center gap-2 sm:grid-cols-[1fr_auto_1fr]">
-            <div className="hidden items-center gap-3 truncate pl-1 text-[15px] text-slate-200 sm:flex">
-              <Clock />
-              <span className="text-slate-500">|</span>
-              <span className="truncate" title={user ? user.email : 'Not logged in'}>{user ? user.email.split('@')[0] : 'Guest'}</span>
+          <div className="flex shrink-0 flex-wrap items-center justify-center gap-2 pt-1 sm:gap-4 sm:pt-2 lg:grid lg:grid-cols-[1fr_auto_1fr]">
+            <div className="hidden items-center gap-2.5 truncate pl-1 text-sm text-mute lg:flex">
+              <CallTimer since={call.matchStartedAt} />
+              <span className="h-4 w-px bg-line-2" aria-hidden />
+              <span className="truncate" title={user ? user.email : 'Not logged in'}>
+                {loadSettings().name || (user ? user.email.split('@')[0] : 'Guest')}
+              </span>
             </div>
             <div className="flex justify-center">
               <CallControls
@@ -503,8 +669,9 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                 onToggleFullscreen={toggleFullscreen}
               />
             </div>
-            {/* Keeps the controls centred, like Meet. */}
-            <div className="hidden sm:block" aria-hidden />
+            <div className="flex justify-end">
+              <StopNext call={call} />
+            </div>
           </div>
         )}
       </div>

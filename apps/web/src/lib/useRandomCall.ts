@@ -155,6 +155,8 @@ export function useRandomCall() {
   const pendingStart = useRef<{ join: Omit<JoinPayload, 'mode' | 'hideCountry'>; chatMode: ChatMode; browse: false | 'online' | 'friends' } | null>(null);
   /** In a call, the camera hasn't seen a face for a while. */
   const [noFace, setNoFace] = useState(false);
+  /** When the current match started (for the call timer). */
+  const [matchStartedAt, setMatchStartedAt] = useState<number | null>(null);
   /** The camera picture is black, covered or badly blurred (before the call: blocks it; during: a reminder). */
   const [cameraProblem, setCameraProblem] = useState<CameraProblem | null>(null);
   /** Icebreaker question on screen for both people. */
@@ -293,6 +295,7 @@ export function useRandomCall() {
     setPartnerHidden(false);
     setAiHidden(false);
     setGame(null);
+    setMatchStartedAt(null);
     typingSent.current = false;
   }, []);
 
@@ -467,6 +470,7 @@ export function useRandomCall() {
       if (pcRef.current || matchRef.current) setHasPrevious(true);
       closePeer();
       matchRef.current = { id: match.matchId, startedAt: Date.now(), reported: false };
+      setMatchStartedAt(Date.now());
       setPartner(match.partner);
       // New-user protection: a brand-new account's video starts hidden.
       if (match.partner.isNew && match.mode === 'video') setPartnerHidden(true);
@@ -1363,6 +1367,7 @@ export function useRandomCall() {
     browseFor,
     noFace,
     cameraProblem,
+    matchStartedAt,
     retryFaceCheck,
     wallet,
     gifts,

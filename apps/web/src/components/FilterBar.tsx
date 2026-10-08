@@ -37,13 +37,16 @@ export function FilterBar() {
 
   const pill = (
     label: string,
+    short: string,
     value: string,
     onChange: (v: string) => void,
     options: { value: string; label: string }[],
     wide = false,
   ) => (
-    <label className="relative inline-flex items-center">
-      <span className="sr-only">{label}</span>
+    <label className={`relative flex h-9 items-center gap-2 rounded-lg pl-3 text-sm text-[#e8ebf2] hover:bg-card-2 ${wide ? 'min-w-0' : 'shrink-0'} ${isPlus ? 'pr-7' : 'pr-11'}`}>
+      <span className="shrink-0 text-xs text-dim max-sm:hidden" aria-hidden>
+        {short}
+      </span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -54,38 +57,47 @@ export function FilterBar() {
           }
         }}
         aria-label={label}
-        className={`appearance-none rounded-full bg-[#3c4043] py-2 pl-3 pr-12 text-xs font-medium text-slate-100 hover:bg-[#4a4e52] focus:outline-none focus:ring-2 focus:ring-brand sm:pl-4 sm:text-sm ${wide ? 'max-w-[9.5rem] sm:max-w-[11rem]' : ''}`}
+        className={`min-w-0 cursor-pointer appearance-none truncate bg-transparent text-sm focus:outline-none ${wide ? 'max-w-[8.5rem] sm:max-w-[10rem]' : ''}`}
       >
         {options.map((o) => (
-          <option key={o.value} value={o.value}>
+          <option key={o.value} value={o.value} className="text-ink">
             {o.label}
           </option>
         ))}
       </select>
-      <span className="pointer-events-none absolute right-2.5 flex items-center gap-0.5 text-slate-400">
-        {!isPlus && <span className="text-[11px]" title="Plus feature">👑</span>}
+      <span className="pointer-events-none absolute right-2 flex items-center gap-0.5 text-dim">
+        {!isPlus && (
+          <span className="text-[11px]" title="Plus feature">
+            👑
+          </span>
+        )}
         <ChevronDownIcon />
       </span>
     </label>
   );
+  const divider = <span className="h-5 w-px shrink-0 bg-line-2" aria-hidden />;
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2">
-        {pill('Gender filter', isPlus ? filters.gender : 'any', (v) => change({ gender: v as MatchFilters['gender'] }), GENDERS)}
+      <div aria-label="Match filters" className="flex max-w-full items-center gap-0.5 overflow-x-auto rounded-xl border border-line bg-card p-1">
+        {pill('Gender filter', 'Gender', isPlus ? filters.gender : 'any', (v) => change({ gender: v as MatchFilters['gender'] }), GENDERS)}
+        {divider}
         {pill(
           'Country filter',
+          'Country',
           isPlus ? filters.country : 'any',
           (v) => change({ country: v }),
           [{ value: 'any', label: 'All countries' }, ...countries.map((c) => ({ value: c.code, label: c.name }))],
           true,
         )}
+        {divider}
         {pill(
           'Verified filter',
+          'Who',
           isPlus && filters.verifiedOnly ? 'verified' : 'all',
           (v) => change({ verifiedOnly: v === 'verified' }),
           [
-            { value: 'all', label: '✓ Anyone' },
+            { value: 'all', label: 'Anyone' },
             { value: 'verified', label: '✓ Verified only' },
           ],
         )}

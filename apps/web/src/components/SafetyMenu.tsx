@@ -54,7 +54,7 @@ export function SafetyMenu({ call }: { call: RandomCall }) {
         onClick={() => setStep(step === 'closed' ? 'menu' : 'closed')}
         aria-label="Safety options"
         aria-expanded={step !== 'closed'}
-        className="flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1.5 text-sm font-medium text-white hover:bg-black/80 sm:px-3"
+        className="flex h-10 items-center gap-2 rounded-xl border border-line-2 bg-night/80 px-3 text-sm font-medium text-[#e8ebf2] backdrop-blur hover:bg-night sm:px-3.5"
       >
         <ShieldIcon className="h-4 w-4" />
         <span className="hidden sm:inline">Safety</span>
@@ -175,5 +175,21 @@ export function SafetyMenu({ call }: { call: RandomCall }) {
         </div>
       )}
     </>
+  );
+}
+
+/** Red "Report" shortcut on the video (opens the report flow of the Safety menu). */
+export function ReportButton() {
+  return (
+    <button
+      onClick={() => window.dispatchEvent(new Event('rc:report'))}
+      aria-label="Report this person"
+      className="flex h-10 items-center gap-2 rounded-xl border border-[#4a1e1e] bg-[#280e0e]/85 px-3 text-sm font-medium text-[#ff8b7a] backdrop-blur hover:bg-[#3a1414] sm:px-3.5"
+    >
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d="M5 21V4h11l-1.5 4L16 12H5" />
+      </svg>
+      <span className="hidden sm:inline">Report</span>
+    </button>
   );
 }

@@ -10,7 +10,6 @@ import {
   HandIcon,
   MicIcon,
   MicOffIcon,
-  PhoneOffIcon,
   SkipIcon,
   SmileIcon,
   VideoIcon,
@@ -20,10 +19,10 @@ import { EffectsButton } from './Effects';
 import { MoreMenu } from './MoreMenu';
 import { useI18n } from '@/lib/i18n';
 
-/** Meet-style round button: grey normally, red when "off", light blue when active. */
+/** Square control: dark normally, red when "off", lime when active. */
 const round = (state: 'normal' | 'off' | 'active' = 'normal') =>
-  `flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition max-[380px]:h-9 max-[380px]:w-9 sm:h-12 sm:w-12 [@media(max-height:500px)]:h-10 [@media(max-height:500px)]:w-10 ${
-    state === 'off' ? 'bg-red-500 text-white hover:bg-red-600' : state === 'active' ? 'bg-sky-200 text-slate-900' : 'bg-[#3c4043] text-white hover:bg-[#4a4e52]'
+  `flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition max-[380px]:h-9 max-[380px]:w-9 sm:h-12 sm:w-12 sm:rounded-[14px] [@media(max-height:500px)]:h-10 [@media(max-height:500px)]:w-10 ${
+    state === 'off' ? 'bg-[#e5484d] text-white hover:bg-[#d93c41]' : state === 'active' ? 'bg-lime text-night' : 'bg-[#1d2230] text-[#e8ebf2] hover:bg-[#262c3b]'
   }`;
 
 /** Mic / camera button with a small ^ that opens a device list (Meet style). */
@@ -48,13 +47,13 @@ function DeviceButton({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="relative flex items-center rounded-full bg-[#2a2b2e]">
+    <div className="relative flex items-center rounded-xl sm:rounded-[14px]">
       {devices.length > 1 && (
         <button
           onClick={() => setOpen((o) => !o)}
           aria-label={`Choose ${label.toLowerCase()}`}
           aria-expanded={open}
-          className="hidden h-10 w-7 items-center justify-center rounded-l-full text-slate-300 hover:text-white sm:flex sm:h-12"
+          className="hidden h-10 w-6 items-center justify-center text-dim hover:text-white sm:flex sm:h-12"
         >
           <ChevronUpIcon />
         </button>
@@ -118,7 +117,7 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
   return (
     <div className="flex flex-col items-center gap-2">
       {showReactions && (
-        <div className="flex max-w-[95vw] gap-0.5 overflow-x-auto rounded-full bg-[#2a2b2e]/95 px-2 py-1.5 shadow-lg" role="toolbar" aria-label="Reactions">
+        <div className="flex max-w-[95vw] gap-0.5 overflow-x-auto rounded-2xl border border-line bg-card px-2 py-1.5 shadow-lg" role="toolbar" aria-label="Reactions">
           {REACTIONS.map((emoji) => (
             <button
               key={emoji}
@@ -134,7 +133,7 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
         </div>
       )}
 
-      <div className="flex items-center gap-1 rounded-full bg-[#202124]/90 px-1.5 py-1.5 shadow-xl backdrop-blur sm:gap-2.5 sm:px-3 sm:py-2 [@media(max-height:500px)]:gap-1.5 [@media(max-height:500px)]:py-1.5">
+      <div className="flex items-center gap-1.5 rounded-[18px] border border-line bg-card p-1.5 sm:gap-2 [@media(max-height:500px)]:gap-1.5">
         {call.canGoBack && (
           // On phones Back lives in the ⋮ menu to save room.
           <button onClick={call.back} aria-label={t('call.back')} title={t('call.back')} className={`${round()} max-sm:!hidden`}>
@@ -202,24 +201,39 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
           )}
         </button>
         <MoreMenu call={call} className={round()} fit={fit} onToggleFit={onToggleFit} onToggleFullscreen={onToggleFullscreen} />
-        <button
-          onClick={call.stop}
-          aria-label={t('call.end')}
-          title={t('call.end')}
-          className="flex h-10 w-12 shrink-0 items-center justify-center rounded-full bg-red-500 text-white transition hover:bg-red-600 max-[380px]:h-9 max-[380px]:w-10 sm:h-12 sm:w-[4.5rem] [@media(max-height:500px)]:h-10 [@media(max-height:500px)]:w-12"
-        >
-          <PhoneOffIcon />
-        </button>
-        <button
-          onClick={call.next}
-          aria-label={t('call.nextStranger')}
-          title={t('call.nextStranger')}
-          className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-brand px-3 font-semibold text-white transition hover:bg-brand-dark max-[380px]:h-9 max-[380px]:px-2.5 sm:h-12 sm:px-5 [@media(max-height:500px)]:h-10 [@media(max-height:500px)]:px-3"
-        >
-          <span className="hidden sm:inline [@media(max-height:500px)]:hidden">{t('call.next')}</span>
-          <SkipIcon className="h-5 w-5" />
-        </button>
       </div>
+    </div>
+  );
+}
+
+/** Stop (red) and Next (lime, also the Space key) on the right of the call bar. */
+export function StopNext({ call, compact = false }: { call: RandomCall; compact?: boolean }) {
+  const { t } = useI18n();
+  const h = compact ? 'h-12' : 'h-12 sm:h-14';
+  return (
+    <div className="flex items-center gap-2.5">
+      <button
+        onClick={call.stop}
+        aria-label={t('call.end')}
+        title={t('call.end')}
+        className={`flex ${h} items-center gap-2 rounded-2xl bg-[#e5484d] px-4 text-[15px] font-semibold text-white transition hover:bg-[#d93c41] sm:px-[18px]`}
+      >
+        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinejoin="round" aria-hidden>
+          <rect x="6" y="6" width="12" height="12" rx="2" />
+        </svg>
+        {t('call.stop')}
+      </button>
+      <button
+        onClick={call.next}
+        aria-label={t('call.nextStranger')}
+        title={`${t('call.nextStranger')} (Space)`}
+        aria-keyshortcuts="Space"
+        className={`flex ${h} items-center gap-2.5 rounded-2xl bg-lime px-5 text-base font-bold text-night transition hover:bg-lime-hover sm:px-[22px]`}
+      >
+        {t('call.next')}
+        <SkipIcon className="h-5 w-5" />
+        <kbd className="rounded-[5px] bg-night/15 px-1.5 py-0.5 font-sans text-[11px] font-semibold max-sm:hidden">Space</kbd>
+      </button>
     </div>
   );
 }

@@ -44,7 +44,7 @@ const iconBtn =
   'relative flex h-10 w-10 items-center justify-center rounded-[10px] border border-line bg-card text-[#b7becc] transition hover:border-line-2 hover:text-white';
 
 /** Account pill with a small menu. */
-function AccountMenu() {
+export function AccountMenu() {
   const { user, logout } = useAuth();
   const { t } = useI18n();
   const [open, setOpen] = useState(false);

@@ -195,7 +195,7 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
   );
 }
 
-/** Stop (red) and Next (lime, also the Space key) on the right of the call bar. */
+/** Stop (red) and Next (lime; the Space key also works) on the right of the call bar. */
 export function StopNext({ call, compact = false }: { call: RandomCall; compact?: boolean }) {
   const { t } = useI18n();
   const h = compact ? 'h-12' : 'h-12 sm:h-14';
@@ -207,8 +207,9 @@ export function StopNext({ call, compact = false }: { call: RandomCall; compact?
         title={t('call.end')}
         className={`flex ${h} items-center gap-2 rounded-2xl bg-[#e5484d] px-4 text-[15px] font-semibold text-white transition hover:bg-[#d93c41] sm:px-[18px]`}
       >
-        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
-          <rect x="4" y="4" width="16" height="16" rx="3" />
+        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2.2} aria-hidden>
+          <circle cx="12" cy="12" r="9.5" />
+          <rect x="8.5" y="8.5" width="7" height="7" rx="1.2" fill="currentColor" stroke="none" />
         </svg>
         {t('call.stop')}
       </button>
@@ -221,7 +222,6 @@ export function StopNext({ call, compact = false }: { call: RandomCall; compact?
       >
         {t('call.next')}
         <SkipIcon className="h-5 w-5" />
-        <kbd className="rounded-[5px] bg-night/15 px-1.5 py-0.5 font-sans text-[11px] font-semibold max-sm:hidden">Space</kbd>
       </button>
     </div>
   );

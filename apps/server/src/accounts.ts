@@ -79,6 +79,12 @@ export interface User {
   birthDate: string | null;
   /** Reported as underage: chatting paused until ✓ verified. */
   ageReview: boolean;
+  /** Last time the user had the site open (updated at most hourly). */
+  lastSeenAt: number | null;
+  /** Unsubscribed from activity emails. */
+  emailOptOut: boolean;
+  /** Last win-back email sent. */
+  lastWinbackAt: number | null;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -156,6 +162,11 @@ export interface AccountStore {
   unreadCounts(to: string): Promise<Map<string, number>>;
   /** Records a payment once; false if this reference was already recorded. */
   recordPayment(ref: string, userId: string, product: string, amount: number): Promise<boolean>;
+  touchLastSeen(userId: string, at: number): Promise<void>;
+  setEmailOptOut(userId: string, optOut: boolean): Promise<void>;
+  /** Users to send a win-back email to: confirmed email, not opted out, away since `awaySince`, none sent since `lastSentBefore`. */
+  winbackCandidates(awaySince: number, lastSentBefore: number, limit: number): Promise<User[]>;
+  markWinbackSent(userId: string, at: number): Promise<void>;
   /** Sets the birth date once; false if one is already stored. */
   setBirthDate(userId: string, birthDate: string): Promise<boolean>;
   setAgeReview(userId: string, on: boolean): Promise<void>;
@@ -249,6 +260,9 @@ export class MemoryAccountStore implements AccountStore {
       trialUsed: false,
       birthDate: null,
       ageReview: false,
+      lastSeenAt: null,
+      emailOptOut: false,
+      lastWinbackAt: null,
     };
     this.users.set(user.id, user);
     return user;
@@ -347,6 +361,33 @@ export class MemoryAccountStore implements AccountStore {
   }
 
   private messages: StoredMessage[] = [];
+
+  async touchLastSeen(userId: string, at: number) {
+    const u = this.users.get(userId);
+    if (u) u.lastSeenAt = at;
+  }
+
+  async setEmailOptOut(userId: string, optOut: boolean) {
+    const u = this.users.get(userId);
+    if (u) u.emailOptOut = optOut;
+  }
+
+  async winbackCandidates(awaySince: number, lastSentBefore: number, limit: number) {
+    return [...this.users.values()]
+      .filter(
+        (u) =>
+          u.emailVerified &&
+          !u.emailOptOut &&
+          (u.lastSeenAt ?? u.createdAt) < awaySince &&
+          (u.lastWinbackAt === null || u.lastWinbackAt < lastSentBefore),
+      )
+      .slice(0, limit);
+  }
+
+  async markWinbackSent(userId: string, at: number) {
+    const u = this.users.get(userId);
+    if (u) u.lastWinbackAt = at;
+  }
 
   async setBirthDate(userId: string, birthDate: string) {
     const u = this.users.get(userId);
@@ -558,6 +599,9 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_days INTEGER NOT NULL DEFAULT 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_last_day TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_used BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS birth_date TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at BIGINT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_opt_out BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_winback_at BIGINT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS age_review BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_rewarded BOOLEAN NOT NULL DEFAULT FALSE;
@@ -629,6 +673,9 @@ const toUser = (r: Record<string, unknown>): User => ({
   trialUsed: !!r.trial_used,
   birthDate: (r.birth_date as string | null) ?? null,
   ageReview: !!r.age_review,
+  lastSeenAt: r.last_seen_at == null ? null : Number(r.last_seen_at),
+  emailOptOut: !!r.email_opt_out,
+  lastWinbackAt: r.last_winback_at == null ? null : Number(r.last_winback_at),
 });
 
 export class PostgresAccountStore implements AccountStore {
@@ -836,6 +883,29 @@ export class PostgresAccountStore implements AccountStore {
       [userId],
     );
     return !!rowCount;
+  }
+
+  async touchLastSeen(userId: string, at: number) {
+    await this.pool.query('UPDATE users SET last_seen_at = $2 WHERE id = $1', [userId, at]);
+  }
+
+  async setEmailOptOut(userId: string, optOut: boolean) {
+    await this.pool.query('UPDATE users SET email_opt_out = $2 WHERE id = $1', [userId, optOut]);
+  }
+
+  async winbackCandidates(awaySince: number, lastSentBefore: number, limit: number) {
+    const { rows } = await this.pool.query(
+      `SELECT * FROM users WHERE email_verified = TRUE AND email_opt_out = FALSE
+         AND COALESCE(last_seen_at, created_at) < $1
+         AND (last_winback_at IS NULL OR last_winback_at < $2)
+       LIMIT $3`,
+      [awaySince, lastSentBefore, limit],
+    );
+    return rows.map(toUser);
+  }
+
+  async markWinbackSent(userId: string, at: number) {
+    await this.pool.query('UPDATE users SET last_winback_at = $2 WHERE id = $1', [userId, at]);
   }
 
   async setBirthDate(userId: string, birthDate: string) {

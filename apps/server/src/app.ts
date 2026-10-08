@@ -50,6 +50,7 @@ import { Rooms, type RoomSeat } from './rooms.ts';
 import { Razorpay } from './razorpay.ts';
 import { LOW_TRUST, SkipTracker, trustScore } from './trust.ts';
 import { Translator } from './translate.ts';
+import { runWinback } from './winback.ts';
 import { cors, RateLimiter, readJson, sendJson } from './http.ts';
 import { isPlusActive, MAX_FRIENDS, MemoryAccountStore, NO_PLUS, type StoredMessage } from './accounts.ts';
 import type { BillingProvider } from './billing.ts';
@@ -145,6 +146,8 @@ export interface AppOptions {
   requireProof?: boolean;
   /** Chat translation (tests inject one with a fake fetch). */
   translator?: Translator;
+  /** Send win-back emails (needs a real mailer). */
+  winback?: boolean;
   /** Razorpay client (tests inject one with a fake fetch); null turns it off. */
   razorpay?: Razorpay | null;
   /** How long a ⭐ priority match waits for a verified partner before refunding (tests shorten it). */
@@ -464,6 +467,24 @@ export function createApp(opts: AppOptions = {}): App {
   };
 
   const rooms = new Rooms();
+  const lastSeenWrite = new Map<string, number>();
+  // Win-back emails every 6 hours (only with a real mailer).
+  const winbackTimer = opts.winback
+    ? setInterval(
+        () =>
+          void runWinback({
+            accounts,
+            mailer: opts.mailer!,
+            webUrl: opts.webUrl ?? config.webUrl,
+            serverUrl: opts.serverUrl ?? config.serverUrl,
+            online: matchmaker.onlineCount,
+          })
+            .then((n) => n && console.log(`[winback] sent ${n}`))
+            .catch((e) => console.error('[winback]', e)),
+        6 * 3_600_000,
+      )
+    : null;
+  winbackTimer?.unref?.();
   // ---- Trust score / shadow pool ----
   const skips = new SkipTracker();
   const matchStarted = new Map<string, number>();
@@ -756,6 +777,12 @@ export function createApp(opts: AppOptions = {}): App {
 
     analytics.visit(socket.data.userId ? `u:${socket.data.userId}` : socket.data.deviceId);
     void refreshTrust(socket.id).catch((e) => console.error('[trust]', e));
+    // "Last seen" for win-back emails (at most hourly per user).
+    if (socket.data.userId && Date.now() - (lastSeenWrite.get(socket.data.userId) ?? 0) > 3_600_000) {
+      lastSeenWrite.set(socket.data.userId, Date.now());
+      if (lastSeenWrite.size > 100_000) lastSeenWrite.clear();
+      void accounts.touchLastSeen(socket.data.userId, Date.now()).catch(() => undefined);
+    }
     const onlineUser = socket.data.userId;
     if (onlineUser && [...io.sockets.sockets.values()].filter((x) => x.data.userId === onlineUser).length === 1) {
       void notifyFriendsOnline(onlineUser).catch((e) => console.error('[push]', e));
@@ -1562,6 +1589,7 @@ export function createApp(opts: AppOptions = {}): App {
       turn.stop();
       for (const r of callRequests.values()) clearTimeout(r.timer);
       for (const t of priorityTimers.values()) clearTimeout(t);
+      if (winbackTimer) clearInterval(winbackTimer);
       clearInterval(purgeTimer);
       await analytics.stop();
       await io.close();

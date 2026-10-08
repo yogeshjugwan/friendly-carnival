@@ -785,6 +785,8 @@ export interface PublicUser {
   trialAvailable: boolean;
   /** Date of birth given (asked once before chatting). */
   birthDateSet: boolean;
+  /** Gets occasional "people are online" emails. */
+  emailsOn: boolean;
   /** Why chatting is on hold: under 18, or an underage report awaiting ✓ verification. */
   ageHold: AgeHold;
 }

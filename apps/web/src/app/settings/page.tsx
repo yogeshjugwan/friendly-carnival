@@ -34,7 +34,7 @@ function Toggle({ checked, onChange, title, detail }: { checked: boolean; onChan
 }
 
 export default function SettingsPage() {
-  const { user, token, loading, saveSettings, logout, forget } = useAuth();
+  const { user, token, loading, saveSettings, logout, forget, refresh } = useAuth();
   const router = useRouter();
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [interestText, setInterestText] = useState('');
@@ -167,6 +167,21 @@ export default function SettingsPage() {
           </Section>
           <Section title="Notifications & app">
             <p className="mt-3 text-sm text-slate-600">Get a notification when a friend comes online, your badge is approved or an invite pays off.</p>
+            <label className="mt-3 flex items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={user.emailsOn}
+                onChange={async (e) => {
+                  await api('/auth/emails', { optOut: !e.target.checked }, token).catch(() => undefined);
+                  await refresh();
+                }}
+                className="mt-0.5 h-4 w-4"
+              />
+              <span>
+                <span className="font-medium">Emails when I&apos;ve been away</span>
+                <span className="block text-slate-500">At most one every two weeks: who&apos;s online and your daily reward.</span>
+              </span>
+            </label>
             <div className="mt-3 flex flex-wrap items-start gap-3">
               <NotificationsToggle />
               <InstallButton className="[&_button]:bg-slate-800 [&_p]:text-slate-600" />

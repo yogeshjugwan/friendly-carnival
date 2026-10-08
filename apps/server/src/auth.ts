@@ -19,6 +19,7 @@ import { hashPassword, NO_PLUS, publicPlus, verifyPassword, type AccountStore, t
 import { bearer, cors, RateLimiter, readJson, sendJson } from './http.ts';
 import { linkEmail, type Mailer } from './mailer.ts';
 import { isPushSubscription, type PushService } from './push.ts';
+import { unsubscribeSecret, validUnsubscribe } from './winback.ts';
 import { dayOf } from './analytics.ts';
 import { parseSettings } from './validate.ts';
 
@@ -60,6 +61,7 @@ export const publicUser = (u: User): PublicUser => ({
   // Never had Plus in any form (paid, gift or trial).
   trialAvailable: !u.trialUsed && !u.plus.status && !u.stripeCustomerId,
   birthDateSet: !!u.birthDate,
+  emailsOn: !u.emailOptOut,
   ageHold: ageHoldOf(u),
 });
 
@@ -195,6 +197,16 @@ export function createAuthHandler(deps: AuthDeps) {
         return sendJson(res, 200, { ok: true }), true;
       }
 
+      // One-click unsubscribe from activity emails (email clients POST here; the web page too).
+      if (route === 'POST /auth/unsubscribe') {
+        let { u, t } = Object.fromEntries(url.searchParams) as Record<string, string | undefined>;
+        if (!u || !t) ({ u, t } = (await readJson(req)) as { u?: string; t?: string });
+        const secret = await unsubscribeSecret(accounts);
+        if (!validUnsubscribe(u, t, secret)) return fail(400, 'This unsubscribe link is not valid');
+        await accounts.setEmailOptOut(u, true);
+        return sendJson(res, 200, { ok: true }), true;
+      }
+
       if (route === 'GET /auth/push/key') {
         const publicKey = deps.push ? await deps.push.publicKey() : null;
         return publicKey ? (sendJson(res, 200, { publicKey }), true) : fail(503, 'Notifications are not available');
@@ -316,6 +328,13 @@ export function createAuthHandler(deps: AuthDeps) {
         challenges.delete(user.id);
         await accounts.submitVerification(user.id, challenge.gesture, photo);
         return sendJson(res, 200, publicUser({ ...user, verifyStatus: 'pending' })), true;
+      }
+
+      if (route === 'POST /auth/emails') {
+        const { optOut } = await readJson(req);
+        if (typeof optOut !== 'boolean') return fail(400, 'Invalid request');
+        await accounts.setEmailOptOut(user.id, optOut);
+        return sendJson(res, 200, publicUser({ ...user, emailOptOut: optOut })), true;
       }
 
       if (route === 'POST /auth/password') {

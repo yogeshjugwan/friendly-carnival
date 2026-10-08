@@ -3,6 +3,8 @@ export interface Mail {
   subject: string;
   text: string;
   html: string;
+  /** Extra headers, e.g. List-Unsubscribe. */
+  headers?: Record<string, string>;
 }
 
 export interface Mailer {
@@ -27,13 +29,13 @@ export class ResendMailer implements Mailer {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { authorization: `Bearer ${this.apiKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ from: this.from, to: [mail.to], subject: mail.subject, text: mail.text, html: mail.html }),
+      body: JSON.stringify({ from: this.from, to: [mail.to], subject: mail.subject, text: mail.text, html: mail.html, headers: mail.headers }),
     });
     if (!res.ok) throw new Error(`Resend ${res.status}: ${await res.text()}`);
   }
 }
 
-const escape = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+export const escape = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
 export function linkEmail(to: string, subject: string, intro: string, action: string, url: string, outro: string): Mail {
   return {

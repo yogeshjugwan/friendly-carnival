@@ -15,6 +15,8 @@ const app = createApp({
   billing,
   // Proof of work before matching; GUARD_POW=off turns it off (e.g. for load tests).
   requireProof: process.env.GUARD_POW !== 'off',
+  // "People are online" emails to inactive users, only when emails really go out.
+  winback: !!config.resendApiKey && process.env.WINBACK_EMAILS !== 'off',
 });
 if (!billing) console.warn('[rc-server] Stripe not configured: Plus checkout is disabled');
 

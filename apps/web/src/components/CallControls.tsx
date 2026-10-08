@@ -7,7 +7,6 @@ import {
   BackIcon,
   ChatIcon,
   ChevronUpIcon,
-  HandIcon,
   MicIcon,
   MicOffIcon,
   SkipIcon,
@@ -95,7 +94,7 @@ function DeviceButton({
 }
 
 /**
- * The call bar: mic, camera, reactions, raise hand, ⋮ (settings), end call,
+ * The call bar: mic, camera, effects, reactions, chat, ⋮ (settings), end call,
  * Next — plus Back when available. Laid out like Google Meet.
  */
 interface ControlsProps {
@@ -124,8 +123,7 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
               disabled={!matched}
               onClick={() => call.sendReaction(emoji)}
               aria-label={emoji === '✋' ? 'Raise hand' : `Send ${emoji}`}
-              // ✋ has its own button on wider screens; on phones it lives here.
-              className={`rounded-full p-1.5 text-xl transition hover:scale-125 hover:bg-white/10 disabled:opacity-40 sm:text-2xl ${emoji === '✋' ? 'sm:hidden [@media(max-height:500px)]:!inline-block' : ''}`}
+              className="rounded-full p-1.5 text-xl transition hover:scale-125 hover:bg-white/10 disabled:opacity-40 sm:text-2xl"
             >
               {emoji}
             </button>
@@ -178,15 +176,6 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
           <SmileIcon />
         </button>
         <button
-          onClick={() => call.sendReaction('✋')}
-          disabled={!matched}
-          aria-label={t('call.raiseHand')}
-          title={t('call.raiseHand')}
-          className={`${round()} hidden disabled:opacity-40 sm:flex [@media(max-height:500px)]:!hidden`}
-        >
-          <HandIcon />
-        </button>
-        <button
           onClick={onToggleChat}
           aria-label={unread ? `${t('call.chat')}, ${unread}` : t('call.chat')}
           aria-pressed={chatOpen}
@@ -218,8 +207,8 @@ export function StopNext({ call, compact = false }: { call: RandomCall; compact?
         title={t('call.end')}
         className={`flex ${h} items-center gap-2 rounded-2xl bg-[#e5484d] px-4 text-[15px] font-semibold text-white transition hover:bg-[#d93c41] sm:px-[18px]`}
       >
-        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinejoin="round" aria-hidden>
-          <rect x="6" y="6" width="12" height="12" rx="2" />
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
+          <rect x="4" y="4" width="16" height="16" rx="3" />
         </svg>
         {t('call.stop')}
       </button>

@@ -39,6 +39,10 @@ export default function PrivacyPage() {
         moderators see reports. Our hosting providers process data on our behalf (web hosting, the realtime server, the database,
         and email delivery).
       </p>
+      <p>
+        When you tap Translate on a message, your browser translates it on your device if it can. If it can&apos;t, that one message is
+        sent through our server to a translation service (MyMemory or Google Cloud Translation) and isn&apos;t stored by us.
+      </p>
       <h2>How long we keep it</h2>
       <ul>
         <li>Report images: deleted after 30 days.</li>

@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { createServer, type IncomingHttpHeaders, type Server as HttpServer } from 'node:http';
+import { createServer, type IncomingHttpHeaders, type IncomingMessage, type ServerResponse, type Server as HttpServer } from 'node:http';
 import { Server } from 'socket.io';
 import {
   BOOST,

@@ -1,10 +1,11 @@
 'use client';
 
 /**
- * Chat translation with the browser's built-in, on-device Translator and
- * LanguageDetector APIs (Chrome 138+). No server, no API key, nothing sent
- * anywhere. Returns null when the browser can't translate.
+ * Chat translation. First the browser's built-in, on-device Translator and
+ * LanguageDetector APIs (Chrome 138+: nothing leaves the device); otherwise
+ * our server's translation fallback. Returns null when neither can translate.
  */
+import { API_URL } from './auth';
 
 interface Detector {
   detect(text: string): Promise<{ detectedLanguage: string; confidence: number }[]>;
@@ -25,7 +26,10 @@ const api = () => {
   return g.Translator && g.LanguageDetector ? { Translator: g.Translator, LanguageDetector: g.LanguageDetector } : null;
 };
 
-export const translationSupported = () => typeof window !== 'undefined' && !!api();
+/** On-device translation (Chrome); everyone else uses the server fallback. */
+export const onDeviceTranslation = () => typeof window !== 'undefined' && !!api();
+/** Translation works everywhere now (on the device, or through the server). */
+export const translationSupported = () => typeof window !== 'undefined';
 
 /** The reader's language, e.g. "en" from "en-IN". */
 export const myLanguage = () => (typeof navigator !== 'undefined' ? navigator.language.split('-')[0] : 'en');
@@ -37,6 +41,24 @@ export type Translation = { text: string; from: string } | { same: true } | null
 
 /** Translates `text` into the reader's language; `{ same: true }` when it's already in it. */
 export async function translate(text: string, target = myLanguage()): Promise<Translation> {
+  return (await translateOnDevice(text, target)) ?? (await translateOnServer(text, target));
+}
+
+/** Fallback for browsers without the built-in Translator: our server's translation provider. */
+async function translateOnServer(text: string, target: string): Promise<Translation> {
+  try {
+    const res = await fetch(`${API_URL}/translate`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: text.slice(0, 500), to: target }),
+    });
+    return res.ok ? ((await res.json()) as Translation) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function translateOnDevice(text: string, target: string): Promise<Translation> {
   const a = api();
   if (!a) return null;
   try {

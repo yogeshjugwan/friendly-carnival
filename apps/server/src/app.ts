@@ -6,6 +6,7 @@ import {
   GAMES,
   REPORT_REASONS,
   TOPICS,
+  DM_REQUEST_LIMIT,
   PRIORITY_MATCH,
   REFERRAL,
   CALL_REQUEST_MS,
@@ -31,6 +32,8 @@ import {
   type SpendResult,
   type AgeHold,
   type DirectMessage,
+  type ChatMode,
+  type HistoryPerson,
   type RoomMember,
   type UserProfile,
   type Wallet,
@@ -52,7 +55,7 @@ import { LOW_TRUST, SkipTracker, trustScore } from './trust.ts';
 import { Translator } from './translate.ts';
 import { runWinback } from './winback.ts';
 import { cors, RateLimiter, readJson, sendJson } from './http.ts';
-import { isPlusActive, MAX_FRIENDS, MemoryAccountStore, NO_PLUS, type StoredMessage } from './accounts.ts';
+import { isPlusActive, MAX_FRIENDS, MemoryAccountStore, NO_PLUS, type HistoryRow, type StoredMessage } from './accounts.ts';
 import type { BillingProvider } from './billing.ts';
 import { createBillingHandler } from './billing-http.ts';
 import { handleAdmin } from './admin.ts';
@@ -612,6 +615,21 @@ export function createApp(opts: AppOptions = {}): App {
         tag: `friend-online-${friendHandleFor(f.friendId, userId)}`,
       });
     }
+    // People who follow them (one-way), unless they were told above.
+    const friendIds = new Set((await accounts.listFriends(userId)).map((f) => f.friendId));
+    const myName = [...io.sockets.sockets.values()].find((x) => x.data.userId === userId)?.data.profile?.name || 'Someone you follow';
+    for (const follower of await accounts.followers(userId)) {
+      if (friendIds.has(follower) || socketsOfUser(follower).length) continue;
+      const pair = `${follower}<${userId}`;
+      if (now - (lastFriendPush.get(pair) ?? 0) < FRIEND_PAIR_MS) continue;
+      lastFriendPush.set(pair, now);
+      await push.send(follower, {
+        title: '⭐ Online now',
+        body: `${myName} is on randomCall — say hi!`,
+        url: '/history',
+        tag: `follow-online-${friendHandleFor(follower, userId)}`,
+      });
+    }
   };
 
   const profileOf = (socketId: string) => {
@@ -659,6 +677,29 @@ export function createApp(opts: AppOptions = {}): App {
     for (const id of [a.id, b.id]) {
       const d = io.sockets.sockets.get(id)?.data;
       if (d) skips.matched(limitKey(d));
+    }
+    // History for logged-in people: how they saw this partner.
+    for (const [me, other] of [
+      [a, b],
+      [b, a],
+    ] as const) {
+      const meData = io.sockets.sockets.get(me.id)?.data;
+      const otherData = io.sockets.sockets.get(other.id)?.data;
+      if (!meData?.userId || !otherData) continue;
+      const otherUser = otherData.userId ?? null;
+      void accounts
+        .addHistory({
+          userId: meData.userId,
+          partnerKey: otherUser ?? `g:${createHash('sha256').update(otherData.deviceId).digest('base64url').slice(0, 16)}`,
+          partnerUserId: otherUser,
+          name: otherData.profile?.name ?? '',
+          avatar: otherData.profile?.avatar ?? null,
+          gender: other.gender,
+          country: other.hideCountry ? null : other.country,
+          mode: other.mode,
+          at: Date.now(),
+        })
+        .catch((e) => console.error('[history]', e));
     }
     analytics.count('matches');
     analytics.count(`${b.mode}Matches`);
@@ -785,7 +826,8 @@ export function createApp(opts: AppOptions = {}): App {
     }
     const onlineUser = socket.data.userId;
     if (onlineUser && [...io.sockets.sockets.values()].filter((x) => x.data.userId === onlineUser).length === 1) {
-      void notifyFriendsOnline(onlineUser).catch((e) => console.error('[push]', e));
+      // A moment later, so their name (sent right after connecting) is known.
+      setTimeout(() => void notifyFriendsOnline(onlineUser).catch((e) => console.error('[push]', e)), 2_000).unref?.();
     }
     analytics.peak('peakOnline', matchmaker.onlineCount);
     if (limits) socket.emit('limit:status', limits.status(limitKey(socket.data), plus));
@@ -1180,6 +1222,20 @@ export function createApp(opts: AppOptions = {}): App {
       if (!me || typeof handle !== 'string') return null;
       return (await accounts.listFriends(me)).find((f) => friendHandle(f.friendId) === handle) ?? null;
     };
+    /**
+     * Someone you may message: a friend, a person from your History with an
+     * account, or someone who messaged you.
+     */
+    const resolveContact = async (handle: unknown): Promise<{ userId: string; friend: boolean; label: string } | null> => {
+      const me = myUser();
+      if (!me || typeof handle !== 'string') return null;
+      const friend = (await accounts.listFriends(me)).find((f) => friendHandle(f.friendId) === handle);
+      if (friend) return { userId: friend.friendId, friend: true, label: friend.nickname ?? '' };
+      const met = (await accounts.historyOf(me, 1000)).find((h) => h.partnerUserId && friendHandle(h.partnerUserId) === handle);
+      if (met) return { userId: met.partnerUserId!, friend: false, label: met.name };
+      const thread = (await accounts.threadsOf(me)).find((t) => friendHandle(t.other) === handle);
+      return thread ? { userId: thread.other, friend: false, label: '' } : null;
+    };
     /** The best socket of a user: a free one in the call screen first. */
     const socketsOfUser = (userId: string) => [...io.sockets.sockets.values()].filter((x) => x.data.userId === userId);
 
@@ -1252,7 +1308,106 @@ export function createApp(opts: AppOptions = {}): App {
     });
 
     // ---- Messages between friends (kept until read, pushed when they're away) ----
-    const dmView = (m: StoredMessage, me: string): DirectMessage => ({ id: m.id, fromMe: m.from === me, text: m.text, at: m.at });
+    const dmView = (m: StoredMessage, me: string): DirectMessage => ({
+      id: m.id,
+      fromMe: m.from === me,
+      text: m.text,
+      at: m.at,
+      ...(m.from === me ? { read: !!m.readAt } : {}),
+    });
+
+    socket.on('dm:threads', async (ack) => {
+      if (typeof ack !== 'function') return;
+      const me = myUser();
+      if (!me) return ack(null);
+      try {
+        const [threads, friends, history] = await Promise.all([accounts.threadsOf(me), accounts.listFriends(me), accounts.historyOf(me, 1000)]);
+        const friendOf = new Map(friends.map((f) => [f.friendId, f]));
+        ack(
+          threads.map((t) => {
+            const f = friendOf.get(t.other);
+            const met = history.find((h) => h.partnerUserId === t.other);
+            const live = socketsOfUser(t.other);
+            return {
+              id: friendHandle(t.other),
+              name: f?.nickname || met?.name || live[0]?.data.profile?.name || (f ? 'Friend' : 'Someone'),
+              avatar: met?.avatar ?? live[0]?.data.profile?.avatar ?? null,
+              lastText: t.last.text,
+              lastAt: t.last.at,
+              lastFromMe: t.last.from === me,
+              unread: t.unread,
+              friend: !!f,
+              online: live.length > 0,
+              request: !f && t.mine === 0 && t.theirs > 0,
+            };
+          }),
+        );
+      } catch (e) {
+        console.error('[dm:threads]', e);
+        ack(null);
+      }
+    });
+
+    // ---- History & follows ----
+    const historyId = (h: HistoryRow) =>
+      h.partnerUserId ? friendHandle(h.partnerUserId) : `g${createHash('sha256').update(`${myUser()}:${h.partnerKey}`).digest('base64url').slice(0, 15)}`;
+    socket.on('history:list', async (ack) => {
+      if (typeof ack !== 'function') return;
+      const me = myUser();
+      if (!me) return ack(null);
+      try {
+        const [rows, following, friends] = await Promise.all([accounts.historyOf(me, 1000), accounts.following(me), accounts.listFriends(me)]);
+        const friendIds = new Set(friends.map((f) => f.friendId));
+        const people = new Map<string, HistoryPerson>();
+        for (const h of rows) {
+          const p = people.get(h.partnerKey);
+          if (p) {
+            p.count++;
+            continue;
+          }
+          people.set(h.partnerKey, {
+            id: historyId(h),
+            name: h.name,
+            avatar: h.avatar,
+            gender: (h.gender as HistoryPerson['gender']) ?? null,
+            country: h.country,
+            count: 1,
+            lastAt: h.at,
+            lastMode: h.mode as ChatMode,
+            hasAccount: !!h.partnerUserId,
+            following: !!h.partnerUserId && following.has(h.partnerUserId),
+            friend: !!h.partnerUserId && friendIds.has(h.partnerUserId),
+            online: !!h.partnerUserId && socketsOfUser(h.partnerUserId).length > 0,
+          });
+        }
+        const weekAgo = Date.now() - 7 * 86_400_000;
+        ack({ people: [...people.values()], total: rows.length, recent: rows.filter((h) => h.at >= weekAgo).length });
+      } catch (e) {
+        console.error('[history:list]', e);
+        ack(null);
+      }
+    });
+    socket.on('history:remove', async (id, ack) => {
+      if (typeof ack !== 'function') return;
+      const me = myUser();
+      if (!me) return ack(false);
+      const row = (await accounts.historyOf(me, 1000)).find((h) => historyId(h) === id);
+      if (!row) return ack(false);
+      await accounts.removeHistory(me, row.partnerKey);
+      ack(true);
+    });
+    socket.on('follow:set', async (id, on, ack) => {
+      if (typeof ack !== 'function') return;
+      const me = myUser();
+      if (!me || typeof on !== 'boolean') return ack(false);
+      // You can follow people you've actually met.
+      const row = (await accounts.historyOf(me, 1000)).find((h) => h.partnerUserId && historyId(h) === id);
+      if (!row) return ack(false);
+      if (on && (await accounts.following(me)).size >= 500) return ack(false);
+      await accounts.follow(me, row.partnerUserId!, on);
+      ack(true);
+    });
+
     socket.on('dm:send', async (handle, text, ack) => {
       if (typeof ack !== 'function') return;
       const me = myUser();
@@ -1260,8 +1415,14 @@ export function createApp(opts: AppOptions = {}): App {
       const clean = parseChatText(text);
       if (!clean) return ack({ ok: false, reason: 'invalid' });
       try {
-        const f = await resolveFriend(handle);
-        if (!f) return ack({ ok: false, reason: 'not-friends' });
+        const c = await resolveContact(handle);
+        if (!c) return ack({ ok: false, reason: 'not-friends' });
+        const f = { friendId: c.userId };
+        // Not friends: a message request, a few messages until they reply.
+        if (!c.friend) {
+          const t = (await accounts.threadsOf(me)).find((x) => x.other === c.userId);
+          if (t && t.theirs === 0 && t.mine >= DM_REQUEST_LIMIT) return ack({ ok: false, reason: 'wait-reply' });
+        }
         const stored = await accounts.addMessage(me, f.friendId, clean);
         ack({ ok: true, message: dmView(stored, me) });
         const theirSockets = socketsOfUser(f.friendId);
@@ -1271,9 +1432,9 @@ export function createApp(opts: AppOptions = {}): App {
         if (!theirSockets.length) {
           const theirs = (await accounts.listFriends(f.friendId)).find((x) => x.friendId === me);
           void push.send(f.friendId, {
-            title: `💬 ${theirs?.nickname || 'A friend'}`,
+            title: `💬 ${theirs?.nickname || socket.data.profile?.name || (c.friend ? 'A friend' : 'New message')}`,
             body: clean.length > 120 ? `${clean.slice(0, 117)}…` : clean,
-            url: '/?friends=1',
+            url: `/messages?with=${encodeURIComponent(friendHandleFor(f.friendId, me))}`,
             tag: `dm-${friendHandleFor(f.friendId, me)}`,
           });
         }
@@ -1287,11 +1448,14 @@ export function createApp(opts: AppOptions = {}): App {
       const me = myUser();
       if (!me) return ack(null);
       try {
-        const f = await resolveFriend(handle);
-        if (!f) return ack(null);
-        const messages = await accounts.messagesBetween(me, f.friendId, 50);
-        await accounts.markRead(me, f.friendId);
+        const c = await resolveContact(handle);
+        if (!c) return ack(null);
+        const messages = await accounts.messagesBetween(me, c.userId, 50);
+        const hadUnread = messages.some((m) => m.to === me && !m.readAt);
+        await accounts.markRead(me, c.userId);
         ack(messages.map((m) => dmView(m, me)));
+        // Their ✓✓ turns blue.
+        if (hadUnread) for (const x of socketsOfUser(c.userId)) x.emit('dm:read', friendHandleFor(c.userId, me));
       } catch (e) {
         console.error('[dm:history]', e);
         ack(null);

@@ -41,6 +41,12 @@ export function SiteHeader({ online }: { online?: number | null }) {
                 {t('header.upgrade')}
               </Link>
             )}
+            <Link href="/history" className="rounded-lg bg-slate-700 px-2.5 py-1.5 text-sm hover:bg-slate-600" title="History" aria-label="History">
+              🕘
+            </Link>
+            <Link href="/messages" className="rounded-lg bg-slate-700 px-2.5 py-1.5 text-sm hover:bg-slate-600" title="Messages" aria-label="Messages">
+              💬
+            </Link>
             <Link href="/invite" className="hidden rounded-lg bg-slate-700 px-3 py-1.5 text-sm font-medium hover:bg-slate-600 sm:inline-block" title="Invite friends, get Plus free">
               {t('header.invite')}
             </Link>
@@ -89,6 +95,12 @@ export function SiteFooter() {
       </Link>
       <Link href="/rooms" className="hover:text-white">
         {t('footer.rooms')}
+      </Link>
+      <Link href="/history" className="hover:text-white">
+        🕘 History
+      </Link>
+      <Link href="/messages" className="hover:text-white">
+        💬 Messages
       </Link>
       <Link href="/invite" className="hover:text-white">
         {t('footer.invite')}

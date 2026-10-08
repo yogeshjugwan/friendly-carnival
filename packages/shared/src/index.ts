@@ -157,8 +157,56 @@ export interface DirectMessage {
   fromMe: boolean;
   text: string;
   at: number;
+  /** For your own messages: they opened it (✓✓ blue). */
+  read?: boolean;
 }
-export type DmSendResult = { ok: true; message: DirectMessage } | { ok: false; reason: 'login-required' | 'not-friends' | 'invalid' };
+
+/** Someone you chatted with, in your History (ids are opaque per viewer). */
+export interface HistoryPerson {
+  id: string;
+  name: string;
+  avatar: string | null;
+  gender: Gender | null;
+  country: string | null;
+  /** Times you were matched. */
+  count: number;
+  lastAt: number;
+  lastMode: ChatMode;
+  /** They have an account: you can follow and message them. */
+  hasAccount: boolean;
+  following: boolean;
+  friend: boolean;
+  online: boolean;
+}
+
+export interface HistoryResult {
+  people: HistoryPerson[];
+  /** All matches you've had (kept history). */
+  total: number;
+  /** Matches in the last 7 days. */
+  recent: number;
+}
+
+/** A conversation in Messages. */
+export interface DmThread {
+  id: string;
+  name: string;
+  avatar: string | null;
+  lastText: string;
+  lastAt: number;
+  lastFromMe: boolean;
+  unread: number;
+  friend: boolean;
+  online: boolean;
+  /** They wrote first and you haven't replied: a message request. */
+  request: boolean;
+}
+
+/** Messages to someone who isn't your friend, before they reply. */
+export const DM_REQUEST_LIMIT = 3;
+export type DmSendResult =
+  | { ok: true; message: DirectMessage }
+  | { ok: false; reason: 'login-required' | 'not-friends' | 'invalid' | 'wait-reply' };
 
 export const MAX_FRIEND_NICKNAME = 40;
 
@@ -292,6 +340,13 @@ export interface ClientToServerEvents {
   'dm:send': (friendId: string, text: string, ack: (r: DmSendResult) => void) => void;
   /** The latest messages with a friend (marks theirs as read). */
   'dm:history': (friendId: string, ack: (messages: DirectMessage[] | null) => void) => void;
+  /** Your conversations, newest first. */
+  'dm:threads': (ack: (threads: DmThread[] | null) => void) => void;
+  /** People you chatted with. */
+  'history:list': (ack: (r: HistoryResult | null) => void) => void;
+  'history:remove': (id: string, ack: (ok: boolean) => void) => void;
+  /** One-way follow: you're told when they come online. */
+  'follow:set': (id: string, on: boolean, ack: (ok: boolean) => void) => void;
   /** People this device blocked (ack gets the list). */
   'blocks:list': (ack: (blocked: BlockedUser[]) => void) => void;
   /** Unblock one of them. */
@@ -374,6 +429,8 @@ export interface ServerToClientEvents {
   'age:hold': (hold: Exclude<AgeHold, null>) => void;
   /** A friend messaged you. */
   'dm:new': (dm: { friendId: string; message: DirectMessage }) => void;
+  /** They read your messages (✓✓ turns blue). */
+  'dm:read': (friendId: string) => void;
   /** The current mini-game as this person sees it; null when it ended. */
   'game:state': (view: GameView | null) => void;
   /** The partner sent a reaction. */

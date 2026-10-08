@@ -185,6 +185,17 @@ export interface AccountStore {
   accountStats(since: number): Promise<AccountStats>;
   /** One direction of a friendship: what `userId` saw of `friendId`, plus their nickname for them. */
   addFriend(userId: string, friendId: string, seen: { gender: string | null; country: string | null }): Promise<void>;
+  /** History: one row per match, as `userId` saw the partner. */
+  addHistory(entry: Omit<HistoryRow, 'id'>): Promise<void>;
+  /** The newest `limit` history rows of a user. */
+  historyOf(userId: string, limit: number): Promise<HistoryRow[]>;
+  /** Forget everything about one partner (by partnerKey). */
+  removeHistory(userId: string, partnerKey: string): Promise<void>;
+  follow(follower: string, followee: string, on: boolean): Promise<void>;
+  following(follower: string): Promise<Set<string>>;
+  followers(followee: string): Promise<string[]>;
+  /** Counterparts of a user's conversations with the latest message and unread count. */
+  threadsOf(userId: string): Promise<{ other: string; last: StoredMessage; unread: number; mine: number; theirs: number }[]>;
   listFriends(userId: string): Promise<StoredFriend[]>;
   isFriend(userId: string, friendId: string): Promise<boolean>;
   /** Removes both directions. */
@@ -200,6 +211,20 @@ export interface AccountStats {
   signups: number[];
   /** Coin purchases since `since`: when and how many coins. */
   purchases: { at: number; coins: number }[];
+}
+
+export interface HistoryRow {
+  id: string;
+  userId: string;
+  /** Account id of the partner, or a hashed device for guests. */
+  partnerKey: string;
+  partnerUserId: string | null;
+  name: string;
+  avatar: string | null;
+  gender: string | null;
+  country: string | null;
+  mode: string;
+  at: number;
 }
 
 export interface StoredMessage {
@@ -296,6 +321,8 @@ export class MemoryAccountStore implements AccountStore {
     this.users.delete(id);
     this.selfies.delete(id);
     this.messages = this.messages.filter((m) => m.from !== id && m.to !== id);
+    this.history = this.history.filter((h) => h.userId !== id && h.partnerUserId !== id);
+    for (const f of [...this.follows]) if (f.startsWith(`${id}>`) || f.endsWith(`>${id}`)) this.follows.delete(f);
     for (const [endpoint, p] of this.pushSubs) if (p.userId === id) this.pushSubs.delete(endpoint);
     await this.deleteTokensFor(id);
     for (const other of this.friends.get(id)?.keys() ?? []) this.friends.get(other)?.delete(id);
@@ -361,6 +388,53 @@ export class MemoryAccountStore implements AccountStore {
   }
 
   private messages: StoredMessage[] = [];
+  private history: HistoryRow[] = [];
+  private follows = new Set<string>();
+
+  async addHistory(entry: Omit<HistoryRow, 'id'>) {
+    this.history.push({ ...entry, id: randomUUID() });
+  }
+
+  async historyOf(userId: string, limit: number) {
+    return this.history
+      .filter((h) => h.userId === userId)
+      .sort((a, b) => b.at - a.at)
+      .slice(0, limit);
+  }
+
+  async removeHistory(userId: string, partnerKey: string) {
+    this.history = this.history.filter((h) => !(h.userId === userId && h.partnerKey === partnerKey));
+  }
+
+  async follow(follower: string, followee: string, on: boolean) {
+    if (on) this.follows.add(`${follower}>${followee}`);
+    else this.follows.delete(`${follower}>${followee}`);
+  }
+
+  async following(follower: string) {
+    return new Set([...this.follows].filter((f) => f.startsWith(`${follower}>`)).map((f) => f.slice(follower.length + 1)));
+  }
+
+  async followers(followee: string) {
+    return [...this.follows].filter((f) => f.endsWith(`>${followee}`)).map((f) => f.split('>')[0]!);
+  }
+
+  async threadsOf(userId: string) {
+    const byOther = new Map<string, { other: string; last: StoredMessage; unread: number; mine: number; theirs: number }>();
+    for (const m of this.messages) {
+      if (m.from !== userId && m.to !== userId) continue;
+      const other = m.from === userId ? m.to : m.from;
+      const t = byOther.get(other) ?? { other, last: m, unread: 0, mine: 0, theirs: 0 };
+      if (m.at >= t.last.at) t.last = m;
+      if (m.from === userId) t.mine++;
+      else {
+        t.theirs++;
+        if (!m.readAt) t.unread++;
+      }
+      byOther.set(other, t);
+    }
+    return [...byOther.values()].sort((a, b) => b.last.at - a.last.at);
+  }
 
   async touchLastSeen(userId: string, at: number) {
     const u = this.users.get(userId);
@@ -630,6 +704,26 @@ CREATE TABLE IF NOT EXISTS payments (
   amount INTEGER NOT NULL,
   created_at BIGINT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS match_history (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  partner_key TEXT NOT NULL,
+  partner_user_id TEXT,
+  name TEXT NOT NULL,
+  avatar TEXT,
+  gender TEXT,
+  country TEXT,
+  mode TEXT NOT NULL,
+  at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS match_history_user_idx ON match_history (user_id, at);
+CREATE TABLE IF NOT EXISTS follows (
+  follower TEXT NOT NULL,
+  followee TEXT NOT NULL,
+  created_at BIGINT NOT NULL,
+  PRIMARY KEY (follower, followee)
+);
+CREATE INDEX IF NOT EXISTS follows_followee_idx ON follows (followee);
 CREATE TABLE IF NOT EXISTS app_secrets (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -729,6 +823,8 @@ export class PostgresAccountStore implements AccountStore {
     await this.pool.query('DELETE FROM verifications WHERE user_id = $1', [id]);
     await this.pool.query('DELETE FROM push_subscriptions WHERE user_id = $1', [id]);
     await this.pool.query('DELETE FROM friend_messages WHERE from_user = $1 OR to_user = $1', [id]);
+    await this.pool.query('DELETE FROM match_history WHERE user_id = $1 OR partner_user_id = $1', [id]);
+    await this.pool.query('DELETE FROM follows WHERE follower = $1 OR followee = $1', [id]);
     await this.pool.query('DELETE FROM users WHERE id = $1', [id]);
   }
 
@@ -1028,6 +1124,75 @@ export class PostgresAccountStore implements AccountStore {
   async removeFriendship(a: string, b: string) {
     await this.pool.query('DELETE FROM friends WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)', [a, b]);
     await this.pool.query('DELETE FROM friend_messages WHERE (from_user = $1 AND to_user = $2) OR (from_user = $2 AND to_user = $1)', [a, b]);
+  }
+
+  async addHistory(e: Omit<HistoryRow, 'id'>) {
+    await this.pool.query(
+      'INSERT INTO match_history (id, user_id, partner_key, partner_user_id, name, avatar, gender, country, mode, at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+      [randomUUID(), e.userId, e.partnerKey, e.partnerUserId, e.name, e.avatar, e.gender, e.country, e.mode, e.at],
+    );
+  }
+
+  async historyOf(userId: string, limit: number) {
+    const { rows } = await this.pool.query('SELECT * FROM match_history WHERE user_id = $1 ORDER BY at DESC LIMIT $2', [userId, limit]);
+    return rows.map((r) => ({
+      id: r.id as string,
+      userId: r.user_id as string,
+      partnerKey: r.partner_key as string,
+      partnerUserId: (r.partner_user_id as string | null) ?? null,
+      name: r.name as string,
+      avatar: (r.avatar as string | null) ?? null,
+      gender: (r.gender as string | null) ?? null,
+      country: (r.country as string | null) ?? null,
+      mode: r.mode as string,
+      at: Number(r.at),
+    }));
+  }
+
+  async removeHistory(userId: string, partnerKey: string) {
+    await this.pool.query('DELETE FROM match_history WHERE user_id = $1 AND partner_key = $2', [userId, partnerKey]);
+  }
+
+  async follow(follower: string, followee: string, on: boolean) {
+    await this.pool.query('DELETE FROM follows WHERE follower = $1 AND followee = $2', [follower, followee]);
+    if (on) await this.pool.query('INSERT INTO follows (follower, followee, created_at) VALUES ($1,$2,$3)', [follower, followee, Date.now()]);
+  }
+
+  async following(follower: string) {
+    const { rows } = await this.pool.query('SELECT followee FROM follows WHERE follower = $1', [follower]);
+    return new Set(rows.map((r) => r.followee as string));
+  }
+
+  async followers(followee: string) {
+    const { rows } = await this.pool.query('SELECT follower FROM follows WHERE followee = $1', [followee]);
+    return rows.map((r) => r.follower as string);
+  }
+
+  async threadsOf(userId: string) {
+    const { rows } = await this.pool.query(
+      'SELECT * FROM friend_messages WHERE from_user = $1 OR to_user = $1 ORDER BY created_at DESC LIMIT 2000',
+      [userId],
+    );
+    const byOther = new Map<string, { other: string; last: StoredMessage; unread: number; mine: number; theirs: number }>();
+    for (const r of rows) {
+      const m: StoredMessage = {
+        id: r.id as string,
+        from: r.from_user as string,
+        to: r.to_user as string,
+        text: r.text as string,
+        at: Number(r.created_at),
+        readAt: r.read_at == null ? null : Number(r.read_at),
+      };
+      const other = m.from === userId ? m.to : m.from;
+      const t = byOther.get(other) ?? { other, last: m, unread: 0, mine: 0, theirs: 0 };
+      if (m.from === userId) t.mine++;
+      else {
+        t.theirs++;
+        if (!m.readAt) t.unread++;
+      }
+      byOther.set(other, t);
+    }
+    return [...byOther.values()];
   }
 
   async addMessage(from: string, to: string, text: string) {

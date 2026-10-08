@@ -62,7 +62,7 @@ test('push: friends who are away hear when you come online (with their nickname)
       const s: Client = connect(url, { auth: { deviceId: '11111111-1111-4111-8111-111111111111', token: meToken }, transports: ['websocket'], forceNew: true });
       open.push(s);
       await once(s, 'stats');
-      await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 2_300));
       return s;
     };
     const first = await join();

@@ -43,7 +43,7 @@ export function FilterBar() {
     options: { value: string; label: string }[],
     wide = false,
   ) => (
-    <label className={`relative flex h-9 items-center gap-2 rounded-lg pl-3 text-sm text-[#e8ebf2] hover:bg-card-2 ${wide ? 'min-w-0' : 'shrink-0'} ${isPlus ? 'pr-7' : 'pr-11'}`}>
+    <label className={`relative flex h-9 items-center gap-2 rounded-lg pl-3 pr-2 text-sm text-[#e8ebf2] hover:bg-card-2 ${wide ? 'min-w-0' : 'shrink-0'}`}>
       <span className="shrink-0 text-xs text-dim max-sm:hidden" aria-hidden>
         {short}
       </span>
@@ -57,7 +57,8 @@ export function FilterBar() {
           }
         }}
         aria-label={label}
-        className={`min-w-0 cursor-pointer appearance-none truncate bg-transparent text-sm focus:outline-none ${wide ? 'max-w-[8.5rem] sm:max-w-[10rem]' : ''}`}
+        // Sized to the chosen option (not the longest one), so the icons sit right after the text.
+        className={`min-w-0 cursor-pointer appearance-none truncate bg-transparent text-sm [field-sizing:content] focus:outline-none ${isPlus ? 'pr-5' : 'pr-10'} ${wide ? 'max-w-[8.5rem] sm:max-w-[11rem]' : ''}`}
       >
         {options.map((o) => (
           <option key={o.value} value={o.value} className="text-ink">

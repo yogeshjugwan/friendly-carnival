@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { api, API_URL } from '@/lib/auth';
+import { markGoogleStart } from '@/lib/googleReturn';
 
 const GoogleLogo = () => (
   <svg viewBox="0 0 48 48" className="h-5 w-5" aria-hidden>
@@ -69,6 +70,7 @@ export function GoogleSignIn({ agreed, onNeedAgreement, next }: { agreed: boolea
           }
           // The free server can take a while to wake up; show that something is happening.
           setGoing(true);
+          markGoogleStart();
         }}
         className={`mt-4 flex w-full items-center justify-center gap-3 rounded-full border border-slate-300 bg-white py-3 text-base font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 ${going ? 'pointer-events-none opacity-70' : ''}`}
       >

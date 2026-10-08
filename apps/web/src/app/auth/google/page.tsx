@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AuthCard } from '@/components/SiteHeader';
 import { errorText } from '@/components/forms/fields';
 import { useAuth } from '@/lib/auth';
+import { leaveGoogleFor } from '@/lib/googleReturn';
 
 /** Google sign-in lands here with the session token in the URL fragment. */
 export default function GoogleCallbackPage() {
@@ -23,7 +24,8 @@ export default function GoogleCallbackPage() {
     const next = params.get('next') ?? '/';
     if (!token) return void router.replace('/login?error=google_failed');
     adoptSession(token, params.get('new') === '1')
-      .then(() => router.replace(next.startsWith('/') && !next.startsWith('//') ? next : '/'))
+      // Back from here skips Google's account picker (see googleReturn.ts).
+      .then(() => leaveGoogleFor(next.startsWith('/') && !next.startsWith('//') ? next : '/', (to) => router.replace(to)))
       .catch((e) => setError(errorText(e)));
   }, [adoptSession, router]);
 

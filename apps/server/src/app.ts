@@ -674,9 +674,13 @@ export function createApp(opts: AppOptions = {}): App {
     }
     matchStarted.set(matchId, Date.now());
     if (matchStarted.size > 20_000) matchStarted.delete(matchStarted.keys().next().value!);
-    for (const id of [a.id, b.id]) {
-      const d = io.sockets.sockets.get(id)?.data;
-      if (d) skips.matched(limitKey(d));
+    {
+      const da = io.sockets.sockets.get(a.id)?.data;
+      const db = io.sockets.sockets.get(b.id)?.data;
+      if (da && db) {
+        skips.matched(limitKey(da), limitKey(db));
+        skips.matched(limitKey(db), limitKey(da));
+      }
     }
     // History for logged-in people: how they saw this partner.
     for (const [me, other] of [
@@ -877,7 +881,7 @@ export function createApp(opts: AppOptions = {}): App {
       if (skipped && started && Date.now() - started < 5_000) {
         const d = io.sockets.sockets.get(skipped.id)?.data;
         if (d) {
-          skips.quickSkipped(limitKey(d));
+          skips.quickSkipped(limitKey(d), limitKey(socket.data));
           void refreshTrust(skipped.id).catch(() => undefined);
         }
       }

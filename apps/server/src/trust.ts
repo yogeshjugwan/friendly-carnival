@@ -10,7 +10,7 @@ export interface TrustSignals {
   accountAgeMs: number | null;
   /** Different people who reported them in the last 7 days. */
   reporters7d: number;
-  /** Their recent matches, and how many ended with the partner skipping within seconds. */
+  /** Different people they met recently, and how many of those skipped them within seconds. */
   matches24h: number;
   quickSkips24h: number;
 }
@@ -30,32 +30,41 @@ export function trustScore(s: TrustSignals): number {
   return Math.max(0, Math.min(100, score));
 }
 
-/** Matches and "skipped within seconds" per person over the last 24 h (in memory). */
+/**
+ * Matches and "skipped within seconds" per person over the last 24 h (in memory).
+ * Counted per different partner, so two people skipping each other over and
+ * over (friends testing, or a tiny queue) can't push either into the shadow pool.
+ */
 export class SkipTracker {
-  private matches = new Map<string, number[]>();
-  private skips = new Map<string, number[]>();
+  private matches = new Map<string, Map<string, number>>();
+  private skips = new Map<string, Map<string, number>>();
 
   constructor(private readonly now: () => number = Date.now) {}
 
-  private add(map: Map<string, number[]>, key: string) {
+  private add(map: Map<string, Map<string, number>>, key: string, other: string) {
     const t = this.now();
-    const list = (map.get(key) ?? []).filter((x) => t - x < DAY);
-    list.push(t);
-    map.set(key, list.slice(-200));
+    const byOther = map.get(key) ?? new Map<string, number>();
+    for (const [k, at] of byOther) if (t - at >= DAY) byOther.delete(k);
+    byOther.delete(other); // re-insert so the newest stays last
+    byOther.set(other, t);
+    if (byOther.size > 200) byOther.delete(byOther.keys().next().value!);
+    map.set(key, byOther);
     if (map.size > 100_000) map.clear();
   }
 
-  private count(map: Map<string, number[]>, key: string) {
+  private count(map: Map<string, Map<string, number>>, key: string) {
     const t = this.now();
-    return (map.get(key) ?? []).filter((x) => t - x < DAY).length;
+    let n = 0;
+    for (const at of map.get(key)?.values() ?? []) if (t - at < DAY) n++;
+    return n;
   }
 
-  matched(key: string) {
-    this.add(this.matches, key);
+  matched(key: string, partner: string) {
+    this.add(this.matches, key, partner);
   }
 
-  quickSkipped(key: string) {
-    this.add(this.skips, key);
+  quickSkipped(key: string, by: string) {
+    this.add(this.skips, key, by);
   }
 
   stats(key: string) {

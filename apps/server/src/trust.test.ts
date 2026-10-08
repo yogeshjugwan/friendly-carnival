@@ -28,9 +28,17 @@ test('trust score: reports and instant skips lower it; verification and old acco
 
   let now = 0;
   const t = new SkipTracker(() => now);
-  t.matched('a');
-  t.quickSkipped('a');
+  t.matched('a', 'b');
+  t.quickSkipped('a', 'b');
   assert.deepEqual(t.stats('a'), { matches24h: 1, quickSkips24h: 1 });
+  // The same partner skipping again and again counts once.
+  for (let i = 0; i < 30; i++) {
+    t.matched('a', 'b');
+    t.quickSkipped('a', 'b');
+  }
+  assert.deepEqual(t.stats('a'), { matches24h: 1, quickSkips24h: 1 }, 'one partner counts once');
+  t.matched('a', 'c');
+  assert.deepEqual(t.stats('a'), { matches24h: 2, quickSkips24h: 1 });
   now += 25 * 3_600_000;
   assert.deepEqual(t.stats('a'), { matches24h: 0, quickSkips24h: 0 }, '24 h window');
 });

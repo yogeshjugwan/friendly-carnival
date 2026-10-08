@@ -18,6 +18,7 @@ import {
 } from './icons';
 import { EffectsButton } from './Effects';
 import { MoreMenu } from './MoreMenu';
+import { useI18n } from '@/lib/i18n';
 
 /** Meet-style round button: grey normally, red when "off", light blue when active. */
 const round = (state: 'normal' | 'off' | 'active' = 'normal') =>
@@ -111,6 +112,7 @@ interface ControlsProps {
 }
 
 export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fit, onToggleFit, onToggleFullscreen }: ControlsProps) {
+  const { t } = useI18n();
   const [showReactions, setShowReactions] = useState(false);
 
   return (
@@ -135,12 +137,12 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
       <div className="flex items-center gap-1 rounded-full bg-[#202124]/90 px-1.5 py-1.5 shadow-xl backdrop-blur sm:gap-2.5 sm:px-3 sm:py-2 [@media(max-height:500px)]:gap-1.5 [@media(max-height:500px)]:py-1.5">
         {call.canGoBack && (
           // On phones Back lives in the ⋮ menu to save room.
-          <button onClick={call.back} aria-label="Back to the previous stranger" title="Back to the person you just skipped" className={`${round()} max-sm:!hidden`}>
+          <button onClick={call.back} aria-label={t('call.back')} title={t('call.back')} className={`${round()} max-sm:!hidden`}>
             <BackIcon />
           </button>
         )}
         <DeviceButton
-          label="Microphone"
+          label={t('call.mic')}
           on={call.micOn}
           onToggle={call.toggleMic}
           devices={call.mics}
@@ -151,7 +153,7 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
         />
         {call.mode === 'video' && (
           <DeviceButton
-            label="Camera"
+            label={t('call.camera')}
             on={call.cameraOn}
             onToggle={call.toggleCamera}
             devices={call.cameras}
@@ -171,7 +173,7 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
           onClick={() => setShowReactions((s) => !s)}
           aria-label="Reactions"
           aria-pressed={showReactions}
-          title="Send a reaction"
+          title={t('call.reactions')}
           className={round(showReactions ? 'active' : 'normal')}
         >
           <SmileIcon />
@@ -179,17 +181,17 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
         <button
           onClick={() => call.sendReaction('✋')}
           disabled={!matched}
-          aria-label="Raise hand"
-          title="Raise hand"
+          aria-label={t('call.raiseHand')}
+          title={t('call.raiseHand')}
           className={`${round()} hidden disabled:opacity-40 sm:flex [@media(max-height:500px)]:!hidden`}
         >
           <HandIcon />
         </button>
         <button
           onClick={onToggleChat}
-          aria-label={unread ? `Chat, ${unread} new` : 'Chat'}
+          aria-label={unread ? `${t('call.chat')}, ${unread}` : t('call.chat')}
           aria-pressed={chatOpen}
-          title="Chat"
+          title={t('call.chat')}
           className={`relative ${round(chatOpen ? 'active' : 'normal')}`}
         >
           <ChatIcon />
@@ -202,19 +204,19 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
         <MoreMenu call={call} className={round()} fit={fit} onToggleFit={onToggleFit} onToggleFullscreen={onToggleFullscreen} />
         <button
           onClick={call.stop}
-          aria-label="End call"
-          title="End call"
+          aria-label={t('call.end')}
+          title={t('call.end')}
           className="flex h-10 w-12 shrink-0 items-center justify-center rounded-full bg-red-500 text-white transition hover:bg-red-600 max-[380px]:h-9 max-[380px]:w-10 sm:h-12 sm:w-[4.5rem] [@media(max-height:500px)]:h-10 [@media(max-height:500px)]:w-12"
         >
           <PhoneOffIcon />
         </button>
         <button
           onClick={call.next}
-          aria-label="Next stranger"
-          title="Next stranger"
+          aria-label={t('call.nextStranger')}
+          title={t('call.nextStranger')}
           className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-brand px-3 font-semibold text-white transition hover:bg-brand-dark max-[380px]:h-9 max-[380px]:px-2.5 sm:h-12 sm:px-5 [@media(max-height:500px)]:h-10 [@media(max-height:500px)]:px-3"
         >
-          <span className="hidden sm:inline [@media(max-height:500px)]:hidden">Next</span>
+          <span className="hidden sm:inline [@media(max-height:500px)]:hidden">{t('call.next')}</span>
           <SkipIcon className="h-5 w-5" />
         </button>
       </div>

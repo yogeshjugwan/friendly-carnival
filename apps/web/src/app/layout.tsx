@@ -3,6 +3,7 @@ import { PwaSetup } from '@/components/Pwa';
 import { AuthProvider } from '@/lib/auth';
 import './globals.css';
 import { AgeGate } from '@/components/AgeGate';
+import { I18nProvider } from '@/lib/i18n';
 
 export const metadata: Metadata = {
   title: 'randomCall — Random video chat with strangers',
@@ -26,10 +27,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="antialiased">
-        <AuthProvider>
-          {children}
-          <AgeGate />
-        </AuthProvider>
+        <I18nProvider>
+          <AuthProvider>
+            {children}
+            <AgeGate />
+          </AuthProvider>
+        </I18nProvider>
         <PwaSetup />
       </body>
     </html>

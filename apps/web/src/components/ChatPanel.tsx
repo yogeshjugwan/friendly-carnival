@@ -5,6 +5,7 @@ import { MAX_MESSAGE_LENGTH } from '@rc/shared';
 import type { ChatLine } from '@/lib/useRandomCall';
 import { languageName, translate, translationSupported, type Translation } from '@/lib/translate';
 import { SendIcon } from './icons';
+import { useI18n } from '@/lib/i18n';
 
 const EMOJIS = ['😀', '😂', '😊', '😍', '😎', '🤔', '😅', '😢', '😮', '👋', '👍', '🙏', '❤️', '🔥', '🎉', '🙌', '💯', '😉'];
 
@@ -30,6 +31,7 @@ interface Props {
 
 /** A message from the stranger, with an on-device "Translate". */
 function TheirMessage({ text, bubble, muted, auto }: { text: string; bubble: string; muted: string; auto: boolean }) {
+  const { t: tr } = useI18n();
   const [result, setResult] = useState<Translation | 'loading' | 'failed' | undefined>(undefined);
   const supported = translationSupported();
   const run = async () => {
@@ -44,7 +46,7 @@ function TheirMessage({ text, bubble, muted, auto }: { text: string; bubble: str
   return (
     <div className="flex max-w-[80%] flex-col items-start">
       <p className={`whitespace-pre-wrap break-words rounded-2xl px-3 py-1.5 text-sm ${bubble}`}>
-        <span className="sr-only">Stranger: </span>
+        <span className="sr-only">{tr('chat.stranger')}: </span>
         {translated ? translated.text : text}
       </p>
       {supported && (
@@ -54,14 +56,14 @@ function TheirMessage({ text, bubble, muted, auto }: { text: string; bubble: str
           className={`ml-2 mt-0.5 text-[11px] hover:underline ${muted}`}
         >
           {result === 'loading'
-            ? 'Translating…'
+            ? tr('chat.translating')
             : result === 'failed'
               ? "Can't translate this"
               : translated
                 ? `Translated from ${languageName(translated.from)} · Show original`
                 : result && 'same' in result
                   ? ''
-                  : 'Translate'}
+                  : tr('chat.translate')}
         </button>
       )}
     </div>
@@ -81,6 +83,7 @@ export function ChatPanel({
   onIcebreaker,
   canAutoTranslate = false,
 }: Props) {
+  const { t: tr } = useI18n();
   const [draft, setDraft] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -153,7 +156,7 @@ export function ChatPanel({
       {meet && (
         <>
           <header className="flex items-center justify-between px-5 pb-2 pt-4">
-            <h2 className="mr-auto text-lg">In-call messages</h2>
+            <h2 className="mr-auto text-lg">{tr('chat.title')}</h2>
             {translationSupported() && (
               <button
                 onClick={toggleAuto}
@@ -165,7 +168,7 @@ export function ChatPanel({
               </button>
             )}
             {onIcebreaker && (
-              <button onClick={onIcebreaker} title="Icebreaker question" aria-label="Icebreaker question" className="rounded-full px-2 py-1 text-lg hover:bg-white/10">
+              <button onClick={onIcebreaker} title={tr('chat.icebreaker')} aria-label={tr('chat.icebreaker')} className="rounded-full px-2 py-1 text-lg hover:bg-white/10">
                 🎲
               </button>
             )}
@@ -197,7 +200,7 @@ export function ChatPanel({
             <div key={m.id} className={`flex ${m.from === 'me' ? 'justify-end' : 'justify-start'}`}>
               {m.from === 'me' ? (
                 <p className={`max-w-[80%] whitespace-pre-wrap break-words rounded-2xl px-3 py-1.5 text-sm ${t.mine}`}>
-                  <span className="sr-only">You: </span>
+                  <span className="sr-only">{tr('chat.you')}: </span>
                   {m.text}
                 </p>
               ) : (
@@ -206,7 +209,7 @@ export function ChatPanel({
             </div>
           ),
         )}
-        {partnerTyping && <p className={`text-xs italic ${t.system}`}>Stranger is typing…</p>}
+        {partnerTyping && <p className={`text-xs italic ${t.system}`}>{tr('chat.typing')}</p>}
       </div>
 
       <div className={`relative ${t.footer}`}>
@@ -244,7 +247,7 @@ export function ChatPanel({
               setDraft(e.target.value);
               onTyping();
             }}
-            placeholder={enabled ? (meet ? 'Send a message' : 'Type your message here…') : 'Waiting for a stranger…'}
+            placeholder={enabled ? tr('chat.placeholder') : tr('chat.waiting')}
             className={t.input}
             aria-label="Message"
           />
@@ -262,7 +265,7 @@ export function ChatPanel({
             <button
               type="submit"
               disabled={!enabled || !draft.trim()}
-              aria-label="Send message"
+              aria-label={tr('chat.send')}
               className="rounded-full p-2.5 text-sky-300 hover:bg-white/10 disabled:text-slate-500 disabled:hover:bg-transparent"
             >
               <SendIcon />

@@ -9,6 +9,7 @@ import { SiteFooter, SiteHeader } from './SiteHeader';
 import { InstallButton } from './Pwa';
 import { DailyRewardCard } from './DailyReward';
 import { AgeHoldNotice } from './AgeGate';
+import { useI18n } from '@/lib/i18n';
 
 interface Props {
   online: number | null;
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export function Landing({ online, onStart }: Props) {
+  const { t } = useI18n();
   const { saveSettings, user } = useAuth();
   const isPlus = !!user?.plus.active;
   const [gender, setGender] = useState<Gender>('male');
@@ -73,14 +75,12 @@ export function Landing({ online, onStart }: Props) {
 
       <section className="grid flex-1 items-center gap-10 py-10 md:grid-cols-2">
         <div>
-          <h1 className="text-4xl font-bold leading-tight sm:text-5xl">Meet someone new in seconds.</h1>
-          <p className="mt-4 text-lg text-slate-300">
-            One click, one stranger, face to face. Free random video chat right in your browser — no download, no sign-up.
-          </p>
+          <h1 className="text-4xl font-bold leading-tight sm:text-5xl">{t('landing.title')}</h1>
+          <p className="mt-4 text-lg text-slate-300">{t('landing.subtitle')}</p>
           <ul className="mt-6 space-y-2 text-slate-300">
-            <li>✓ Video or text-only chat</li>
-            <li>✓ Report, block and blur tools in every chat</li>
-            <li>✓ Automatic nudity screening</li>
+            <li>{t('landing.point1')}</li>
+            <li>{t('landing.point2')}</li>
+            <li>{t('landing.point3')}</li>
           </ul>
         </div>
 
@@ -94,7 +94,7 @@ export function Landing({ online, onStart }: Props) {
             }}
           >
             <label className="text-sm font-medium text-slate-600" htmlFor="gender">
-              I am
+              {t('landing.iam')}
             </label>
             <select
               id="gender"
@@ -102,40 +102,40 @@ export function Landing({ online, onStart }: Props) {
               onChange={(e) => setGender(e.target.value as Gender)}
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base"
             >
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-              <option value="couple">We are a couple</option>
+              <option value="male">{t('gender.male')}</option>
+              <option value="female">{t('gender.female')}</option>
+              <option value="couple">{t('gender.couple')}</option>
             </select>
 
             <label className="mt-4 block text-sm font-medium text-slate-600" htmlFor="interests">
-              Interests <span className="font-normal text-slate-400">(optional, comma separated)</span>
+              {t('landing.interests')} <span className="font-normal text-slate-400">{t('landing.interestsHint')}</span>
             </label>
             <input
               id="interests"
               value={interestText}
               onChange={(e) => setInterestText(e.target.value)}
-              placeholder="music, travel, cricket"
+              placeholder={t('landing.interestsPlaceholder')}
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base"
             />
 
             <p className="mt-4 text-sm font-medium text-slate-600">
-              Topic <span className="font-normal text-slate-400">(optional — meet people into the same thing)</span>
+              {t('landing.topic')} <span className="font-normal text-slate-400">{t('landing.topicHint')}</span>
             </p>
             <div className="mt-1.5 flex flex-wrap gap-1.5" role="radiogroup" aria-label="Topic">
-              {TOPICS.map((t) => {
-                const on = topic === t.id;
+              {TOPICS.map((tp) => {
+                const on = topic === tp.id;
                 return (
                   <button
-                    key={t.id}
+                    key={tp.id}
                     type="button"
                     role="radio"
                     aria-checked={on}
-                    onClick={() => pickTopic(on ? null : t.id)}
+                    onClick={() => pickTopic(on ? null : tp.id)}
                     className={`rounded-full border px-3 py-1 text-sm transition ${
                       on ? 'border-brand bg-brand text-white' : 'border-slate-300 text-slate-700 hover:border-brand'
                     }`}
                   >
-                    {t.emoji} {t.label}
+                    {tp.emoji} {t(`topic.${tp.id}`)}
                   </button>
                 );
               })}
@@ -144,13 +144,13 @@ export function Landing({ online, onStart }: Props) {
             <label className="mt-5 flex items-start gap-2 text-sm text-slate-600">
               <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 h-4 w-4" />
               <span>
-                I confirm I am 18 or older and agree to the{' '}
+                {t('landing.agreePrefix')}{' '}
                 <Link href="/terms" className="text-brand underline" target="_blank">
-                  Terms of Use
+                  {t('footer.terms')}
                 </Link>{' '}
-                and{' '}
+                {t('landing.and')}{' '}
                 <Link href="/guidelines" className="text-brand underline" target="_blank">
-                  Community Guidelines
+                  {t('footer.guidelines')}
                 </Link>
                 .
               </span>
@@ -161,10 +161,10 @@ export function Landing({ online, onStart }: Props) {
               disabled={!agreed}
               className="mt-5 w-full rounded-lg bg-brand py-3 text-lg font-semibold text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Start Chat
+              {t('landing.start')}
             </button>
             {user && friendOnline && (
-              <p className="mt-3 text-center text-sm font-medium text-pink-600">❤️ A friend is online — tick the box above, then call them.</p>
+              <p className="mt-3 text-center text-sm font-medium text-pink-600">{t('landing.friendOnline')}</p>
             )}
             {user && (
               <button
@@ -173,7 +173,7 @@ export function Landing({ online, onStart }: Props) {
                 onClick={() => begin('video', 'friends')}
                 className={`mt-2 w-full rounded-lg border-2 border-pink-300 ${friendOnline ? 'ring-4 ring-pink-300/60' : ''} py-2.5 font-semibold text-pink-600 transition hover:bg-pink-50 disabled:cursor-not-allowed disabled:opacity-50`}
               >
-                ❤️ Call a friend
+                {t('landing.callFriend')}
               </button>
             )}
             {isPlus && (
@@ -183,7 +183,7 @@ export function Landing({ online, onStart }: Props) {
                 onClick={() => begin('video', 'online')}
                 className="mt-2 w-full rounded-lg border-2 border-amber-400 py-2.5 font-semibold text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                👥 See who&apos;s online <span className="text-xs font-medium">👑 Plus</span>
+                {t('landing.seeOnline')} <span className="text-xs font-medium">👑 Plus</span>
               </button>
             )}
             <button
@@ -192,13 +192,13 @@ export function Landing({ online, onStart }: Props) {
               onClick={() => begin('voice')}
               className="mt-2 w-full rounded-lg border-2 border-emerald-300 py-2.5 font-semibold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              🎙️ Voice only — no camera
+              {t('landing.voice')}
             </button>
             <Link
               href="/rooms"
               className="mt-2 block w-full rounded-lg border-2 border-violet-300 py-2.5 text-center font-semibold text-violet-700 transition hover:bg-violet-50"
             >
-              👥 Group rooms — up to 4 people
+              {t('landing.rooms')}
             </Link>
             <button
               type="button"
@@ -206,7 +206,7 @@ export function Landing({ online, onStart }: Props) {
               onClick={() => begin('text')}
               className="mt-2 w-full rounded-lg py-2 text-sm font-medium text-brand hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Don&apos;t want your camera on? Start Text Chat
+              {t('landing.text')}
             </button>
           </form>
         </div>

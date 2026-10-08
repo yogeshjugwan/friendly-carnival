@@ -25,10 +25,11 @@ import { VerifiedBadge } from './VerifiedBadge';
 import { VoiceStage } from './VoiceStage';
 import { GameCard, GamesButton } from './Games';
 import { DailyRewardChip } from './DailyReward';
+import { useI18n, type TKey } from '@/lib/i18n';
 
-const STATUS_TEXT: Record<string, string> = {
-  searching: 'Looking for someone to chat with…',
-  connecting: 'Connecting…',
+const STATUS_TEXT: Record<string, TKey> = {
+  searching: 'status.searching',
+  connecting: 'status.connecting',
 };
 
 /** Meet-style clock in the bottom bar. */
@@ -80,6 +81,7 @@ function PartnerBadge({ call }: { call: RandomCall }) {
 }
 
 function Searching({ call }: { call: RandomCall }) {
+  const { t } = useI18n();
   if (call.status === 'browsing') {
     return (
       <p className="max-w-xs text-center text-sm text-slate-300 sm:text-base">
@@ -88,7 +90,8 @@ function Searching({ call }: { call: RandomCall }) {
       </p>
     );
   }
-  const overlay = STATUS_TEXT[call.status];
+  const overlayKey = STATUS_TEXT[call.status];
+  const overlay = overlayKey ? t(overlayKey) : null;
   if (!overlay) return null;
   return (
     <div className="flex flex-col items-center gap-1 text-center">
@@ -97,7 +100,7 @@ function Searching({ call }: { call: RandomCall }) {
         {overlay}
       </p>
       {call.status === 'searching' && call.lastLeftReason && (
-        <p className="text-xs text-slate-500 sm:text-sm">Your partner left. Finding someone new.</p>
+        <p className="text-xs text-slate-500 sm:text-sm">{t('status.partnerLeft')}</p>
       )}
       {call.searchingLong && <WidenSearch />}
       {call.status === 'searching' && <PriorityButton call={call} />}
@@ -146,6 +149,7 @@ function WidenSearch() {
 
 
 export function ChatScreen({ call }: { call: RandomCall }) {
+  const { t } = useI18n();
   const matched = call.status === 'in-call' || call.status === 'connecting';
   const isText = call.mode === 'text';
   const isVoice = call.mode === 'voice';
@@ -326,10 +330,10 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               )}
               <div className="absolute bottom-16 left-0 right-0 z-20 flex justify-center gap-3">
                 <button onClick={call.stop} className="rounded-full bg-red-500 px-6 py-2.5 font-semibold text-white shadow-lg hover:bg-red-600">
-                  Stop
+                  {t('call.stop')}
                 </button>
                 <button onClick={call.next} className="rounded-full bg-brand px-6 py-2.5 font-semibold text-white shadow-lg hover:bg-brand-dark">
-                  Next
+                  {t('call.next')}
                 </button>
               </div>
             </div>

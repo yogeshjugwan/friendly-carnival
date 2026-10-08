@@ -8,8 +8,10 @@ import { BannedScreen } from './BannedScreen';
 import { ChatScreen } from './ChatScreen';
 import { Landing } from './Landing';
 import { VideoTile } from './VideoTile';
+import { useI18n } from '@/lib/i18n';
 
 export function RandomCall() {
+  const { t } = useI18n();
   const call = useRandomCall();
   const { user } = useAuth();
   const isPlus = !!user?.plus.active;
@@ -36,8 +38,8 @@ export function RandomCall() {
   if (call.status === 'requesting-media') {
     return (
       <main className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-        <p className="text-2xl font-semibold">Click “Allow” to turn on your camera</p>
-        <p className="text-slate-400">randomCall needs your camera and microphone to connect you with someone.</p>
+        <p className="text-2xl font-semibold">{t('perm.title')}</p>
+        <p className="text-slate-400">{t('perm.body')}</p>
       </main>
     );
   }
@@ -55,7 +57,7 @@ export function RandomCall() {
         </div>
         {missing ? (
           <>
-            <p className="text-2xl font-semibold">We can&apos;t see your face</p>
+            <p className="text-2xl font-semibold">{t('face.title')}</p>
             <p className="max-w-md text-slate-400">
               Look at the camera with your face inside the oval and good light. Video chats need a visible face — this keeps randomCall
               safe for everyone. Nothing leaves your device for this check.
@@ -85,7 +87,7 @@ export function RandomCall() {
   if (call.status === 'media-denied') {
     return (
       <main className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
-        <p className="text-2xl font-semibold">Camera or microphone blocked</p>
+        <p className="text-2xl font-semibold">{t('perm.blocked')}</p>
         <p className="max-w-md text-slate-400">
           Allow camera and microphone access for this site in your browser settings (the icon next to the address bar), then try
           again — or chat by text instead.

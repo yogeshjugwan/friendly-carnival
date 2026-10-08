@@ -1,0 +1,573 @@
+'use client';
+
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+
+/**
+ * Site language. The chat screens and home page are translated; legal pages
+ * stay in English. The language is picked from the browser on first visit and
+ * can be changed with the 🌐 picker (remembered in this browser).
+ */
+export const LANGS = [
+  { code: 'en', name: 'English' },
+  { code: 'hi', name: 'हिन्दी' },
+  { code: 'es', name: 'Español' },
+  { code: 'pt', name: 'Português' },
+  { code: 'fr', name: 'Français' },
+  { code: 'id', name: 'Bahasa Indonesia' },
+] as const;
+export type Lang = (typeof LANGS)[number]['code'];
+
+const EN = {
+  'landing.title': 'Meet someone new in seconds.',
+  'landing.subtitle': 'One click, one stranger, face to face. Free random video chat right in your browser — no download, no sign-up.',
+  'landing.point1': '✓ Video, voice or text chat',
+  'landing.point2': '✓ Report, block and blur tools in every chat',
+  'landing.point3': '✓ Automatic nudity screening',
+  'landing.iam': 'I am',
+  'gender.male': 'Male',
+  'gender.female': 'Female',
+  'gender.couple': 'We are a couple',
+  'landing.interests': 'Interests',
+  'landing.interestsHint': '(optional, comma separated)',
+  'landing.interestsPlaceholder': 'music, travel, cricket',
+  'landing.topic': 'Topic',
+  'landing.topicHint': '(optional — meet people into the same thing)',
+  'landing.agreePrefix': 'I confirm I am 18 or older and agree to the',
+  'landing.and': 'and',
+  'landing.start': 'Start Chat',
+  'landing.friendOnline': '❤️ A friend is online — tick the box above, then call them.',
+  'landing.callFriend': '❤️ Call a friend',
+  'landing.seeOnline': "👥 See who's online",
+  'landing.voice': '🎙️ Voice only — no camera',
+  'landing.rooms': '👥 Group rooms — up to 4 people',
+  'landing.text': "Don't want your camera on? Start Text Chat",
+  'topic.music': 'Music',
+  'topic.gaming': 'Gaming',
+  'topic.movies': 'Movies',
+  'topic.sports': 'Sports',
+  'topic.travel': 'Travel',
+  'topic.language': 'Language exchange',
+  'topic.study': 'Study',
+  'topic.chill': 'Just chatting',
+  'header.getPlus': '👑 Get Plus',
+  'header.upgrade': '👑 Upgrade',
+  'header.plusMember': '👑 Plus member',
+  'header.settings': 'Settings',
+  'header.login': 'Log in',
+  'header.signup': 'Sign up',
+  'header.guest': '👤 Guest',
+  'header.invite': '🎁 Invite',
+  'header.online': '{n} online',
+  'footer.guidelines': 'Community Guidelines',
+  'footer.terms': 'Terms of Use',
+  'footer.privacy': 'Privacy Policy',
+  'footer.rooms': 'Group rooms',
+  'footer.invite': 'Invite friends',
+  'footer.help': 'Help',
+  'status.searching': 'Looking for someone to chat with…',
+  'status.connecting': 'Connecting…',
+  'status.partnerLeft': 'Your partner left. Finding someone new.',
+  'call.stop': 'Stop',
+  'call.next': 'Next',
+  'call.nextStranger': 'Next stranger',
+  'call.end': 'End call',
+  'call.back': 'Back to the person you just skipped',
+  'call.mic': 'Microphone',
+  'call.camera': 'Camera',
+  'call.reactions': 'Send a reaction',
+  'call.raiseHand': 'Raise hand',
+  'call.chat': 'Chat',
+  'chat.title': 'In-call messages',
+  'chat.placeholder': 'Type your message here…',
+  'chat.waiting': 'Waiting for a stranger…',
+  'chat.send': 'Send',
+  'chat.you': 'You',
+  'chat.stranger': 'Stranger',
+  'chat.typing': 'Stranger is typing…',
+  'chat.translate': 'Translate',
+  'chat.translating': 'Translating…',
+  'chat.icebreaker': 'Icebreaker question',
+  'perm.title': 'Click “Allow” to turn on your camera',
+  'perm.body': 'randomCall needs your camera and microphone to connect you with someone.',
+  'perm.blocked': 'Camera or microphone blocked',
+  'face.title': "We can't see your face",
+  'lang.label': 'Language',
+} as const;
+export type TKey = keyof typeof EN;
+
+const DICT: Record<Exclude<Lang, 'en'>, Partial<Record<TKey, string>>> = {
+  hi: {
+    'landing.title': 'कुछ ही सेकंड में किसी नए से मिलिए।',
+    'landing.subtitle': 'एक क्लिक, एक अजनबी, आमने-सामने। आपके ब्राउज़र में मुफ़्त रैंडम वीडियो चैट — न डाउनलोड, न साइन-अप।',
+    'landing.point1': '✓ वीडियो, वॉइस या टेक्स्ट चैट',
+    'landing.point2': '✓ हर चैट में रिपोर्ट, ब्लॉक और ब्लर टूल',
+    'landing.point3': '✓ अपने-आप अश्लीलता की जाँच',
+    'landing.iam': 'मैं हूँ',
+    'gender.male': 'पुरुष',
+    'gender.female': 'महिला',
+    'gender.couple': 'हम कपल हैं',
+    'landing.interests': 'रुचियाँ',
+    'landing.interestsHint': '(वैकल्पिक, कॉमा से अलग करें)',
+    'landing.interestsPlaceholder': 'संगीत, यात्रा, क्रिकेट',
+    'landing.topic': 'विषय',
+    'landing.topicHint': '(वैकल्पिक — एक जैसी पसंद वालों से मिलें)',
+    'landing.agreePrefix': 'मैं पुष्टि करता/करती हूँ कि मेरी उम्र 18 या उससे अधिक है और मैं इनसे सहमत हूँ:',
+    'landing.and': 'और',
+    'landing.start': 'चैट शुरू करें',
+    'landing.friendOnline': '❤️ एक दोस्त ऑनलाइन है — ऊपर बॉक्स पर टिक करें, फिर उन्हें कॉल करें।',
+    'landing.callFriend': '❤️ दोस्त को कॉल करें',
+    'landing.seeOnline': '👥 देखें कौन ऑनलाइन है',
+    'landing.voice': '🎙️ सिर्फ़ आवाज़ — कैमरा नहीं',
+    'landing.rooms': '👥 ग्रुप रूम — 4 लोगों तक',
+    'landing.text': 'कैमरा नहीं चाहते? टेक्स्ट चैट शुरू करें',
+    'topic.music': 'संगीत',
+    'topic.gaming': 'गेमिंग',
+    'topic.movies': 'फ़िल्में',
+    'topic.sports': 'खेल',
+    'topic.travel': 'यात्रा',
+    'topic.language': 'भाषा अभ्यास',
+    'topic.study': 'पढ़ाई',
+    'topic.chill': 'बस बातें',
+    'header.getPlus': '👑 Plus लें',
+    'header.upgrade': '👑 अपग्रेड',
+    'header.plusMember': '👑 Plus सदस्य',
+    'header.settings': 'सेटिंग्स',
+    'header.login': 'लॉग इन',
+    'header.signup': 'साइन अप',
+    'header.guest': '👤 मेहमान',
+    'header.invite': '🎁 आमंत्रित करें',
+    'header.online': '{n} ऑनलाइन',
+    'footer.guidelines': 'सामुदायिक दिशानिर्देश',
+    'footer.terms': 'उपयोग की शर्तें',
+    'footer.privacy': 'गोपनीयता नीति',
+    'footer.rooms': 'ग्रुप रूम',
+    'footer.invite': 'दोस्तों को बुलाएँ',
+    'footer.help': 'मदद',
+    'status.searching': 'चैट के लिए कोई ढूँढ रहे हैं…',
+    'status.connecting': 'कनेक्ट हो रहा है…',
+    'status.partnerLeft': 'आपका साथी चला गया। किसी नए को ढूँढ रहे हैं।',
+    'call.stop': 'रोकें',
+    'call.next': 'अगला',
+    'call.nextStranger': 'अगला अजनबी',
+    'call.end': 'कॉल ख़त्म करें',
+    'call.back': 'जिसे अभी छोड़ा उसके पास वापस जाएँ',
+    'call.mic': 'माइक्रोफ़ोन',
+    'call.camera': 'कैमरा',
+    'call.reactions': 'रिएक्शन भेजें',
+    'call.raiseHand': 'हाथ उठाएँ',
+    'call.chat': 'चैट',
+    'chat.title': 'कॉल में संदेश',
+    'chat.placeholder': 'अपना संदेश यहाँ लिखें…',
+    'chat.waiting': 'अजनबी का इंतज़ार…',
+    'chat.send': 'भेजें',
+    'chat.you': 'आप',
+    'chat.stranger': 'अजनबी',
+    'chat.typing': 'अजनबी लिख रहा है…',
+    'chat.translate': 'अनुवाद करें',
+    'chat.translating': 'अनुवाद हो रहा है…',
+    'chat.icebreaker': 'बातचीत शुरू करने वाला सवाल',
+    'perm.title': 'कैमरा चालू करने के लिए “Allow” पर क्लिक करें',
+    'perm.body': 'किसी से जोड़ने के लिए randomCall को आपके कैमरा और माइक्रोफ़ोन की ज़रूरत है।',
+    'perm.blocked': 'कैमरा या माइक्रोफ़ोन ब्लॉक है',
+    'face.title': 'आपका चेहरा नहीं दिख रहा',
+    'lang.label': 'भाषा',
+  },
+  es: {
+    'landing.title': 'Conoce a alguien nuevo en segundos.',
+    'landing.subtitle': 'Un clic, un desconocido, cara a cara. Videochat aleatorio gratis en tu navegador — sin descargas ni registro.',
+    'landing.point1': '✓ Chat de video, voz o texto',
+    'landing.point2': '✓ Herramientas para denunciar, bloquear y difuminar en cada chat',
+    'landing.point3': '✓ Detección automática de desnudos',
+    'landing.iam': 'Soy',
+    'gender.male': 'Hombre',
+    'gender.female': 'Mujer',
+    'gender.couple': 'Somos una pareja',
+    'landing.interests': 'Intereses',
+    'landing.interestsHint': '(opcional, separados por comas)',
+    'landing.interestsPlaceholder': 'música, viajes, fútbol',
+    'landing.topic': 'Tema',
+    'landing.topicHint': '(opcional — conoce gente con tus mismos gustos)',
+    'landing.agreePrefix': 'Confirmo que tengo 18 años o más y acepto los',
+    'landing.and': 'y las',
+    'landing.start': 'Empezar chat',
+    'landing.friendOnline': '❤️ Un amigo está en línea — marca la casilla de arriba y llámalo.',
+    'landing.callFriend': '❤️ Llamar a un amigo',
+    'landing.seeOnline': '👥 Ver quién está en línea',
+    'landing.voice': '🎙️ Solo voz — sin cámara',
+    'landing.rooms': '👥 Salas de grupo — hasta 4 personas',
+    'landing.text': '¿Sin cámara? Empieza un chat de texto',
+    'topic.music': 'Música',
+    'topic.gaming': 'Videojuegos',
+    'topic.movies': 'Películas',
+    'topic.sports': 'Deportes',
+    'topic.travel': 'Viajes',
+    'topic.language': 'Intercambio de idiomas',
+    'topic.study': 'Estudio',
+    'topic.chill': 'Solo charlar',
+    'header.getPlus': '👑 Hazte Plus',
+    'header.upgrade': '👑 Mejorar',
+    'header.plusMember': '👑 Miembro Plus',
+    'header.settings': 'Ajustes',
+    'header.login': 'Entrar',
+    'header.signup': 'Registrarse',
+    'header.guest': '👤 Invitado',
+    'header.invite': '🎁 Invitar',
+    'header.online': '{n} en línea',
+    'footer.guidelines': 'Normas de la comunidad',
+    'footer.terms': 'Términos de uso',
+    'footer.privacy': 'Privacidad',
+    'footer.rooms': 'Salas de grupo',
+    'footer.invite': 'Invitar amigos',
+    'footer.help': 'Ayuda',
+    'status.searching': 'Buscando a alguien con quien chatear…',
+    'status.connecting': 'Conectando…',
+    'status.partnerLeft': 'Tu compañero se fue. Buscando a alguien nuevo.',
+    'call.stop': 'Parar',
+    'call.next': 'Siguiente',
+    'call.nextStranger': 'Siguiente desconocido',
+    'call.end': 'Finalizar llamada',
+    'call.back': 'Volver con la persona que acabas de saltar',
+    'call.mic': 'Micrófono',
+    'call.camera': 'Cámara',
+    'call.reactions': 'Enviar una reacción',
+    'call.raiseHand': 'Levantar la mano',
+    'call.chat': 'Chat',
+    'chat.title': 'Mensajes de la llamada',
+    'chat.placeholder': 'Escribe tu mensaje aquí…',
+    'chat.waiting': 'Esperando a un desconocido…',
+    'chat.send': 'Enviar',
+    'chat.you': 'Tú',
+    'chat.stranger': 'Desconocido',
+    'chat.typing': 'El desconocido está escribiendo…',
+    'chat.translate': 'Traducir',
+    'chat.translating': 'Traduciendo…',
+    'chat.icebreaker': 'Pregunta para romper el hielo',
+    'perm.title': 'Haz clic en «Permitir» para activar tu cámara',
+    'perm.body': 'randomCall necesita tu cámara y micrófono para conectarte con alguien.',
+    'perm.blocked': 'Cámara o micrófono bloqueados',
+    'face.title': 'No vemos tu cara',
+    'lang.label': 'Idioma',
+  },
+  pt: {
+    'landing.title': 'Conheça alguém novo em segundos.',
+    'landing.subtitle': 'Um clique, um desconhecido, cara a cara. Chat de vídeo aleatório grátis no seu navegador — sem download, sem cadastro.',
+    'landing.point1': '✓ Chat por vídeo, voz ou texto',
+    'landing.point2': '✓ Ferramentas para denunciar, bloquear e desfocar em todo chat',
+    'landing.point3': '✓ Detecção automática de nudez',
+    'landing.iam': 'Eu sou',
+    'gender.male': 'Homem',
+    'gender.female': 'Mulher',
+    'gender.couple': 'Somos um casal',
+    'landing.interests': 'Interesses',
+    'landing.interestsHint': '(opcional, separados por vírgula)',
+    'landing.interestsPlaceholder': 'música, viagens, futebol',
+    'landing.topic': 'Tema',
+    'landing.topicHint': '(opcional — conheça quem curte o mesmo)',
+    'landing.agreePrefix': 'Confirmo que tenho 18 anos ou mais e concordo com os',
+    'landing.and': 'e as',
+    'landing.start': 'Começar chat',
+    'landing.friendOnline': '❤️ Um amigo está online — marque a caixa acima e ligue para ele.',
+    'landing.callFriend': '❤️ Ligar para um amigo',
+    'landing.seeOnline': '👥 Ver quem está online',
+    'landing.voice': '🎙️ Só voz — sem câmera',
+    'landing.rooms': '👥 Salas em grupo — até 4 pessoas',
+    'landing.text': 'Sem câmera? Comece um chat de texto',
+    'topic.music': 'Música',
+    'topic.gaming': 'Games',
+    'topic.movies': 'Filmes',
+    'topic.sports': 'Esportes',
+    'topic.travel': 'Viagens',
+    'topic.language': 'Troca de idiomas',
+    'topic.study': 'Estudos',
+    'topic.chill': 'Só conversar',
+    'header.getPlus': '👑 Assine o Plus',
+    'header.upgrade': '👑 Fazer upgrade',
+    'header.plusMember': '👑 Membro Plus',
+    'header.settings': 'Configurações',
+    'header.login': 'Entrar',
+    'header.signup': 'Cadastrar',
+    'header.guest': '👤 Visitante',
+    'header.invite': '🎁 Convidar',
+    'header.online': '{n} online',
+    'footer.guidelines': 'Diretrizes da comunidade',
+    'footer.terms': 'Termos de uso',
+    'footer.privacy': 'Privacidade',
+    'footer.rooms': 'Salas em grupo',
+    'footer.invite': 'Convidar amigos',
+    'footer.help': 'Ajuda',
+    'status.searching': 'Procurando alguém para conversar…',
+    'status.connecting': 'Conectando…',
+    'status.partnerLeft': 'Seu parceiro saiu. Procurando alguém novo.',
+    'call.stop': 'Parar',
+    'call.next': 'Próximo',
+    'call.nextStranger': 'Próximo desconhecido',
+    'call.end': 'Encerrar chamada',
+    'call.back': 'Voltar para quem você acabou de pular',
+    'call.mic': 'Microfone',
+    'call.camera': 'Câmera',
+    'call.reactions': 'Enviar uma reação',
+    'call.raiseHand': 'Levantar a mão',
+    'call.chat': 'Chat',
+    'chat.title': 'Mensagens da chamada',
+    'chat.placeholder': 'Digite sua mensagem aqui…',
+    'chat.waiting': 'Esperando um desconhecido…',
+    'chat.send': 'Enviar',
+    'chat.you': 'Você',
+    'chat.stranger': 'Desconhecido',
+    'chat.typing': 'O desconhecido está digitando…',
+    'chat.translate': 'Traduzir',
+    'chat.translating': 'Traduzindo…',
+    'chat.icebreaker': 'Pergunta para quebrar o gelo',
+    'perm.title': 'Clique em “Permitir” para ligar a câmera',
+    'perm.body': 'O randomCall precisa da sua câmera e microfone para conectar você com alguém.',
+    'perm.blocked': 'Câmera ou microfone bloqueados',
+    'face.title': 'Não conseguimos ver seu rosto',
+    'lang.label': 'Idioma',
+  },
+  fr: {
+    'landing.title': 'Rencontrez quelqu’un de nouveau en quelques secondes.',
+    'landing.subtitle': 'Un clic, un inconnu, face à face. Chat vidéo aléatoire gratuit dans votre navigateur — sans téléchargement ni inscription.',
+    'landing.point1': '✓ Chat vidéo, vocal ou texte',
+    'landing.point2': '✓ Outils pour signaler, bloquer et flouter dans chaque chat',
+    'landing.point3': '✓ Détection automatique de la nudité',
+    'landing.iam': 'Je suis',
+    'gender.male': 'Homme',
+    'gender.female': 'Femme',
+    'gender.couple': 'Nous sommes un couple',
+    'landing.interests': 'Centres d’intérêt',
+    'landing.interestsHint': '(facultatif, séparés par des virgules)',
+    'landing.interestsPlaceholder': 'musique, voyages, foot',
+    'landing.topic': 'Thème',
+    'landing.topicHint': '(facultatif — rencontrez des gens qui aiment la même chose)',
+    'landing.agreePrefix': 'Je confirme avoir 18 ans ou plus et j’accepte les',
+    'landing.and': 'et les',
+    'landing.start': 'Commencer le chat',
+    'landing.friendOnline': '❤️ Un ami est en ligne — cochez la case ci-dessus, puis appelez-le.',
+    'landing.callFriend': '❤️ Appeler un ami',
+    'landing.seeOnline': '👥 Voir qui est en ligne',
+    'landing.voice': '🎙️ Voix uniquement — sans caméra',
+    'landing.rooms': '👥 Salons de groupe — jusqu’à 4 personnes',
+    'landing.text': 'Pas de caméra ? Lancez un chat texte',
+    'topic.music': 'Musique',
+    'topic.gaming': 'Jeux vidéo',
+    'topic.movies': 'Films',
+    'topic.sports': 'Sport',
+    'topic.travel': 'Voyages',
+    'topic.language': 'Échange linguistique',
+    'topic.study': 'Études',
+    'topic.chill': 'Juste discuter',
+    'header.getPlus': '👑 Passer à Plus',
+    'header.upgrade': '👑 Passer à Plus',
+    'header.plusMember': '👑 Membre Plus',
+    'header.settings': 'Paramètres',
+    'header.login': 'Connexion',
+    'header.signup': 'Inscription',
+    'header.guest': '👤 Invité',
+    'header.invite': '🎁 Inviter',
+    'header.online': '{n} en ligne',
+    'footer.guidelines': 'Règles de la communauté',
+    'footer.terms': 'Conditions d’utilisation',
+    'footer.privacy': 'Confidentialité',
+    'footer.rooms': 'Salons de groupe',
+    'footer.invite': 'Inviter des amis',
+    'footer.help': 'Aide',
+    'status.searching': 'Recherche de quelqu’un avec qui discuter…',
+    'status.connecting': 'Connexion…',
+    'status.partnerLeft': 'Votre partenaire est parti. Recherche de quelqu’un d’autre.',
+    'call.stop': 'Arrêter',
+    'call.next': 'Suivant',
+    'call.nextStranger': 'Inconnu suivant',
+    'call.end': 'Terminer l’appel',
+    'call.back': 'Revenir à la personne que vous venez de passer',
+    'call.mic': 'Micro',
+    'call.camera': 'Caméra',
+    'call.reactions': 'Envoyer une réaction',
+    'call.raiseHand': 'Lever la main',
+    'call.chat': 'Chat',
+    'chat.title': 'Messages de l’appel',
+    'chat.placeholder': 'Écrivez votre message ici…',
+    'chat.waiting': 'En attente d’un inconnu…',
+    'chat.send': 'Envoyer',
+    'chat.you': 'Vous',
+    'chat.stranger': 'Inconnu',
+    'chat.typing': 'L’inconnu écrit…',
+    'chat.translate': 'Traduire',
+    'chat.translating': 'Traduction…',
+    'chat.icebreaker': 'Question pour briser la glace',
+    'perm.title': 'Cliquez sur « Autoriser » pour activer votre caméra',
+    'perm.body': 'randomCall a besoin de votre caméra et de votre micro pour vous mettre en relation.',
+    'perm.blocked': 'Caméra ou micro bloqués',
+    'face.title': 'Nous ne voyons pas votre visage',
+    'lang.label': 'Langue',
+  },
+  id: {
+    'landing.title': 'Kenalan dengan orang baru dalam hitungan detik.',
+    'landing.subtitle': 'Satu klik, satu orang asing, tatap muka. Video chat acak gratis langsung di browser — tanpa unduh, tanpa daftar.',
+    'landing.point1': '✓ Chat video, suara, atau teks',
+    'landing.point2': '✓ Alat lapor, blokir, dan blur di setiap chat',
+    'landing.point3': '✓ Penyaringan konten tidak senonoh otomatis',
+    'landing.iam': 'Saya',
+    'gender.male': 'Pria',
+    'gender.female': 'Wanita',
+    'gender.couple': 'Kami pasangan',
+    'landing.interests': 'Minat',
+    'landing.interestsHint': '(opsional, pisahkan dengan koma)',
+    'landing.interestsPlaceholder': 'musik, travel, sepak bola',
+    'landing.topic': 'Topik',
+    'landing.topicHint': '(opsional — bertemu orang dengan minat yang sama)',
+    'landing.agreePrefix': 'Saya berusia 18 tahun ke atas dan menyetujui',
+    'landing.and': 'dan',
+    'landing.start': 'Mulai Chat',
+    'landing.friendOnline': '❤️ Seorang teman sedang online — centang kotak di atas, lalu telepon dia.',
+    'landing.callFriend': '❤️ Telepon teman',
+    'landing.seeOnline': '👥 Lihat siapa yang online',
+    'landing.voice': '🎙️ Suara saja — tanpa kamera',
+    'landing.rooms': '👥 Ruang grup — hingga 4 orang',
+    'landing.text': 'Tidak mau pakai kamera? Mulai chat teks',
+    'topic.music': 'Musik',
+    'topic.gaming': 'Game',
+    'topic.movies': 'Film',
+    'topic.sports': 'Olahraga',
+    'topic.travel': 'Travel',
+    'topic.language': 'Belajar bahasa',
+    'topic.study': 'Belajar',
+    'topic.chill': 'Ngobrol santai',
+    'header.getPlus': '👑 Dapatkan Plus',
+    'header.upgrade': '👑 Upgrade',
+    'header.plusMember': '👑 Anggota Plus',
+    'header.settings': 'Pengaturan',
+    'header.login': 'Masuk',
+    'header.signup': 'Daftar',
+    'header.guest': '👤 Tamu',
+    'header.invite': '🎁 Undang',
+    'header.online': '{n} online',
+    'footer.guidelines': 'Pedoman Komunitas',
+    'footer.terms': 'Ketentuan Penggunaan',
+    'footer.privacy': 'Kebijakan Privasi',
+    'footer.rooms': 'Ruang grup',
+    'footer.invite': 'Undang teman',
+    'footer.help': 'Bantuan',
+    'status.searching': 'Mencari teman ngobrol…',
+    'status.connecting': 'Menghubungkan…',
+    'status.partnerLeft': 'Pasanganmu pergi. Mencari orang baru.',
+    'call.stop': 'Berhenti',
+    'call.next': 'Berikutnya',
+    'call.nextStranger': 'Orang berikutnya',
+    'call.end': 'Akhiri panggilan',
+    'call.back': 'Kembali ke orang yang baru kamu lewati',
+    'call.mic': 'Mikrofon',
+    'call.camera': 'Kamera',
+    'call.reactions': 'Kirim reaksi',
+    'call.raiseHand': 'Angkat tangan',
+    'call.chat': 'Chat',
+    'chat.title': 'Pesan dalam panggilan',
+    'chat.placeholder': 'Ketik pesanmu di sini…',
+    'chat.waiting': 'Menunggu orang asing…',
+    'chat.send': 'Kirim',
+    'chat.you': 'Kamu',
+    'chat.stranger': 'Orang asing',
+    'chat.typing': 'Orang asing sedang mengetik…',
+    'chat.translate': 'Terjemahkan',
+    'chat.translating': 'Menerjemahkan…',
+    'chat.icebreaker': 'Pertanyaan pembuka',
+    'perm.title': 'Klik “Izinkan” untuk menyalakan kamera',
+    'perm.body': 'randomCall perlu kamera dan mikrofonmu untuk menghubungkanmu dengan seseorang.',
+    'perm.blocked': 'Kamera atau mikrofon diblokir',
+    'face.title': 'Wajahmu tidak terlihat',
+    'lang.label': 'Bahasa',
+  },
+};
+
+const KEY = 'rc.lang';
+const isLang = (v: unknown): v is Lang => LANGS.some((l) => l.code === v);
+
+function detect(): Lang {
+  try {
+    const saved = window.localStorage.getItem(KEY);
+    if (isLang(saved)) return saved;
+  } catch {
+    /* storage unavailable */
+  }
+  for (const l of navigator.languages ?? [navigator.language]) {
+    const code = l.toLowerCase().split('-')[0];
+    if (isLang(code)) return code;
+  }
+  return 'en';
+}
+
+export type T = (key: TKey, vars?: Record<string, string | number>) => string;
+
+interface I18n {
+  lang: Lang;
+  setLang: (lang: Lang) => void;
+  t: T;
+}
+
+const I18nContext = createContext<I18n | null>(null);
+
+export function I18nProvider({ children }: { children: React.ReactNode }) {
+  // English on the server, then the reader's language once the page runs.
+  const [lang, setLangState] = useState<Lang>('en');
+  useEffect(() => setLangState(detect()), []);
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
+
+  const setLang = useCallback((next: Lang) => {
+    setLangState(next);
+    try {
+      window.localStorage.setItem(KEY, next);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const value = useMemo<I18n>(() => {
+    const dict = lang === 'en' ? {} : DICT[lang];
+    const t: T = (key, vars) => {
+      let s: string = dict[key] ?? EN[key];
+      if (vars) for (const [k, v] of Object.entries(vars)) s = s.replace(`{${k}}`, String(v));
+      return s;
+    };
+    return { lang, setLang, t };
+  }, [lang, setLang]);
+
+  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
+}
+
+/** Translations; outside the provider (tests) it falls back to English. */
+export function useI18n(): I18n {
+  return (
+    useContext(I18nContext) ?? {
+      lang: 'en',
+      setLang: () => undefined,
+      t: (key, vars) => {
+        let s: string = EN[key];
+        if (vars) for (const [k, v] of Object.entries(vars)) s = s.replace(`{${k}}`, String(v));
+        return s;
+      },
+    }
+  );
+}
+
+/** 🌐 language picker. */
+export function LanguagePicker({ className = '' }: { className?: string }) {
+  const { lang, setLang, t } = useI18n();
+  return (
+    <label className={`inline-flex items-center gap-1 text-sm ${className}`}>
+      <span aria-hidden>🌐</span>
+      <span className="sr-only">{t('lang.label')}</span>
+      <select
+        value={lang}
+        onChange={(e) => setLang(e.target.value as Lang)}
+        className="rounded-md bg-transparent py-1 text-slate-300 hover:text-white focus:outline-none"
+      >
+        {LANGS.map((l) => (
+          <option key={l.code} value={l.code} className="text-ink">
+            {l.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}

@@ -26,6 +26,7 @@ import { VoiceStage } from './VoiceStage';
 import { GameCard, GamesButton } from './Games';
 import { DailyRewardChip } from './DailyReward';
 import { useI18n, type TKey } from '@/lib/i18n';
+import { CAMERA_PROBLEM } from '@/lib/cameraCheck';
 
 const STATUS_TEXT: Record<string, TKey> = {
   searching: 'status.searching',
@@ -425,10 +426,12 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                 </DraggablePip>
               )}
 
-              {call.noFace && (
+              {(call.cameraProblem || call.noFace) && (
                 <div className="absolute inset-x-0 bottom-3 z-20 flex justify-center px-3" role="status">
-                  <p className="rounded-full bg-amber-500/90 px-4 py-1.5 text-sm font-medium text-white shadow-lg">
-                    🙂 We can&apos;t see your face — look at the camera so people don&apos;t skip you
+                  <p className={`rounded-full px-4 py-1.5 text-sm font-medium text-white shadow-lg ${call.cameraProblem ? 'bg-red-600/90' : 'bg-amber-500/90'}`}>
+                    {call.cameraProblem
+                      ? CAMERA_PROBLEM[call.cameraProblem].chip
+                      : "🙂 We can't see your face — look at the camera so people don't skip you"}
                   </p>
                 </div>
               )}

@@ -42,6 +42,7 @@ import { faceVisible, waitForFace } from './faceCheck';
 import { GAM_REWARDED_UNIT, showRewardedAd } from './rewardedAd';
 import { loadSettings, onSettingsChange } from './settings';
 import { getSocket } from './socket';
+import { checkCamera, problemOf, sampleFrame, type CameraProblem } from './cameraCheck';
 
 export type CallStatus =
   | 'idle' // landing screen
@@ -154,6 +155,8 @@ export function useRandomCall() {
   const pendingStart = useRef<{ join: Omit<JoinPayload, 'mode' | 'hideCountry'>; chatMode: ChatMode; browse: false | 'online' | 'friends' } | null>(null);
   /** In a call, the camera hasn't seen a face for a while. */
   const [noFace, setNoFace] = useState(false);
+  /** The camera picture is black, covered or badly blurred (before the call: blocks it; during: a reminder). */
+  const [cameraProblem, setCameraProblem] = useState<CameraProblem | null>(null);
   /** Icebreaker question on screen for both people. */
   const [icebreaker, setIcebreaker] = useState<{ text: string; at: number } | null>(null);
   /** The mini-game being played with the current partner. */
@@ -830,6 +833,15 @@ export function useRandomCall() {
       if (chatMode === 'video' && local && local.getVideoTracks()[0]?.enabled) {
         setStatus('face-check');
         const cam = rawCameraRef.current ? new MediaStream([rawCameraRef.current]) : local;
+        // A black, covered or very blurry camera can't be used for video chats.
+        const quality = await checkCamera(cam);
+        if (quality && quality !== 'ok') {
+          pendingStart.current = { join, chatMode, browse };
+          setCameraProblem(quality);
+          setStatus('no-face');
+          return;
+        }
+        setCameraProblem(null);
         const seen = await waitForFace(cam, 6_000);
         if (seen === false) {
           pendingStart.current = { join, chatMode, browse };
@@ -862,16 +874,23 @@ export function useRandomCall() {
   useEffect(() => {
     if (mode !== 'video' || !cameraOn || !(status === 'in-call' || status === 'connecting' || status === 'searching' || status === 'browsing')) {
       setNoFace(false);
+      if (status !== 'no-face') setCameraProblem(null);
       return;
     }
     let misses = 0;
+    let badFrames = 0;
     let cancelled = false;
     const t = window.setInterval(async () => {
       const raw = rawCameraRef.current;
       const cam = raw ? new MediaStream([raw]) : localRef.current;
       if (!cam) return;
-      const seen = await faceVisible(cam);
-      if (cancelled || seen === null) return;
+      const [seen, frame] = await Promise.all([faceVisible(cam), sampleFrame(cam)]);
+      if (cancelled) return;
+      // Camera gone black / covered / smeared mid-call: say so (twice in a row, ~6 s).
+      const problem = frame ? problemOf(frame) : null;
+      badFrames = problem ? badFrames + 1 : 0;
+      setCameraProblem(badFrames >= 2 ? problem : null);
+      if (seen === null) return;
       misses = seen ? 0 : misses + 1;
       setNoFace(misses >= 3);
     }, 3_000);
@@ -1343,6 +1362,7 @@ export function useRandomCall() {
     friendState,
     browseFor,
     noFace,
+    cameraProblem,
     retryFaceCheck,
     wallet,
     gifts,

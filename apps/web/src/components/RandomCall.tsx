@@ -9,6 +9,7 @@ import { ChatScreen } from './ChatScreen';
 import { Landing } from './Landing';
 import { VideoTile } from './VideoTile';
 import { useI18n } from '@/lib/i18n';
+import { CAMERA_PROBLEM } from '@/lib/cameraCheck';
 
 export function RandomCall() {
   const { t } = useI18n();
@@ -46,6 +47,7 @@ export function RandomCall() {
 
   if (call.status === 'face-check' || call.status === 'no-face') {
     const missing = call.status === 'no-face';
+    const problem = call.cameraProblem;
     return (
       <main className="flex h-full flex-col items-center justify-center gap-4 bg-[#202124] p-6 text-center">
         <div className={`relative w-full max-w-sm overflow-hidden rounded-2xl ring-4 transition-colors ${missing ? 'ring-amber-400' : 'ring-sky-400/60'}`}>
@@ -57,10 +59,12 @@ export function RandomCall() {
         </div>
         {missing ? (
           <>
-            <p className="text-2xl font-semibold">{t('face.title')}</p>
+            <p className="text-2xl font-semibold">{problem ? CAMERA_PROBLEM[problem].title : t('face.title')}</p>
             <p className="max-w-md text-slate-400">
-              Look at the camera with your face inside the oval and good light. Video chats need a visible face — this keeps randomCall
-              safe for everyone. Nothing leaves your device for this check.
+              {problem
+                ? CAMERA_PROBLEM[problem].help
+                : 'Look at the camera with your face inside the oval and good light. Video chats need a visible face — this keeps randomCall safe for everyone.'}{' '}
+              Nothing leaves your device for this check.
             </p>
             <div className="flex flex-wrap justify-center gap-3">
               <button onClick={call.retryFaceCheck} className="rounded-lg bg-brand px-5 py-2 font-semibold">

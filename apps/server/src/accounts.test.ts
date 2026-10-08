@@ -135,6 +135,7 @@ describe('auth HTTP API and sockets', () => {
       allowReconnect: false,
       hideCountry: true,
       filters: { gender: 'any', country: 'any' },
+      name: '',
       avatar: null,
       bio: '',
     });

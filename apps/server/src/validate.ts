@@ -1,6 +1,7 @@
 import {
   AVATARS,
   MAX_BIO,
+  MAX_NAME,
   TOPICS,
   MAX_INTEREST_LENGTH,
   MAX_INTERESTS,
@@ -125,7 +126,18 @@ export function parseProfile(input: unknown): UserProfile {
   const avatar = typeof p.avatar === 'string' && (AVATARS as readonly string[]).includes(p.avatar) ? p.avatar : null;
   let bio = typeof p.bio === 'string' ? p.bio.replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_BIO) : '';
   if (looksLikeLink(bio)) bio = '';
-  return { avatar, bio };
+  // Names: letters, numbers, spaces and a little punctuation; no links, handles or digits-only phone numbers.
+  let name =
+    typeof p.name === 'string'
+      ? p.name
+          .normalize('NFC')
+          .replace(/[^\p{L}\p{M}\p{N} ._'-]/gu, '')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, MAX_NAME)
+      : '';
+  if (looksLikeLink(name) || /\d{5,}/.test(name)) name = '';
+  return { name, avatar, bio };
 }
 
 /** Match filters, or null when malformed. Country is an ISO alpha-2 code. */

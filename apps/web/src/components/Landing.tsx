@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { TOPICS, MAX_INTERESTS, type ChatMode, type Gender, type JoinPayload } from '@rc/shared';
+import { TOPICS, MAX_INTERESTS, MAX_NAME, type ChatMode, type Gender, type JoinPayload } from '@rc/shared';
 import { useAuth } from '@/lib/auth';
 import { loadSettings, onSettingsChange } from '@/lib/settings';
 import { SiteFooter, SiteHeader } from './SiteHeader';
@@ -22,6 +22,7 @@ export function Landing({ online, onStart }: Props) {
   const isPlus = !!user?.plus.active;
   const [gender, setGender] = useState<Gender>('male');
   const [interestText, setInterestText] = useState('');
+  const [name, setName] = useState('');
   // Topic room (optional), remembered in this browser.
   const [topic, setTopic] = useState<string | null>(null);
   useEffect(() => {
@@ -51,6 +52,7 @@ export function Landing({ online, onStart }: Props) {
       const s = loadSettings();
       if (s.gender) setGender(s.gender);
       setInterestText(s.interests.join(', '));
+      setName(s.name ?? '');
     };
     apply();
     return onSettingsChange(apply);
@@ -65,7 +67,7 @@ export function Landing({ online, onStart }: Props) {
   const begin = (mode: ChatMode, browse: false | 'online' | 'friends' = false) => {
     if (!agreed) return;
     // Remember the choices for next time; don't block the chat on the network.
-    void saveSettings({ ...loadSettings(), gender, interests }).catch(() => undefined);
+    void saveSettings({ ...loadSettings(), gender, interests, name: name.trim() }).catch(() => undefined);
     onStart({ gender, interests, topic }, mode, browse);
   };
 
@@ -106,6 +108,19 @@ export function Landing({ online, onStart }: Props) {
               <option value="female">{t('gender.female')}</option>
               <option value="couple">{t('gender.couple')}</option>
             </select>
+
+            <label className="mt-4 block text-sm font-medium text-slate-600" htmlFor="name">
+              {t('landing.name')} <span className="font-normal text-slate-400">{t('landing.optional')}</span>
+            </label>
+            <input
+              id="name"
+              value={name}
+              maxLength={MAX_NAME}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t('landing.namePlaceholder')}
+              autoComplete="nickname"
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base"
+            />
 
             <label className="mt-4 block text-sm font-medium text-slate-600" htmlFor="interests">
               {t('landing.interests')} <span className="font-normal text-slate-400">{t('landing.interestsHint')}</span>

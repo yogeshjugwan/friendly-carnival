@@ -32,7 +32,7 @@ export function getSocket(): RcSocket {
     // Your profile card travels with the connection (and follows edits).
     const sendProfile = () => {
       const s = loadSettings();
-      socket?.emit('profile:set', { avatar: s.avatar ?? null, bio: s.bio ?? '' });
+      socket?.emit('profile:set', { name: s.name ?? '', avatar: s.avatar ?? null, bio: s.bio ?? '' });
     };
     socket.on('connect', sendProfile);
     onSettingsChange(sendProfile);

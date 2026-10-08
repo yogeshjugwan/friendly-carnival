@@ -616,7 +616,7 @@ export function createApp(opts: AppOptions = {}): App {
 
   const profileOf = (socketId: string) => {
     const p = io.sockets.sockets.get(socketId)?.data.profile;
-    return p ? { avatar: p.avatar, bio: p.bio } : {};
+    return p ? { name: p.name || undefined, avatar: p.avatar, bio: p.bio } : {};
   };
 
   const announce = (pairing: Pairing) => {
@@ -982,7 +982,7 @@ export function createApp(opts: AppOptions = {}): App {
 
     // ---- Group rooms ----
     const roomPeers = (except?: string) => (rooms.roomOf(socket.id)?.seats ?? []).filter((x) => x.socketId !== except);
-    const memberView = (x: RoomSeat): RoomMember => ({ id: x.id, gender: x.gender, avatar: x.avatar, country: x.country, verified: x.verified });
+    const memberView = (x: RoomSeat): RoomMember => ({ id: x.id, name: x.name, gender: x.gender, avatar: x.avatar, country: x.country, verified: x.verified });
     const leaveRoom = () => {
       const left = rooms.leave(socket.id);
       if (left) for (const x of left.room.seats) io.to(x.socketId).emit('room:member-left', left.seat.id);
@@ -1012,6 +1012,7 @@ export function createApp(opts: AppOptions = {}): App {
           socketId: socket.id,
           deviceId: myDevice,
           gender,
+          name: socket.data.profile?.name ?? '',
           avatar: socket.data.profile?.avatar ?? null,
           country: me && !me.hideCountry ? me.country : null,
           verified: !!socket.data.verified,

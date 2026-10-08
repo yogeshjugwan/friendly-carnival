@@ -6,6 +6,7 @@ export interface RoomSeat {
   id: string;
   socketId: string;
   deviceId: string;
+  name: string;
   gender: Gender;
   avatar: string | null;
   country: string | null;

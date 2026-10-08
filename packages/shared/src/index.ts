@@ -56,6 +56,7 @@ export interface PartnerInfo {
   /** Brand-new account or device: their video starts hidden for you. */
   isNew?: boolean;
   /** Their profile card. */
+  name?: string;
   avatar?: string | null;
   bio?: string;
   /** ✓ Verified: a moderator matched their selfie to a live gesture. */
@@ -76,6 +77,7 @@ export interface ActiveUser {
   interests: string[];
   plus: boolean;
   verified?: boolean;
+  name?: string;
   avatar?: string | null;
   bio?: string;
   mode: ChatMode;
@@ -423,6 +425,7 @@ export const ROOM_SIZE = 4;
 /** Someone else in your room (ids are random per room; nothing identifies the person). */
 export interface RoomMember {
   id: string;
+  name: string;
   gender: Gender;
   avatar: string | null;
   country: string | null;
@@ -731,18 +734,22 @@ export interface UserSettings {
   /** Plus match filters (kept for everyone, applied only with Plus). */
   filters: MatchFilters;
   /** Profile card shown to partners. */
+  name?: string;
   avatar?: string | null;
   bio?: string;
 }
 
 /** What partners see about you, besides gender / country / interests. */
 export interface UserProfile {
+  /** Display name partners see ('' = none). */
+  name: string;
   /** One of AVATARS, or null for the default. */
   avatar: string | null;
   /** One line about you (no links or handles). */
   bio: string;
 }
 export const MAX_BIO = 80;
+export const MAX_NAME = 24;
 export const AVATARS = [
   '😀', '😎', '🤓', '😇', '🥳', '🤠', '🧐', '😺', '🐶', '🦊', '🐼', '🐨',
   '🦁', '🐯', '🐸', '🐵', '🦄', '🐙', '👻', '🤖', '👽', '🎃', '🌸', '⚡',

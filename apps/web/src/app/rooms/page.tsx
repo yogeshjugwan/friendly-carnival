@@ -127,7 +127,7 @@ function InRoom({ room }: { room: RoomCall }) {
             <Tile
               key={m.id}
               stream={room.streams[m.id] ?? null}
-              label={`${GENDER_ICON[m.gender]} ${m.country ? `${flagEmoji(m.country)} ${countryName(m.country)}` : ''}`}
+              label={`${m.name || GENDER_ICON[m.gender]} ${m.country ? `${flagEmoji(m.country)} ${countryName(m.country)}` : ''}`}
               emoji={m.avatar ?? GENDER_ICON[m.gender]}
               showVideo={video}
               member={m}

@@ -50,6 +50,7 @@ function PartnerBadge({ call }: { call: RandomCall }) {
     <div className="flex flex-col items-start gap-1">
       <div className="flex max-w-[70vw] items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-xs text-white sm:max-w-none sm:gap-2 sm:px-3 sm:text-sm">
         {partner.avatar && <span className="text-base sm:text-lg">{partner.avatar}</span>}
+        {partner.name && <span className="max-w-[8rem] truncate font-semibold">{partner.name}</span>}
         <span title={GENDER_LABEL[partner.gender]}>{GENDER_ICON[partner.gender]}</span>
         <span>{partner.locationHidden ? '📍' : flagEmoji(partner.country)}</span>
         <span className="truncate">{partner.locationHidden ? 'Hidden' : countryName(partner.country)}</span>

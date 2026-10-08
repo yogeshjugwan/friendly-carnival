@@ -12,10 +12,15 @@ const once = <E extends keyof ServerToClientEvents>(s: Client, e: E) =>
   new Promise<Parameters<ServerToClientEvents[E]>[0]>((r) => s.once(e, ((x: never) => r(x)) as never));
 
 test('profile cards are cleaned: listed avatars only, short bios, no links or handles', () => {
-  assert.deepEqual(parseProfile({ avatar: '🦊', bio: '  Chai lover \n learning guitar ' }), { avatar: '🦊', bio: 'Chai lover learning guitar' });
-  assert.deepEqual(parseProfile({ avatar: '💩', bio: 'x'.repeat(200) }), { avatar: null, bio: 'x'.repeat(80) });
+  assert.deepEqual(parseProfile({ avatar: '🦊', bio: '  Chai lover \n learning guitar ' }), { name: '', avatar: '🦊', bio: 'Chai lover learning guitar' });
+  assert.deepEqual(parseProfile({ avatar: '💩', bio: 'x'.repeat(200) }), { name: '', avatar: null, bio: 'x'.repeat(80) });
+  assert.equal(parseProfile({ name: '  Priya <script> ✨ ' }).name, 'Priya script');
+  assert.equal(parseProfile({ name: 'राहुल' }).name, 'राहुल', 'any script');
+  assert.equal(parseProfile({ name: 'call 9876543210' }).name, '', 'no phone numbers');
+  assert.equal(parseProfile({ name: 'insta: @hot' }).name.includes('@'), false);
+  assert.equal(parseProfile({ name: 'x'.repeat(40) }).name.length, 24);
   assert.equal(parseProfile({ bio: 'follow me insta: @cutie' }).bio, '');
-  assert.deepEqual(parseProfile(null), { avatar: null, bio: '' });
+  assert.deepEqual(parseProfile(null), { name: '', avatar: null, bio: '' });
   const s = parseSettings({ gender: 'male', interests: [], allowReconnect: true, hideCountry: false, avatar: '🐼', bio: 'hello' });
   assert.equal(s?.avatar, '🐼');
   assert.equal(s?.bio, 'hello');
@@ -35,13 +40,14 @@ test('your partner sees your avatar and bio', async () => {
   try {
     const a = await sock(1);
     const b = await sock(2);
-    a.emit('profile:set', { avatar: '🦄', bio: 'Ask me about cricket' });
+    a.emit('profile:set', { name: 'Asha', avatar: '🦄', bio: 'Ask me about cricket' });
     a.emit('queue:join', { gender: 'male', interests: [], mode: 'text' });
     await once(a, 'queue:waiting');
     const [ma, mb] = [once(a, 'match:found'), once(b, 'match:found')];
     b.emit('queue:join', { gender: 'female', interests: [], mode: 'text' });
     const seenByB = await mb;
     assert.equal(seenByB.partner.avatar, '🦄');
+    assert.equal(seenByB.partner.name, 'Asha');
     assert.equal(seenByB.partner.bio, 'Ask me about cricket');
     assert.equal((await ma).partner.avatar, undefined, 'no profile set: nothing extra');
   } finally {

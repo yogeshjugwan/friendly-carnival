@@ -83,7 +83,7 @@ export function VoiceStage({ call, matched, partnerEmoji }: { call: RandomCall; 
     <div className="absolute inset-0 flex items-center justify-center gap-10 bg-gradient-to-b from-[#2d2e31] to-[#1f2023] sm:gap-20">
       <Person label="You" emoji={myAvatar ?? '🙂'} level={mine} muted={!call.micOn} />
       {matched ? (
-        <Person label="Stranger" emoji={partnerEmoji} level={theirs} />
+        <Person label={call.partner?.name || 'Stranger'} emoji={partnerEmoji} level={theirs} />
       ) : (
         <div className="flex flex-col items-center gap-2 text-slate-500">
           <span className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-dashed border-slate-600 text-4xl sm:h-32 sm:w-32">?</span>

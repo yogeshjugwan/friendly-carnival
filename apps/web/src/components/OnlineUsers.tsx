@@ -69,6 +69,7 @@ export function OnlineUsersPanel({ call, onClose, className = '' }: { call: Rand
         </span>
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 text-sm font-medium text-slate-100">
+            {u.name && <span className="max-w-[7rem] truncate font-semibold">{u.name}</span>}
             <span>{u.locationHidden ? '📍' : flagEmoji(u.country)}</span>
             <span className="truncate">{u.locationHidden ? 'Location hidden' : countryName(u.country)}</span>
             {u.verified && <VerifiedBadge />}
@@ -159,7 +160,7 @@ export function IncomingCallModal({ call }: { call: RandomCall }) {
         <h2 id="incoming-title" className="mt-3 text-xl font-bold">
           {incomingCall.friend !== undefined
             ? `❤️ ${incomingCall.friend || 'Your friend'} wants to chat`
-            : `${from.plus ? '👑 A Plus member' : 'Someone'} wants to chat`}
+            : `${from.name || (from.plus ? '👑 A Plus member' : 'Someone')} wants to chat`}
         </h2>
         <p className="mt-2 flex items-center justify-center gap-1.5 text-slate-600">
           <span title={GENDER_LABEL[from.gender]}>{GENDER_ICON[from.gender]}</span>

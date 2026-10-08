@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { MAX_FRIEND_NICKNAME, type Friend } from '@rc/shared';
 import { countryName, flagEmoji, GENDER_ICON, GENDER_LABEL } from '@/lib/format';
 import type { RandomCall } from '@/lib/useRandomCall';
+import { CHIP } from './chip';
 import { FAIL_TEXT, useSecondsLeft } from './OnlineUsers';
 import { NotificationsToggle } from './Pwa';
 import { WaThread } from './WaThread';
@@ -208,8 +209,8 @@ const FRIEND_LABEL: Record<RandomCall['friendState'], string> = {
   'they-requested': '❤️ Add back',
   friends: '❤️ Friends',
   'login-required': '❤️ Log in to add friends',
-  'partner-guest': 'They need an account to be friends',
-  full: 'Friends list is full',
+  'partner-guest': '❤️ Add friend',
+  full: '❤️ List full',
 };
 
 /** ❤️ Add friend on the video (both people must tap it). */
@@ -217,7 +218,7 @@ export function FriendButton({ call }: { call: RandomCall }) {
   const st = call.friendState;
   if (st === 'login-required') {
     return (
-      <Link href="/signup" className="rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-pink-200 hover:bg-black/80">
+      <Link href="/signup" title="Log in to add friends" className={CHIP}>
         {FRIEND_LABEL[st]}
       </Link>
     );
@@ -227,13 +228,8 @@ export function FriendButton({ call }: { call: RandomCall }) {
     <button
       onClick={call.addFriend}
       disabled={st === 'friends' || st === 'requested' || st === 'partner-guest' || st === 'full'}
-      className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-        st === 'they-requested'
-          ? 'animate-pulse bg-pink-500 text-white'
-          : active
-            ? 'bg-pink-500/90 text-white'
-            : 'bg-black/60 text-pink-100 hover:bg-black/80 disabled:text-slate-300'
-      }`}
+      title={st === 'partner-guest' ? 'They need an account to be friends' : st === 'full' ? 'Your friends list is full' : undefined}
+      className={`${CHIP} ${st === 'they-requested' ? 'animate-pulse !border-pink-500 !bg-pink-500 text-white' : active ? '!border-pink-500/60 !bg-pink-500/20 !text-pink-100 !opacity-100' : ''}`}
     >
       {FRIEND_LABEL[st]}
     </button>

@@ -205,7 +205,7 @@ function SearchingStage({ call }: { call: RandomCall }) {
 }
 
 /** Who you're talking to: name · country, what you share, and Add friend / Gift / Play. */
-function PartnerCard({ call }: { call: RandomCall }) {
+function PartnerCard({ call, up }: { call: RandomCall; up?: boolean }) {
   const p = call.partner;
   if (!p) return null;
   const where = p.locationHidden ? 'Location hidden' : p.country ? `${flagEmoji(p.country)} ${countryName(p.country)}` : '';
@@ -242,8 +242,8 @@ function PartnerCard({ call }: { call: RandomCall }) {
       </span>
       <span className="flex shrink-0 items-center gap-1.5">
         <FriendButton call={call} />
-        <GiftButton call={call} />
-        <GamesButton call={call} />
+        <GiftButton call={call} up={up} />
+        <GamesButton call={call} up={up} />
       </span>
     </div>
   );
@@ -552,7 +552,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                   {matched && (
                     // Phones: top-left (the self-view sits at the bottom); larger screens: bottom-left, like the design.
                     <div className={`absolute left-3 z-20 sm:left-5 ${pipCorner === 'bl' || pipCorner === 'tr' ? 'top-3 sm:top-5' : 'top-3 sm:bottom-5 sm:top-auto'}`}>
-                      <PartnerCard call={call} />
+                      <PartnerCard call={call} up={!(pipCorner === 'bl' || pipCorner === 'tr')} />
                     </div>
                   )}
                   <div className="absolute left-3 top-3 flex flex-col items-start gap-1 sm:left-5 sm:top-5">

@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { availableGifts, BOOST, GIFTS, type SpendResult, type Wallet } from '@rc/shared';
 import { useAuth } from '@/lib/auth';
 import type { RandomCall } from '@/lib/useRandomCall';
+import { CHIP, POP, popPos } from './chip';
 
 const REASON: Record<Extract<SpendResult, { ok: false }>['reason'], string> = {
   login: 'Log in to use coins.',
@@ -41,7 +42,7 @@ export function CoinChip({ call, className = '' }: { call?: RandomCall; classNam
 }
 
 /** 🎁 on the video: pick a gift for the partner. */
-export function GiftButton({ call }: { call: RandomCall }) {
+export function GiftButton({ call, up }: { call: RandomCall; up?: boolean }) {
   const wallet = useWallet(call);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -54,7 +55,7 @@ export function GiftButton({ call }: { call: RandomCall }) {
           setOpen((o) => !o);
           setError(null);
         }}
-        className="rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-amber-100 hover:bg-black/80"
+        className={CHIP}
         aria-expanded={open}
       >
         🎁 Gift
@@ -62,7 +63,7 @@ export function GiftButton({ call }: { call: RandomCall }) {
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
-          <div className="absolute left-0 top-full z-40 mt-2 w-72 max-w-[85vw] rounded-xl bg-[#2a2b2e] p-3 text-slate-100 shadow-2xl">
+          <div className={`${POP} ${popPos(up)} w-72 p-3`}>
             <div className="mb-2 flex items-center justify-between text-sm">
               <span className="font-semibold">Send a gift</span>
               {wallet ? (

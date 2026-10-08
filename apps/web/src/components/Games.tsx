@@ -3,23 +3,24 @@
 import { useState } from 'react';
 import { GAMES, type GameView } from '@rc/shared';
 import type { RandomCall } from '@/lib/useRandomCall';
+import { CHIP, POP, popPos } from './chip';
 
 /** 🎮 Play: pick a mini-game to play with your partner. */
-export function GamesButton({ call }: { call: RandomCall }) {
+export function GamesButton({ call, up }: { call: RandomCall; up?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-sky-100 hover:bg-black/80"
+        className={CHIP}
       >
         🎮 Play
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
-          <div className="absolute left-0 top-full z-40 mt-2 w-64 max-w-[85vw] rounded-xl bg-[#2a2b2e] p-2 text-slate-100 shadow-2xl">
+          <div className={`${POP} ${popPos(up)} w-64 p-2`}>
             <p className="px-2 pb-1 pt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Play together</p>
             {GAMES.map((g) => (
               <button

@@ -50,6 +50,22 @@ for (const [name, make] of stores) {
       assert.equal(await s.oldestOpenReportAt(), null);
     });
 
+    test('reporters: one per network, not their own network, not dismissed', async () => {
+      const s = await make();
+      // Three incognito windows (new device ids) on one network count once.
+      for (const d of ['i1', 'i2', 'i3']) await s.addReport(report(d, 'x', { reporterIpHash: 'home' }));
+      assert.equal(await s.distinctReporters('x', 0), 1);
+      // Reports from the target's own network don't count at all.
+      await s.addReport(report('own', 'x', { reporterIpHash: 'ip-x' }));
+      assert.equal(await s.distinctReporters('x', 0), 1);
+      // Another network counts; old reports without a network count per device.
+      await s.addReport(report('far', 'x', { reporterIpHash: 'cafe' }));
+      const legacy = await s.addReport(report('legacy', 'x'));
+      assert.equal(await s.distinctReporters('x', 0), 3);
+      await s.resolveReport(legacy.id, 'dismissed', 'test');
+      assert.equal(await s.distinctReporters('x', 0), 2, 'dismissed reports stop counting');
+    });
+
     test('bans: match by device or IP, longest wins, expiry and lifting', async () => {
       const s = await make();
       const now = Date.now();

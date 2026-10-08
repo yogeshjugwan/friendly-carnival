@@ -111,6 +111,7 @@ export class Safety {
   async report(reporter: Party, target: Party, payload: ReportPayload): Promise<{ report: Report; ban: Ban | null }> {
     const report = await this.store.addReport({
       reporterDevice: reporter.deviceId,
+      reporterIpHash: reporter.ipHash,
       targetDevice: target.deviceId,
       targetIpHash: target.ipHash,
       targetUserId: target.userId ?? null,

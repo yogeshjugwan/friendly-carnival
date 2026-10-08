@@ -25,8 +25,10 @@ after(async () => {
   await app.close();
 });
 
-const client = async (deviceId = randomUUID()): Promise<Client> => {
-  const c: Client = connect(url, { transports: ['websocket'], forceNew: true, auth: { deviceId } });
+/** Each test person gets their own network: reports from one network count as one reporter. */
+let lastIp = 0;
+const client = async (deviceId = randomUUID(), ip = `10.0.${Math.floor(++lastIp / 250)}.${lastIp % 250}`): Promise<Client> => {
+  const c: Client = connect(url, { transports: ['websocket'], forceNew: true, auth: { deviceId }, extraHeaders: { 'x-forwarded-for': ip } });
   clients.push(c);
   await new Promise<void>((resolve) => c.once('connect', () => resolve()));
   return c;

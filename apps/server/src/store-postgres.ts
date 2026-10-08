@@ -52,6 +52,7 @@ ALTER TABLE blocks ADD COLUMN IF NOT EXISTS gender TEXT;
 ALTER TABLE blocks ADD COLUMN IF NOT EXISTS country TEXT;
 
 ALTER TABLE reports ADD COLUMN IF NOT EXISTS target_user_id TEXT;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS reporter_ip_hash TEXT;
 ALTER TABLE bans ADD COLUMN IF NOT EXISTS user_id TEXT;
 CREATE INDEX IF NOT EXISTS bans_user_idx ON bans (user_id);
 
@@ -71,6 +72,7 @@ const num = (v: unknown): number | null => (v === null || v === undefined ? null
 const toReport = (r: Record<string, unknown>): Report => ({
   id: r.id as string,
   reporterDevice: r.reporter_device as string,
+  reporterIpHash: (r.reporter_ip_hash as string | null) ?? null,
   targetDevice: r.target_device as string,
   targetIpHash: (r.target_ip_hash as string | null) ?? null,
   targetUserId: (r.target_user_id as string | null) ?? null,
@@ -144,8 +146,8 @@ export class PostgresStore implements SafetyStore {
 
   async addReport(input: NewReport): Promise<Report> {
     const { rows } = await this.pool.query(
-      `INSERT INTO reports (id, reporter_device, target_device, target_ip_hash, reason, source, note, snapshot, ai_score, created_at, target_user_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+      `INSERT INTO reports (id, reporter_device, target_device, target_ip_hash, reason, source, note, snapshot, ai_score, created_at, target_user_id, reporter_ip_hash)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
       [
         randomUUID(),
         input.reporterDevice,
@@ -158,6 +160,7 @@ export class PostgresStore implements SafetyStore {
         input.aiScore,
         Date.now(),
         input.targetUserId,
+        input.reporterIpHash ?? null,
       ],
     );
     return toReport(rows[0]);
@@ -187,15 +190,13 @@ export class PostgresStore implements SafetyStore {
   }
 
   async distinctReporters(targetDevice: string, since: number, source?: ReportSource) {
-    const { rows } = source
-      ? await this.pool.query(
-          'SELECT COUNT(DISTINCT reporter_device) AS n FROM reports WHERE target_device = $1 AND created_at >= $2 AND source = $3',
-          [targetDevice, since, source],
-        )
-      : await this.pool.query(
-          'SELECT COUNT(DISTINCT reporter_device) AS n FROM reports WHERE target_device = $1 AND created_at >= $2',
-          [targetDevice, since],
-        );
+    // Same rules as countsAsReporter (store.ts): one per network, not dismissed, not from their own network.
+    const { rows } = await this.pool.query(
+      `SELECT COUNT(DISTINCT COALESCE(reporter_ip_hash, reporter_device)) AS n FROM reports
+       WHERE target_device = $1 AND created_at >= $2 AND ($3::text IS NULL OR source = $3) AND status <> 'dismissed'
+         AND (reporter_ip_hash IS NULL OR target_ip_hash IS NULL OR reporter_ip_hash <> target_ip_hash)`,
+      [targetDevice, since, source ?? null],
+    );
     return Number(rows[0]?.n ?? 0);
   }
 

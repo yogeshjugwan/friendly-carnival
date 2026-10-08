@@ -14,6 +14,8 @@ export interface StoredBlock extends BlockInfo {
 export interface Report {
   id: string;
   reporterDevice: string;
+  /** Reporter's network (salted hash). Reports from one network count as one person. */
+  reporterIpHash?: string | null;
   targetDevice: string;
   targetIpHash: string | null;
   /** Account of the reported user, when they were logged in. */
@@ -53,6 +55,14 @@ export interface Appeal {
   createdAt: number;
   resolvedAt: number | null;
 }
+
+/**
+ * Whether a report counts towards automatic rules (bans, trust). Dismissed
+ * reports don't, and nor do reports from the reported person's own network
+ * (your own second tab, incognito window or phone on the same Wi-Fi).
+ */
+export const countsAsReporter = (r: Pick<Report, 'status' | 'reporterIpHash' | 'targetIpHash'>) =>
+  r.status !== 'dismissed' && !(r.reporterIpHash && r.targetIpHash && r.reporterIpHash === r.targetIpHash);
 
 export type NewReport = Omit<Report, 'id' | 'status' | 'createdAt' | 'resolvedAt' | 'resolution'>;
 export type NewBan = Omit<Ban, 'id' | 'createdAt' | 'liftedAt'>;
@@ -172,7 +182,9 @@ export class MemoryStore implements SafetyStore {
   async distinctReporters(targetDevice: string, since: number, source?: ReportSource) {
     const who = new Set<string>();
     for (const r of this.reports.values()) {
-      if (r.targetDevice === targetDevice && r.createdAt >= since && (!source || r.source === source)) who.add(r.reporterDevice);
+      if (r.targetDevice !== targetDevice || r.createdAt < since || (source && r.source !== source)) continue;
+      if (!countsAsReporter(r)) continue;
+      who.add(r.reporterIpHash ?? r.reporterDevice);
     }
     return who.size;
   }

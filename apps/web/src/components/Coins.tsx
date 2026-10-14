@@ -42,7 +42,7 @@ export function CoinChip({ call, className = '' }: { call?: RandomCall; classNam
 }
 
 /** 🎁 on the video: pick a gift for the partner. */
-export function GiftButton({ call, up }: { call: RandomCall; up?: boolean }) {
+export function GiftButton({ call, up, iconClass, menuPos }: { call: RandomCall; up?: boolean; iconClass?: string; menuPos?: string }) {
   const wallet = useWallet(call);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -55,15 +55,24 @@ export function GiftButton({ call, up }: { call: RandomCall; up?: boolean }) {
           setOpen((o) => !o);
           setError(null);
         }}
-        className={CHIP}
+        className={iconClass ?? CHIP}
         aria-expanded={open}
+        aria-label={iconClass ? 'Send a gift' : undefined}
+        title={iconClass ? 'Send a gift' : undefined}
       >
-        🎁 Gift
+        {iconClass ? (
+          <svg viewBox="0 0 24 24" className="h-5 w-5 text-gold" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <rect x="3" y="8" width="18" height="13" rx="1" />
+            <path d="M12 8v13M3 12h18M12 8S10 3 7.5 4 9 8 12 8zm0 0s2-5 4.5-4S15 8 12 8z" />
+          </svg>
+        ) : (
+          '🎁 Gift'
+        )}
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
-          <div className={`${POP} ${popPos(up)} w-72 p-3`}>
+          <div className={`${POP} ${menuPos ?? popPos(up)} w-72 p-3`}>
             <div className="mb-2 flex items-center justify-between text-sm">
               <span className="font-semibold">Send a gift</span>
               {wallet ? (

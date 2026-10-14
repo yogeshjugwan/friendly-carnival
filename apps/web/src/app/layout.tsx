@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Bricolage_Grotesque, Geist } from 'next/font/google';
+import { DM_Sans, Space_Grotesk } from 'next/font/google';
 import { PwaSetup } from '@/components/Pwa';
 import { AuthProvider } from '@/lib/auth';
 import './globals.css';
@@ -15,11 +15,11 @@ export const metadata: Metadata = {
   icons: { icon: '/icon-192.png', apple: '/apple-touch-icon.png' },
 };
 
-export const viewport: Viewport = { themeColor: '#0c0e14' };
+export const viewport: Viewport = { themeColor: '#07080b' };
 
-/** Display face for headings and the wordmark; Geist for everything else. */
-const display = Bricolage_Grotesque({ subsets: ['latin'], weight: ['500', '700', '800'], variable: '--font-bricolage', display: 'swap' });
-const sans = Geist({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-geist', display: 'swap' });
+/** Space Grotesk for headings, the wordmark and big buttons; DM Sans for everything else. */
+const display = Space_Grotesk({ subsets: ['latin'], weight: ['500', '700'], variable: '--font-space', display: 'swap' });
+const sans = DM_Sans({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-dmsans', display: 'swap' });
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

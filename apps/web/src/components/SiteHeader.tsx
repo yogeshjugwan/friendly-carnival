@@ -14,7 +14,7 @@ export function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <Link href="/" className="flex items-center gap-2.5 text-[#e8ebf2]" aria-label="randomCall home">
       <span className={`flex items-center justify-center rounded-[10px] bg-lime ${compact ? 'h-[30px] w-[30px]' : 'h-[34px] w-[34px]'}`}>
-        <CameraIcon className="h-[18px] w-[18px]" color="#0c0e14" strokeWidth={2.2} />
+        <CameraIcon className="h-[18px] w-[18px]" color="#07080b" strokeWidth={2.2} />
       </span>
       <span className={`font-display font-extrabold tracking-[-0.02em] ${compact ? 'text-[19px]' : 'text-[22px]'}`}>randomCall</span>
     </Link>

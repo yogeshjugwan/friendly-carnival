@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { RandomCall } from '@/lib/useRandomCall';
 import { CONTACT_EMAIL } from './LegalPage';
+import { GAMES } from '@rc/shared';
 import { BackIcon, MoreVerticalIcon } from './icons';
 import { BlockedList } from './BlockedList';
 import { BoostCard } from './Coins';
@@ -86,11 +87,14 @@ interface Props {
   fit: boolean;
   onToggleFit: () => void;
   onToggleFullscreen: () => void;
+  /** Where the menu opens, relative to the button. */
+  menuPos?: string;
 }
 
 /** The ⋮ "More options" menu, laid out like Google Meet's. */
-export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen }: Props) {
-  const [view, setView] = useState<'closed' | 'menu' | 'settings' | 'effects' | 'blocked' | 'boost'>('closed');
+export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen, menuPos = 'absolute bottom-full right-0 mb-3 sm:-right-20' }: Props) {
+  const pos = menuPos;
+  const [view, setView] = useState<'closed' | 'menu' | 'settings' | 'effects' | 'blocked' | 'boost' | 'games'>('closed');
   const [fullscreen, setFullscreen] = useState(false);
   useEffect(() => {
     const sync = () => setFullscreen(!!document.fullscreenElement);
@@ -134,12 +138,24 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
             <div
               role="menu"
               aria-label="More options"
-              className="absolute bottom-full right-0 z-40 mb-3 max-h-[70dvh] w-72 max-w-[88vw] overflow-y-auto rounded-xl bg-[#2a2b2e] py-2 shadow-2xl sm:-right-20"
+              className={`${pos} z-40 max-h-[70dvh] w-72 max-w-[88vw] overflow-y-auto rounded-xl border border-line-2 bg-card-2 py-2 shadow-2xl`}
             >
               {item(ViewIcon, 'Adjust view', onToggleFit, fit ? 'Fit' : 'Fill')}
               {item(FullIcon, fullscreen ? 'Exit full screen' : 'Full screen', onToggleFullscreen)}
               {item(PipIcon, 'Open picture-in-picture', () => void call.togglePictureInPicture())}
               {call.partner && item(DiceIcon, 'Icebreaker question', call.askIcebreaker)}
+              {call.partner && call.mode !== 'text' && (
+                <button
+                  role="menuitem"
+                  onClick={() => setView('games')}
+                  className="flex w-full items-center gap-4 px-4 py-3 text-left text-[15px] text-slate-100 hover:bg-white/10"
+                >
+                  <span className="w-5 text-center" aria-hidden>
+                    🎮
+                  </span>
+                  <span className="flex-1">Play a game together</span>
+                </button>
+              )}
               {call.mode === 'video' && (
                 <button
                   role="menuitem"
@@ -186,15 +202,40 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
                 <span>Settings</span>
               </button>
             </div>
+          ) : view === 'games' ? (
+            <div className={`${pos} z-40 w-72 max-w-[88vw] rounded-xl border border-line-2 bg-card-2 p-2 text-slate-100 shadow-2xl`}>
+              <div className="mb-1 flex items-center gap-2 px-1">
+                <button onClick={() => setView('menu')} aria-label="Back to menu" className="rounded-full p-1 text-slate-300 hover:bg-white/10">
+                  <BackIcon className="h-4 w-4" />
+                </button>
+                <p className="font-semibold">Play together</p>
+              </div>
+              {GAMES.map((g) => (
+                <button
+                  key={g.id}
+                  onClick={() => {
+                    call.startGame(g.id);
+                    close();
+                  }}
+                  className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-white/10"
+                >
+                  <span className="text-2xl">{g.emoji}</span>
+                  <span>
+                    <span className="block text-sm font-semibold">{g.name}</span>
+                    <span className="block text-xs text-slate-400">{g.blurb}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
           ) : view === 'boost' ? (
-            <div className="absolute bottom-full right-0 z-40 mb-3 w-80 max-w-[90vw] rounded-xl bg-[#2a2b2e] p-3 shadow-2xl sm:-right-20">
+            <div className={`${pos} z-40 w-80 max-w-[90vw] rounded-xl border border-line-2 bg-card-2 p-3 shadow-2xl`}>
               <button onClick={() => setView('menu')} aria-label="Back to menu" className="mb-2 rounded-full p-1 text-slate-300 hover:bg-white/10">
                 <BackIcon className="h-4 w-4" />
               </button>
               <BoostCard call={call} buy={call.buyBoost} />
             </div>
           ) : view === 'blocked' ? (
-            <div className="absolute bottom-full right-0 z-40 mb-3 max-h-[70dvh] w-80 max-w-[90vw] overflow-y-auto rounded-xl bg-[#2a2b2e] p-4 shadow-2xl sm:-right-20">
+            <div className={`${pos} z-40 max-h-[70dvh] w-80 max-w-[90vw] overflow-y-auto rounded-xl border border-line-2 bg-card-2 p-4 shadow-2xl`}>
               <div className="mb-2 flex items-center gap-2">
                 <button onClick={() => setView('menu')} aria-label="Back to menu" className="rounded-full p-1 text-slate-300 hover:bg-white/10">
                   <BackIcon className="h-4 w-4" />
@@ -204,7 +245,7 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
               <BlockedList tone="dark" />
             </div>
           ) : view === 'effects' ? (
-            <div className="absolute bottom-full right-0 z-40 mb-3 w-80 max-w-[90vw] rounded-xl bg-[#2a2b2e] p-4 text-slate-100 shadow-2xl sm:-right-20">
+            <div className={`${pos} z-40 w-80 max-w-[90vw] rounded-xl border border-line-2 bg-card-2 p-4 text-slate-100 shadow-2xl`}>
               <div className="mb-3 flex items-center gap-2">
                 <button onClick={() => setView('menu')} aria-label="Back to menu" className="rounded-full p-1 text-slate-300 hover:bg-white/10">
                   <BackIcon className="h-4 w-4" />
@@ -215,7 +256,7 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
               <EffectsGrid call={call} />
             </div>
           ) : (
-            <div className="absolute bottom-full right-0 z-40 mb-3 w-72 max-w-[88vw] rounded-xl bg-white p-4 text-ink shadow-2xl sm:-right-20">
+            <div className={`${pos} z-40 w-72 max-w-[88vw] rounded-xl bg-white p-4 text-ink shadow-2xl`}>
               <div className="mb-3 flex items-center gap-2">
                 <button onClick={() => setView('menu')} aria-label="Back to menu" className="rounded-full p-1 text-slate-500 hover:bg-slate-100">
                   <BackIcon className="h-4 w-4" />

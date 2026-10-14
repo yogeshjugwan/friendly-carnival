@@ -13,18 +13,21 @@ const EDGE = 4;
  * the call bar (bottom).
  */
 const CORNER_CLASS: Record<Corner, string> = {
-  tl: 'left-3 top-[4.5rem] sm:left-4 max-lg:landscape:top-12',
-  tr: 'right-3 top-14 sm:right-4 max-lg:landscape:top-12',
-  bl: 'left-3 bottom-3 sm:left-4 sm:bottom-4',
-  br: 'right-3 bottom-3 sm:right-4 sm:bottom-4',
+  tl: 'left-3 top-16 sm:left-5 sm:top-[4.5rem] max-lg:landscape:top-12',
+  tr: 'right-3 top-16 sm:right-5 sm:top-[4.5rem] max-lg:landscape:top-12',
+  bl: 'left-3 bottom-[104px] sm:left-5 sm:bottom-5',
+  br: 'right-3 bottom-[104px] sm:right-5 sm:bottom-5',
 };
+
+/** Phones keep the bottom for Stop / Next, so the self-view starts top-right there. */
+const defaultCorner = (): Corner => (window.matchMedia('(max-width: 639px)').matches ? 'tr' : 'br');
 
 function loadCorner(): Corner {
   try {
     const v = window.localStorage.getItem(KEY);
-    return v === 'tl' || v === 'tr' || v === 'bl' || v === 'br' ? v : 'br';
+    return v === 'tl' || v === 'tr' || v === 'bl' || v === 'br' ? v : defaultCorner();
   } catch {
-    return 'br';
+    return defaultCorner();
   }
 }
 

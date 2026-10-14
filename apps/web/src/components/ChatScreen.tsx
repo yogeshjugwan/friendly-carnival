@@ -182,7 +182,7 @@ function SearchingStage({ call }: { call: RandomCall }) {
         <span className="rc-pulse absolute inset-0 rounded-full border-2 border-lime" />
         <span className="rc-pulse-late absolute inset-0 rounded-full border-2 border-lime" />
         <span className="flex h-20 w-20 items-center justify-center rounded-full border border-[#2b3243] bg-[#1a1f2c] sm:h-24 sm:w-24">
-          <svg viewBox="0 0 24 24" className="h-9 w-9 sm:h-10 sm:w-10" fill="none" stroke="#c6f432" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+          <svg viewBox="0 0 24 24" className="h-9 w-9 sm:h-10 sm:w-10" fill="none" stroke="#c6f24e" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
             <path d="M15 10l5-3v10l-5-3z" />
             <rect x="3" y="6" width="12" height="12" rx="2" />
           </svg>
@@ -205,7 +205,8 @@ function SearchingStage({ call }: { call: RandomCall }) {
 }
 
 /** Who you're talking to: name · country, what you share, and Add friend / Gift / Play. */
-function PartnerCard({ call, up }: { call: RandomCall; up?: boolean }) {
+/** Who you're talking to, as pills over the top-left of the video: name · country, and the call clock. */
+function PartnerPills({ call }: { call: RandomCall }) {
   const p = call.partner;
   if (!p) return null;
   const where = p.locationHidden ? 'Location hidden' : p.country ? `${flagEmoji(p.country)} ${countryName(p.country)}` : '';
@@ -217,35 +218,33 @@ function PartnerCard({ call, up }: { call: RandomCall; up?: boolean }) {
       : p.bio
         ? `“${p.bio}”`
         : null;
+  const pill = 'flex h-9 items-center gap-1.5 rounded-full bg-black/45 px-3 text-[13px] text-white backdrop-blur';
   return (
-    <div className="flex max-w-[calc(100vw-7rem)] flex-wrap items-center gap-2.5 sm:max-w-[calc(100vw-2.5rem)] rounded-[14px] border border-line-2 bg-night/80 py-2 pl-3.5 pr-2 backdrop-blur sm:flex-nowrap [&_button]:whitespace-nowrap">
-      <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="flex min-w-0 items-center gap-1.5 text-[15px] font-semibold text-[#f4f6fa]">
-          {p.avatar && <span aria-hidden>{p.avatar}</span>}
-          <span className="truncate">
-            {p.name || (
-              <span title={GENDER_LABEL[p.gender]} aria-label={GENDER_LABEL[p.gender]}>
-                {GENDER_ICON[p.gender]} Stranger
-              </span>
-            )}
-            {where && <span className="font-normal text-mute"> · {where}</span>}
-          </span>
-          {p.verified && <VerifiedBadge />}
-          {p.plus && (
-            <span title="Plus member" aria-label="Plus member">
-              👑
+    <>
+      <span className={`${pill} min-w-0 max-w-full font-semibold`}>
+        {p.avatar && <span aria-hidden>{p.avatar}</span>}
+        <span className="truncate">
+          {p.name || (
+            <span title={GENDER_LABEL[p.gender]} aria-label={GENDER_LABEL[p.gender]}>
+              {GENDER_ICON[p.gender]} Stranger
             </span>
           )}
-          {p.isNew && <span className="rounded bg-gold px-1.5 text-[10px] font-bold text-[#1a1608]">NEW</span>}
+          {where && <span className="font-normal text-white/75"> · {where}</span>}
         </span>
-        {line && <span className="truncate text-xs text-lime">{line}</span>}
+        {p.verified && <VerifiedBadge />}
+        {p.plus && (
+          <span title="Plus member" aria-label="Plus member">
+            👑
+          </span>
+        )}
+        {p.isNew && <span className="rounded bg-gold px-1.5 text-[10px] font-bold text-[#1a1608]">NEW</span>}
       </span>
-      <span className="flex shrink-0 items-center gap-1.5">
-        <FriendButton call={call} />
-        <GiftButton call={call} up={up} />
-        <GamesButton call={call} up={up} />
+      <span className={`${pill} font-medium`}>
+        <i className="rc-blink h-[7px] w-[7px] rounded-full bg-lime" aria-hidden />
+        <CallTimer since={call.matchStartedAt} />
       </span>
-    </div>
+      {line && <span className={`${pill} max-w-[22rem] truncate text-lime max-md:hidden`}>{line}</span>}
+    </>
   );
 }
 
@@ -262,7 +261,7 @@ function CallTimer({ since }: { since: number | null }) {
   const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
   const ss = String(s % 60).padStart(2, '0');
   return (
-    <span className="font-medium tabular-nums text-[#e8ebf2]" aria-label="Call length">
+    <span className="tabular-nums" aria-label="Call length">
       {h ? `${h}:` : ''}
       {mm}:{ss}
     </span>
@@ -356,9 +355,10 @@ export function ChatScreen({ call }: { call: RandomCall }) {
 
   return (
     // Full-screen dark call view, like Google Meet.
-    <main ref={mainRef} className="flex h-[100dvh] w-full flex-col overflow-hidden bg-night px-2 pb-2 pt-2 sm:px-5 sm:pb-5 sm:pt-3">
+    <main ref={mainRef} className={`flex h-[100dvh] w-full flex-col overflow-hidden bg-night ${isText ? 'px-2 pb-2 pt-2 sm:px-5 sm:pb-5 sm:pt-3' : 'sm:p-4 sm:pb-5'}`}>
       <div className="flex min-h-0 flex-1 flex-col gap-2 sm:gap-3 [@media(max-height:500px)]:gap-1.5">
-        {/* Header: logo · online · settings · upgrade */}
+        {/* Header (text chat): logo · online · settings · upgrade. Calls carry these over the video instead. */}
+        {isText && (
         <header className="flex items-center gap-2 sm:gap-3">
           <span className="flex items-center gap-2">
             <span className="sm:hidden">
@@ -435,10 +435,13 @@ export function ChatScreen({ call }: { call: RandomCall }) {
             </Link>
           )}
         </header>
+        )}
 
-        <div className="sm:hidden [@media(max-height:500px)]:hidden">
-          <FilterBar />
-        </div>
+        {isText && (
+          <div className="sm:hidden [@media(max-height:500px)]:hidden">
+            <FilterBar />
+          </div>
+        )}
 
         <LimitModal call={call} />
         <IncomingCallModal call={call} />
@@ -506,7 +509,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               stream={matched ? call.remoteStream : null}
               videoRef={call.setPartnerVideo}
               forceVisible={call.relayActive}
-              className="min-h-0 rounded-3xl border border-line !bg-[#121520]"
+              className="min-h-0 !bg-[#141720] max-sm:rounded-none sm:rounded-3xl"
               videoClassName={`transition-[filter] duration-700 ${fit ? '!object-contain' : ''} ${
                 call.partnerHidden || call.aiHidden ? 'blur-3xl brightness-50' : call.blurPartner ? 'blur-xl' : ''
               }`}
@@ -548,38 +551,81 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               )}
 
               {!showAd && (
-                <>
-                  {matched && (
-                    // Phones: top-left (the self-view sits at the bottom); larger screens: bottom-left, like the design.
-                    <div className={`absolute left-3 z-20 sm:left-5 ${pipCorner === 'bl' || pipCorner === 'tr' ? 'top-3 sm:top-5' : 'top-3 sm:bottom-5 sm:top-auto'}`}>
-                      <PartnerCard call={call} up={!(pipCorner === 'bl' || pipCorner === 'tr')} />
+                // Top of the video: who you're talking to (or the logo and filters while searching), then safety and account.
+                <div className="absolute inset-x-3 top-3 z-20 flex flex-col gap-2 sm:inset-x-5 sm:top-5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      {matched ? (
+                        <PartnerPills call={call} />
+                      ) : (
+                        <span className="rounded-full bg-black/45 py-1 pl-1 pr-3 backdrop-blur">
+                          <Brand compact />
+                        </span>
+                      )}
+                      {call.relayActive && (
+                        <span
+                          className="flex h-9 items-center rounded-full bg-amber-500/90 px-3 text-[12px] font-medium text-white"
+                          title="Your networks blocked a direct connection, so video goes through our server with a short delay."
+                        >
+                          Relay · slight delay
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {matched && <ReportButton />}
+                      <SafetyMenu call={call} />
+                      <button
+                        onClick={toggleFriends}
+                        aria-pressed={showFriends}
+                        aria-label="Friends"
+                        title="Friends"
+                        className={`flex h-9 items-center gap-1.5 rounded-full px-3 text-[13px] backdrop-blur max-sm:hidden ${showFriends ? 'bg-[#ff7aa8] text-night' : 'bg-black/45 text-white hover:bg-black/65'}`}
+                      >
+                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />
+                        </svg>
+                        <span className="max-md:hidden">Friends</span>
+                      </button>
+                      <button
+                        onClick={() => (isPlus ? (showOnline ? closeOnline() : openOnline()) : setOnlineUpsell(true))}
+                        aria-pressed={showOnline}
+                        title={isPlus ? 'See who is online and call them' : 'See who is online (Plus)'}
+                        className={`flex h-9 items-center gap-1.5 rounded-full px-3 text-[13px] backdrop-blur max-sm:hidden ${showOnline ? 'bg-lime text-night' : 'bg-black/45 text-white hover:bg-black/65'}`}
+                      >
+                        <i className="h-2 w-2 rounded-full bg-lime" aria-hidden />
+                        {isPlus && call.online !== null ? `${Math.max(0, call.online - 1).toLocaleString()} online` : 'Online 👑'}
+                      </button>
+                      {!isPlus && (
+                        <Link href="/plus" target="_blank" className="flex h-9 items-center rounded-full bg-gold px-3 text-[13px] font-semibold text-[#1a1608] hover:brightness-105 max-lg:hidden">
+                          Get Plus
+                        </Link>
+                      )}
+                      {user ? (
+                        <AccountMenu />
+                      ) : (
+                        <Link href="/login" target="_blank" className="flex h-9 items-center rounded-full bg-black/45 px-3 text-[13px] text-white backdrop-blur hover:bg-black/65 max-sm:hidden">
+                          Log in
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                  {/* While searching: who to match with. */}
+                  {!matched && (
+                    <div className="flex justify-center sm:justify-start">
+                      <FilterBar />
                     </div>
                   )}
-                  <div className="absolute left-3 top-3 flex flex-col items-start gap-1 sm:left-5 sm:top-5">
-                    {call.relayActive && (
-                      <span
-                        className="rounded-full bg-amber-500/90 px-2 py-0.5 text-[11px] font-medium text-white"
-                        title="Your networks blocked a direct connection, so video goes through our server with a short delay."
-                      >
-                        Relay mode · slight delay
-                      </span>
-                    )}
-                  </div>
-                  <div className="absolute right-3 top-3 z-20 flex flex-col items-end gap-2 sm:right-4 sm:top-4">
-                    <SafetyMenu call={call} />
-                    {matched && <ReportButton />}
-                  </div>
-                </>
+                </div>
               )}
 
               {/* You (picture-in-picture): drag it to any corner; voice calls have no picture */}
               {!isVoice && (
-                <DraggablePip onCornerChange={setPipCorner} className="aspect-[3/4] h-[24%] max-h-[10rem] min-h-[5rem] max-w-[36%] sm:h-[30%] sm:max-h-[168px] overflow-hidden rounded-2xl border-2 border-[#2b3243] bg-[#232836] shadow-xl md:aspect-[264/168] landscape:aspect-video max-lg:landscape:h-[34%] lg:h-[26%] [@media(max-height:500px)]:h-[30%] [@media(max-height:500px)]:min-h-[3.5rem]">
-                  <VideoTile stream={call.localStream} muted mirrored className="pointer-events-none h-full w-full rounded-none !bg-[#232836]" />
+                <DraggablePip onCornerChange={setPipCorner} className="h-[150px] w-[110px] overflow-hidden rounded-[14px] border-2 border-white/20 bg-[#1f2638] shadow-xl sm:h-[170px] sm:w-[260px] sm:rounded-2xl sm:border-white/15 max-lg:landscape:h-[34%] max-lg:landscape:w-auto max-lg:landscape:aspect-video [@media(max-height:500px)]:h-[30%]">
+                  <VideoTile stream={call.localStream} muted mirrored className="pointer-events-none h-full w-full rounded-none !bg-[#1f2638]" />
                   {(!call.localStream || !call.cameraOn) && (
                     <div className="absolute inset-0 flex items-center justify-center text-xs uppercase tracking-[0.08em] text-[#6b7385]">Camera off</div>
                   )}
-                  <span className="absolute bottom-2 left-2 rounded-md bg-night/80 px-2 py-0.5 text-xs text-[#e8ebf2]">You</span>
+                  <span className="absolute bottom-2 left-2 rounded-full bg-black/45 px-2 py-0.5 text-[11px] text-white">You</span>
                   {!call.micOn && (
                     <span className="absolute bottom-2 right-2 flex h-6 w-6 items-center justify-center rounded-md bg-[#e5484d]" aria-label="Your microphone is off">
                       <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="#fff" strokeWidth={2.4} strokeLinecap="round" aria-hidden>
@@ -591,7 +637,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               )}
 
               {(call.cameraProblem || call.noFace) && (
-                <div className="absolute inset-x-0 bottom-3 z-20 flex justify-center px-3" role="status">
+                <div className="absolute inset-x-0 bottom-[104px] z-20 flex justify-center px-3 sm:bottom-3" role="status">
                   <p className={`rounded-full px-4 py-1.5 text-sm font-medium text-white shadow-lg ${call.cameraProblem ? 'bg-red-600/90' : 'bg-amber-500/90'}`}>
                     {call.cameraProblem
                       ? CAMERA_PROBLEM[call.cameraProblem].chip
@@ -602,7 +648,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               <ReactionLayer call={call} />
               <GiftLayer call={call} />
               {matched && call.game && (
-                <div className="absolute inset-x-0 bottom-3 z-20 flex justify-center px-3 lg:inset-x-auto lg:left-3">
+                <div className="absolute inset-x-0 bottom-[104px] z-20 flex justify-center px-3 sm:bottom-3 lg:inset-x-auto lg:left-3">
                   <GameCard call={call} />
                 </div>
               )}
@@ -623,6 +669,23 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                 </div>
               )}
 
+              {/* Phones: controls down the right edge, Stop / Next across the bottom. */}
+              <div className="absolute bottom-[104px] right-3 z-20 sm:hidden">
+                <CallControls
+                  rail
+                  call={call}
+                  matched={matched}
+                  chatOpen={chatOpen}
+                  onToggleChat={toggleChat}
+                  unread={unread}
+                  fit={fit}
+                  onToggleFit={() => setFit((f) => !f)}
+                  onToggleFullscreen={toggleFullscreen}
+                />
+              </div>
+              <div className="absolute inset-x-4 bottom-7 z-20 sm:hidden">
+                <StopNext call={call} wide />
+              </div>
             </VideoTile>
 
             {showOnline && <OnlineUsersPanel call={call} onClose={closeOnline} className="h-full shadow-2xl max-lg:portrait:fixed max-lg:portrait:inset-x-2 max-lg:portrait:bottom-2 max-lg:portrait:top-[38%] max-lg:portrait:z-40 max-lg:portrait:h-auto" />}
@@ -647,31 +710,20 @@ export function ChatScreen({ call }: { call: RandomCall }) {
           </div>
         )}
 
-        {/* Meet-style bottom bar under the video: clock | your name · controls */}
+        {/* Under the video (larger screens): controls on the left, Stop / Next on the right. */}
         {!isText && (
-          <div className="flex shrink-0 flex-wrap items-center justify-center gap-2 pt-1 sm:gap-4 sm:pt-2 lg:grid lg:grid-cols-[1fr_auto_1fr]">
-            <div className="hidden items-center gap-2.5 truncate pl-1 text-sm text-mute lg:flex">
-              <CallTimer since={call.matchStartedAt} />
-              <span className="h-4 w-px bg-line-2" aria-hidden />
-              <span className="truncate" title={user ? user.email : 'Not logged in'}>
-                {loadSettings().name || (user ? user.email.split('@')[0] : 'Guest')}
-              </span>
-            </div>
-            <div className="flex justify-center">
-              <CallControls
-                call={call}
-                matched={matched}
-                chatOpen={chatOpen}
-                onToggleChat={toggleChat}
-                unread={unread}
-                fit={fit}
-                onToggleFit={() => setFit((f) => !f)}
-                onToggleFullscreen={toggleFullscreen}
-              />
-            </div>
-            <div className="flex justify-end">
-              <StopNext call={call} />
-            </div>
+          <div className="flex shrink-0 items-center justify-between gap-4 px-2 pt-1 max-sm:hidden">
+            <CallControls
+              call={call}
+              matched={matched}
+              chatOpen={chatOpen}
+              onToggleChat={toggleChat}
+              unread={unread}
+              fit={fit}
+              onToggleFit={() => setFit((f) => !f)}
+              onToggleFullscreen={toggleFullscreen}
+            />
+            <StopNext call={call} />
           </div>
         )}
       </div>

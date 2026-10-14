@@ -214,8 +214,38 @@ const FRIEND_LABEL: Record<RandomCall['friendState'], string> = {
 };
 
 /** ❤️ Add friend on the video (both people must tap it). */
-export function FriendButton({ call }: { call: RandomCall }) {
+const HeartSvg = () => (
+  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M12 21s-8-5-8-11a4 4 0 0 1 8-1 4 4 0 0 1 8 1c0 6-8 11-8 11z" />
+  </svg>
+);
+
+/** ❤️ Add friend on the video (both people must tap it). `iconClass` renders a square icon button instead of a chip. */
+export function FriendButton({ call, iconClass }: { call: RandomCall; iconClass?: string }) {
   const st = call.friendState;
+  if (iconClass) {
+    const label = st === 'partner-guest' ? 'They need an account to be friends' : st === 'login-required' ? 'Log in to add friends' : FRIEND_LABEL[st].replace('❤️ ', '');
+    if (st === 'login-required') {
+      return (
+        <Link href="/signup" target="_blank" aria-label={label} title={label} className={iconClass}>
+          <HeartSvg />
+        </Link>
+      );
+    }
+    const on = st === 'friends' || st === 'requested';
+    return (
+      <button
+        onClick={call.addFriend}
+        disabled={on || st === 'partner-guest' || st === 'full'}
+        aria-label={label}
+        title={label}
+        aria-pressed={on}
+        className={`${iconClass} ${st === 'they-requested' ? 'animate-pulse !bg-pink-500 !text-white' : on ? '!bg-pink-500/25 !text-pink-300' : ''} disabled:cursor-not-allowed ${on ? '' : 'disabled:opacity-40'}`}
+      >
+        <HeartSvg />
+      </button>
+    );
+  }
   if (st === 'login-required') {
     return (
       <Link href="/signup" title="Log in to add friends" className={CHIP}>

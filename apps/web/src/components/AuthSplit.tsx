@@ -58,7 +58,7 @@ export function AuthSplit({ title, accent, children }: { title: string; accent: 
         </div>
       </section>
 
-      <section className="flex flex-col bg-[radial-gradient(circle_at_50%_0%,#1a2410_0%,#07080b_45%)] px-5 pt-6 pb-7 lg:items-center lg:justify-center lg:bg-none lg:p-12">
+      <section className="flex flex-col bg-[radial-gradient(circle_at_50%_0%,#1a2410_0%,#0b0811_45%)] px-5 pt-6 pb-7 lg:items-center lg:justify-center lg:bg-none lg:p-12">
         <div className="lg:hidden">
           <Brand compact />
         </div>

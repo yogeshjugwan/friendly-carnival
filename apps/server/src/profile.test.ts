@@ -21,10 +21,12 @@ test('profile cards are cleaned: listed avatars only, short bios, no links or ha
   assert.equal(parseProfile({ name: 'x'.repeat(40) }).name.length, 24);
   assert.equal(parseProfile({ bio: 'follow me insta: @cutie' }).bio, '');
   assert.deepEqual(parseProfile(null), { name: '', avatar: null, bio: '', age: null });
-  // Age is a range only; anything else (an exact number, junk) is dropped.
-  assert.equal(parseProfile({ age: '25-34' }).age, '25-34');
-  assert.equal(parseProfile({ age: '27' }).age, null);
-  assert.equal(parseProfile({ age: 27 }).age, null);
+  // Age is a whole number from 18 to 99; anything else is dropped.
+  assert.equal(parseProfile({ age: 27 }).age, 27);
+  assert.equal(parseProfile({ age: '27' }).age, 27);
+  assert.equal(parseProfile({ age: 17 }).age, null);
+  assert.equal(parseProfile({ age: 120 }).age, null);
+  assert.equal(parseProfile({ age: '25-34' }).age, null);
   const s = parseSettings({ gender: 'male', interests: [], allowReconnect: true, hideCountry: false, avatar: '🐼', bio: 'hello' });
   assert.equal(s?.avatar, '🐼');
   assert.equal(s?.bio, 'hello');

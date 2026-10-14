@@ -568,7 +568,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               stream={matched ? call.remoteStream : null}
               videoRef={call.setPartnerVideo}
               forceVisible={call.relayActive}
-              className={`min-h-0 max-sm:rounded-none sm:rounded-3xl ${matched || isVoice ? '!bg-[#141720]' : '!bg-[radial-gradient(circle_at_50%_45%,#16200a_0%,#07080b_55%)]'}`}
+              className={`min-h-0 max-sm:rounded-none sm:rounded-3xl ${matched || isVoice ? '!bg-[#141720]' : '!bg-[radial-gradient(circle_at_50%_45%,#1e0f2a_0%,#0b0811_55%)]'}`}
               videoClassName={`transition-[filter] duration-700 ${fit ? '!object-contain' : ''} ${
                 call.partnerHidden || call.aiHidden ? 'blur-3xl brightness-50' : call.blurPartner ? 'blur-xl' : ''
               }`}

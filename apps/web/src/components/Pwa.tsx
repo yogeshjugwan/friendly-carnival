@@ -37,6 +37,23 @@ const isStandalone = () =>
 const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
 
 /** "Install app": the browser's install prompt, or Add to Home Screen steps on iPhone. */
+/** Install state for custom install UI: 'prompt' (Chrome/Android), 'ios' (Add to Home Screen), or 'hidden'. */
+export function useInstall() {
+  const [state, setState] = useState<'hidden' | 'prompt' | 'ios'>('hidden');
+  useEffect(() => {
+    const update = () => setState(isStandalone() ? 'hidden' : deferred ? 'prompt' : isIos() ? 'ios' : 'hidden');
+    update();
+    listeners.add(update);
+    return () => void listeners.delete(update);
+  }, []);
+  const install = async () => {
+    await deferred?.prompt();
+    deferred = null;
+    setState('hidden');
+  };
+  return { state, install };
+}
+
 export function InstallButton({ className = '' }: { className?: string }) {
   const [state, setState] = useState<'hidden' | 'prompt' | 'ios'>('hidden');
   const [iosHelp, setIosHelp] = useState(false);

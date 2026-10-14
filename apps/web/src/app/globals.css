@@ -6,20 +6,22 @@
   --color-ink: #0f1a2b;
   --color-panel: #16233a;
   /* Instant-entry look: near-black ground, lime accent */
-  --color-night: #07080b;
-  --color-card: #12141a;
-  --color-card-2: #1a1d24;
-  --color-line: #23262e;
-  --color-line-2: #2a2e37;
-  --color-lime: #c6f24e;
-  --color-lime-hover: #e4ff8f;
+  --color-night: #0b0811;
+  --color-card: #17121f;
+  --color-card-2: #211a2b;
+  --color-line: #271f33;
+  --color-line-2: #362b44;
+  --color-lime: #ff6fae;
+  --color-purple: #a36bff;
+  --color-pick: #2a1426;
+  --color-lime-hover: #ff8cc0;
   --color-mute: #a9aeb8;
   --color-dim: #7d828c;
   --color-gold: #f2c94c;
   --color-gold-bg: #1a1608;
   --color-faint: #5e636d;
-  --color-divider: #1e2128;
-  --color-tabbar: #0e1015;
+  --color-divider: #2c2338;
+  --color-tabbar: #0f0b16;
   --color-stop: #3a1e1e;
   --color-stop-text: #ff8a80;
   --font-display: var(--font-space), 'Space Grotesk', system-ui, sans-serif;
@@ -36,7 +38,7 @@ body {
 }
 
 body {
-  background: #07080b;
+  background: #0b0811;
   color: #e8ebf2;
   font-family: var(--font-sans);
 }
@@ -123,4 +125,21 @@ input:-webkit-autofill:focus {
   -webkit-text-fill-color: #f4f5f7;
   caret-color: #f4f5f7;
   transition: background-color 9999s;
+}
+
+/* Filled accent buttons and chips use the pink → purple gradient. */
+@layer utilities {
+  .bg-lime { background-image: linear-gradient(135deg, #ff6fae, #a36bff); }
+  .bg-lime:hover, .hover\:bg-lime-hover:hover { background-image: linear-gradient(135deg, #ff8cc0, #b585ff); }
+}
+
+/* Home: sample-profile columns drifting up / down, slow zoom on each photo. */
+@keyframes rc-wall-up { from { transform: translateY(0); } to { transform: translateY(-50%); } }
+@keyframes rc-wall-down { from { transform: translateY(-50%); } to { transform: translateY(0); } }
+@keyframes rc-kb { from { transform: scale(1); } to { transform: scale(1.08) translateY(-1%); } }
+.rc-wall-up { animation: rc-wall-up 70s linear infinite; }
+.rc-wall-down { animation: rc-wall-down 84s linear infinite; }
+.rc-kb { animation: rc-kb 12s ease-in-out infinite alternate; }
+@media (prefers-reduced-motion: reduce) {
+  .rc-wall-up, .rc-wall-down, .rc-kb { animation: none; }
 }

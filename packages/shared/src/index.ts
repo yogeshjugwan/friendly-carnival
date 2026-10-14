@@ -59,7 +59,7 @@ export interface PartnerInfo {
   name?: string;
   avatar?: string | null;
   bio?: string;
-  age?: AgeRange | null;
+  age?: number | null;
   /** ✓ Verified: a moderator matched their selfie to a live gesture. */
   verified?: boolean;
   sharedInterests: string[];
@@ -81,7 +81,7 @@ export interface ActiveUser {
   name?: string;
   avatar?: string | null;
   bio?: string;
-  age?: AgeRange | null;
+  age?: number | null;
   mode: ChatMode;
   /** 'waiting' people can be called; 'in-call' are busy. */
   state: 'waiting' | 'in-call';
@@ -803,7 +803,7 @@ export interface UserSettings {
   name?: string;
   avatar?: string | null;
   bio?: string;
-  age?: AgeRange | null;
+  age?: number | null;
 }
 
 /** What partners see about you, besides gender / country / interests. */
@@ -815,12 +815,12 @@ export interface UserProfile {
   /** One line about you (no links or handles). */
   bio: string;
   /** A range, never an exact age (missing on older saved profiles). */
-  age?: AgeRange | null;
+  age?: number | null;
 }
-export const AGE_RANGES = ['18-24', '25-34', '35+'] as const;
-export type AgeRange = (typeof AGE_RANGES)[number];
-/** "18-24" → "18–24" for display. */
-export const ageLabel = (a: AgeRange) => a.replace('-', '–');
+/** Age partners see (self-declared, 18+). */
+export const MIN_PROFILE_AGE = 18;
+export const MAX_PROFILE_AGE = 99;
+export const ageLabel = (a: number) => String(a);
 export const MAX_BIO = 80;
 export const MAX_NAME = 24;
 export const AVATARS = [

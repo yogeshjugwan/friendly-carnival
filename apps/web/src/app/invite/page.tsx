@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { REFERRAL, type ReferralInfo } from '@rc/shared';
-import { SiteFooter, SiteHeader } from '@/components/SiteHeader';
+import { AppShell } from '@/components/AppShell';
 import { errorText } from '@/components/forms/fields';
 import { api, useAuth } from '@/lib/auth';
 
@@ -45,59 +45,77 @@ export default function InvitePage() {
 
   const days = `${REFERRAL.plusDays} day${REFERRAL.plusDays > 1 ? 's' : ''} of Plus.`;
   const shareBtn =
-    'flex h-11 flex-1 items-center justify-center rounded-xl border border-line-2 bg-card-2 px-[18px] text-[13px] font-semibold text-[#e6e8ec] hover:border-[#384056] sm:flex-none sm:text-sm';
+    'flex h-[46px] flex-1 items-center justify-center rounded-xl border border-line-2 bg-card-2 text-[13px] font-semibold text-[#e6e8ec] hover:border-[#4a3f5c] lg:h-12 lg:flex-none lg:px-[18px] lg:text-sm';
+  const card = 'rounded-2xl border border-line bg-card p-3.5 lg:rounded-[20px] lg:p-5';
+  const note = 'once your friend confirms their email and has a first chat with someone else.';
 
   return (
-    <main className="mx-auto flex min-h-full max-w-[1200px] flex-col gap-6 px-4 py-6 text-[#f4f5f7] sm:px-6">
-      <SiteHeader />
-      <div className="mx-auto mt-3 flex w-full max-w-[760px] flex-col gap-4 sm:mt-10 sm:gap-6 sm:text-center">
-        <p className="text-xs font-bold tracking-[2px] text-lime sm:text-[13px]">INVITE FRIENDS</p>
-        <h1 className="font-display text-[34px] font-bold leading-[1.05] sm:text-[56px] sm:tracking-[-1px]">
-          Bring a friend. <br className="max-sm:hidden" />
-          You both get <span className="text-gold">{days}</span>
-        </h1>
-        <p className="text-sm text-mute sm:text-base">
-          When a friend signs up with your link and finishes their first chat, you both get {REFERRAL.plusDays} free day
-          {REFERRAL.plusDays > 1 ? 's' : ''} of 👑 Plus. Already on Plus? You get 🪙 {REFERRAL.coins} coins instead.
-        </p>
-
-        {error && (
-          <p role="alert" className="rounded-xl border border-stop bg-[#1a0f0f] px-3 py-2 text-left text-sm text-stop-text">
-            {error}
+    <AppShell
+      title={
+        <span className="flex items-center gap-2">
+          <Link
+            href="/settings"
+            aria-label="Back"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-card-2 text-[#f4f5f7] lg:hidden"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} aria-hidden>
+              <path d="M15 6l-6 6 6 6" />
+            </svg>
+          </Link>
+          <span className="max-lg:text-[22px]">Invite friends</span>
+        </span>
+      }
+    >
+      <div className="-mt-1.5 flex flex-col gap-3.5 lg:mt-0 lg:gap-5">
+        <section
+          aria-labelledby="invite-title"
+          className="flex flex-col gap-3 rounded-[22px] border border-line bg-[radial-gradient(ellipse_80%_100%_at_100%_0%,#2a1426_0%,#17121f_65%)] px-[18px] py-[22px] lg:gap-[18px] lg:rounded-[20px] lg:bg-[radial-gradient(ellipse_60%_120%_at_100%_0%,#2a1426_0%,#17121f_60%)] lg:p-8"
+        >
+          <h2 id="invite-title" className="m-0 max-w-[560px] font-display text-[30px] font-bold leading-[1.05] tracking-[-.5px] lg:text-[40px] lg:tracking-[-1px]">
+            Bring a friend. You both get <span className="text-lime">{days}</span>
+          </h2>
+          <p className="m-0 text-[13px] text-mute lg:text-[15px]">
+            <span className="lg:hidden">On Plus already?</span>
+            <span className="max-lg:hidden">Already on Plus?</span> You get {REFERRAL.coins} coins instead.
           </p>
-        )}
 
-        {loading ? null : !user ? (
-          <p className="rounded-[18px] border border-line bg-card p-4 text-mute sm:rounded-[20px] sm:p-6">
-            <Link href="/signup?next=/invite" className="font-semibold text-lime underline">
-              Create a free account
-            </Link>{' '}
-            to get your invite link.
-          </p>
-        ) : (
-          <>
-            <section aria-label="Your invite link" className="flex flex-col gap-2.5 rounded-[18px] border border-line bg-card p-3.5 text-left sm:gap-4 sm:rounded-[20px] sm:p-6">
-              <label htmlFor="invite-link" className="sr-only">
-                Your invite link
-              </label>
-              <div className="flex flex-col gap-2.5 sm:flex-row">
-                <input
-                  id="invite-link"
-                  readOnly
-                  value={link || 'Loading…'}
-                  onFocus={(e) => e.currentTarget.select()}
-                  className="h-[46px] min-w-0 flex-1 rounded-xl bg-card-2 px-3 font-mono text-[13px] font-medium text-[#c9cdd4] outline-none focus:ring-2 focus:ring-lime sm:h-[52px] sm:px-4 sm:text-[15px]"
-                />
+          {error && (
+            <p role="alert" className="m-0 rounded-xl border border-stop bg-[#1a0f0f] px-3 py-2 text-sm text-stop-text">
+              {error}
+            </p>
+          )}
+
+          {loading ? null : !user ? (
+            <p className="m-0 text-sm text-mute">
+              <Link href="/signup?next=/invite" className="font-semibold text-lime underline">
+                Create a free account
+              </Link>{' '}
+              to get your invite link.
+            </p>
+          ) : (
+            <>
+              <div className="flex max-w-[720px] flex-col gap-3 lg:flex-row lg:flex-wrap lg:gap-2">
+                <label className="flex min-w-0 flex-col gap-1.5 text-xs text-mute lg:flex-[1_1_280px] lg:text-[13px]">
+                  <span>
+                    Your <span className="max-lg:hidden">invite </span>link
+                  </span>
+                  <input
+                    readOnly
+                    value={link || 'Loading…'}
+                    onFocus={(e) => e.currentTarget.select()}
+                    className="h-12 min-w-0 rounded-xl border border-line-2 bg-[#120d18] px-3 text-sm font-medium text-[#f4f5f7] outline-none focus:border-lime lg:h-[52px] lg:px-3.5 lg:text-[15px]"
+                  />
+                </label>
                 <button
                   onClick={() => void copy()}
                   disabled={!info}
-                  className="h-[52px] rounded-[14px] bg-lime px-6 font-display text-base font-bold text-[#0b0d10] hover:bg-lime-hover disabled:opacity-50 sm:rounded-xl sm:text-[15px]"
+                  className="h-[52px] rounded-[14px] bg-lime px-6 font-display text-base font-bold text-night hover:bg-lime-hover disabled:opacity-50 lg:self-end lg:rounded-xl"
                 >
                   {copied ? 'Copied ✓' : 'Copy link'}
                 </button>
               </div>
               {info && (
-                <div className="flex gap-2">
+                <div className="flex gap-2 lg:flex-wrap">
                   <a href={`https://wa.me/?text=${encodeURIComponent(message)}`} target="_blank" rel="noopener noreferrer" className={shareBtn}>
                     WhatsApp
                   </a>
@@ -111,34 +129,36 @@ export default function InvitePage() {
                   </a>
                   {canShare && (
                     <button onClick={() => void share()} className={shareBtn}>
-                      More…
+                      More<span className="max-lg:hidden">…</span>
                     </button>
                   )}
                 </div>
               )}
-            </section>
-            {info && (
-              <dl className="grid grid-cols-2 gap-2.5 text-left sm:gap-4">
-                <div className="rounded-[18px] border border-line bg-card p-3.5 sm:rounded-[20px] sm:p-5">
-                  <dt className="text-xs text-dim sm:text-[13px]">Signed up</dt>
-                  <dd className="font-display text-[30px] font-bold sm:text-[40px]">{info.invited}</dd>
-                </div>
-                <div className="rounded-[18px] border border-line bg-card p-3.5 sm:rounded-[20px] sm:p-5">
-                  <dt className="text-xs text-dim sm:text-[13px]">Rewards earned</dt>
-                  <dd className="font-display text-[30px] font-bold sm:text-[40px]">
-                    {info.rewarded} <span className="text-sm font-normal text-dim sm:text-base">/ {REFERRAL.maxRewards}</span>
-                  </dd>
-                </div>
-              </dl>
-            )}
-            <p className="text-[11px] text-faint sm:text-xs">
-              Rewards count when your friend confirms their email and has their first chat with someone else. Up to {REFERRAL.maxRewards}{' '}
-              rewards per account.
-            </p>
+            </>
+          )}
+        </section>
+
+        {user && (
+          <>
+            <dl className="m-0 grid grid-cols-2 gap-2 lg:grid-cols-3 lg:gap-4">
+              <div className={card}>
+                <dt className="text-xs text-mute lg:text-[13px]">Signed up</dt>
+                <dd className="m-0 font-display text-[26px] font-bold lg:text-[34px]">{info?.invited ?? 0}</dd>
+              </div>
+              <div className={card}>
+                <dt className="text-xs text-mute lg:text-[13px]">
+                  Rewards<span className="max-lg:hidden"> earned</span>
+                </dt>
+                <dd className="m-0 font-display text-[26px] font-bold lg:text-[34px]">
+                  {info?.rewarded ?? 0} <span className="text-sm text-[#8a8f99] lg:text-base">/ {REFERRAL.maxRewards}</span>
+                </dd>
+              </div>
+              <p className={`m-0 flex items-center text-[13px] leading-normal text-mute max-lg:hidden ${card}`}>Counts {note}</p>
+            </dl>
+            <p className="m-0 text-xs leading-normal text-mute lg:hidden">Counts {note}</p>
           </>
         )}
       </div>
-      <SiteFooter />
-    </main>
+    </AppShell>
   );
 }

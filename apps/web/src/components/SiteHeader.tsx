@@ -21,7 +21,7 @@ export function Brand({ compact = false, wordmark = false }: { compact?: boolean
   return (
     <Link href="/" className="flex items-center gap-2.5 text-[#e8ebf2]" aria-label="randomCall home">
       <span className={`flex items-center justify-center rounded-[10px] bg-lime ${compact ? 'h-[30px] w-[30px]' : 'h-9 w-9'}`}>
-        <CameraIcon className={compact ? 'h-4 w-4' : 'h-5 w-5'} color="#07080b" strokeWidth={2.4} />
+        <CameraIcon className={compact ? 'h-4 w-4' : 'h-5 w-5'} color="#0b0811" strokeWidth={2.4} />
       </span>
       <span className={`font-display font-bold tracking-[-0.01em] ${compact ? 'text-lg' : 'text-[22px]'}`}>randomCall</span>
     </Link>

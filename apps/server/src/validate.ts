@@ -1,6 +1,6 @@
 import {
-  AGE_RANGES,
-  type AgeRange,
+  MAX_PROFILE_AGE,
+  MIN_PROFILE_AGE,
   AVATARS,
   MAX_BIO,
   MAX_NAME,
@@ -139,7 +139,8 @@ export function parseProfile(input: unknown): UserProfile {
           .slice(0, MAX_NAME)
       : '';
   if (looksLikeLink(name) || /\d{5,}/.test(name)) name = '';
-  const age = typeof p.age === 'string' && (AGE_RANGES as readonly string[]).includes(p.age) ? (p.age as AgeRange) : null;
+  const n = typeof p.age === 'number' ? p.age : typeof p.age === 'string' ? Number(p.age) : NaN;
+  const age = Number.isInteger(n) && n >= MIN_PROFILE_AGE && n <= MAX_PROFILE_AGE ? n : null;
   return { name, avatar, bio, age };
 }
 

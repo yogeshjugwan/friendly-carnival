@@ -53,19 +53,30 @@ export function Ticks({ read, onLime = false }: { read?: boolean; onLime?: boole
   );
 }
 
+const TINTS = ['#8A5FC2', '#3FA08A', '#E08A4F', '#5878D8', '#D06483'];
+/** A stable colour per person for the avatar gradient. */
+export const tint = (id = '') => TINTS[[...id].reduce((n, c) => (n * 31 + c.charCodeAt(0)) >>> 0, 0) % TINTS.length];
+
 export function Avatar({
   contact,
   size = 'h-10 w-10 text-2xl',
   rounded = 'rounded-full',
+  ring = 'border-card',
 }: {
-  contact: Pick<WaContact, 'avatar' | 'online'>;
+  contact: Pick<WaContact, 'avatar' | 'online'> & { id?: string };
   size?: string;
   rounded?: string;
+  /** Border colour of the online dot (match the surface behind the avatar). */
+  ring?: string;
 }) {
   return (
-    <span className={`relative flex shrink-0 items-center justify-center bg-card-2 ${rounded} ${size}`} aria-hidden>
-      {contact.avatar ?? '🙂'}
-      {contact.online && <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-[3px] border-card bg-lime" />}
+    <span
+      className={`relative flex shrink-0 items-center justify-center ${rounded} ${size}`}
+      style={{ background: `linear-gradient(165deg, ${tint(contact.id)}, #211A2B)` }}
+      aria-hidden
+    >
+      {contact.avatar}
+      {contact.online && <span className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 bg-lime ${ring}`} />}
     </span>
   );
 }
@@ -74,36 +85,38 @@ export function Avatar({
 export function ThreadRow({ t, href, onClick, active = false }: { t: DmThread; href?: string; onClick?: () => void; active?: boolean }) {
   const body = (
     <>
-      <Avatar contact={t} size="h-11 w-11 text-2xl" />
-      <span className="min-w-0 flex-1">
-        <span className="flex items-baseline gap-2">
-          <span className="truncate font-semibold">{t.name}</span>
+      <Avatar contact={t} size="h-11 w-11 text-2xl" ring={active ? 'border-card-2' : 'border-night'} />
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="flex items-center gap-1.5">
+          <strong className="truncate text-[15px] font-semibold">{t.name}</strong>
           {t.friend && (
             <span className="text-xs text-lime" title="Friend">
               ♥
             </span>
           )}
-          <span className={`ml-auto shrink-0 text-xs ${t.unread ? 'font-semibold text-lime' : 'text-dim'}`}>{threadTime(t.lastAt)}</span>
         </span>
-        <span className="mt-0.5 flex items-center gap-2">
-          <span className={`truncate text-[13px] ${t.unread ? 'text-mute' : 'text-dim'}`}>
-            {t.lastFromMe && <Ticks />}
-            {t.lastFromMe ? ' ' : ''}
-            {t.lastText}
+        <span className={`truncate text-[13px] ${t.unread ? 'text-[#F4F5F7]' : 'text-mute'}`}>
+          {t.lastFromMe && <Ticks />}
+          {t.lastFromMe ? ' ' : ''}
+          {t.lastText}
+        </span>
+      </span>
+      <span className="flex shrink-0 flex-col items-end gap-1">
+        <span className={`text-xs ${t.unread ? 'font-semibold text-lime' : 'text-[#8A8F99]'}`}>{threadTime(t.lastAt)}</span>
+        {t.unread > 0 && (
+          <span
+            className="flex h-5 min-w-5 items-center justify-center rounded-full bg-lime px-1.5 text-[11px] font-bold text-night"
+            aria-label={`${t.unread} unread`}
+          >
+            {t.unread}
           </span>
-          {t.unread > 0 && (
-            <span
-              className="ml-auto flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-lime px-1.5 text-[11px] font-bold text-night"
-              aria-label={`${t.unread} unread`}
-            >
-              {t.unread}
-            </span>
-          )}
-        </span>
+        )}
       </span>
     </>
   );
-  const cls = `flex w-full items-center gap-3.5 px-4 py-3.5 text-left transition-colors hover:bg-card-2 sm:px-[18px] ${active ? 'bg-card-2' : ''}`;
+  const cls = `flex min-h-16 w-full items-center gap-3 rounded-[14px] px-2.5 py-2 text-left text-[#F4F5F7] transition-colors ${
+    active ? 'bg-card-2' : 'hover:bg-card'
+  }`;
   return href ? (
     <Link href={href} className={cls}>
       {body}
@@ -121,11 +134,14 @@ export function WaThread({
   onBack,
   onCall,
   className = '',
+  backClassName = '',
 }: {
   contact: WaContact;
   onBack?: () => void;
   onCall?: () => void;
   className?: string;
+  /** Extra classes for the back button (e.g. hide it where the list is beside the thread). */
+  backClassName?: string;
 }) {
   const [messages, setMessages] = useState<DirectMessage[] | null>(null);
   const [draft, setDraft] = useState('');
@@ -180,56 +196,65 @@ export function WaThread({
 
   const theyWrote = messages?.some((m) => !m.fromMe);
   const iWrote = messages?.some((m) => m.fromMe);
-  const iconBtn = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors';
+  const icon = (d: React.ReactNode) => (
+    <svg viewBox="0 0 24 24" className="h-5 w-5 @2xl:h-[18px] @2xl:w-[18px]" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {d}
+    </svg>
+  );
 
+  // `@container`: the wide layout (Video call label, Send text button) follows the thread's own width,
+  // so the narrow call side panel keeps the phone look.
   return (
-    <section className={`flex min-h-0 flex-col bg-night text-[#F4F5F7] ${className}`} aria-label={`Chat with ${contact.name}`}>
-      <header className="flex items-center gap-2.5 border-b border-divider px-4 py-3">
+    <section className={`@container flex min-h-0 flex-col bg-night text-[#F4F5F7] ${className}`} aria-label={`Chat with ${contact.name}`}>
+      <div className="flex h-[72px] shrink-0 items-center gap-2.5 border-b border-[#1a1422] px-3 @2xl:h-[76px] @2xl:gap-3 @2xl:px-6">
         {onBack && (
-          <button type="button" onClick={onBack} aria-label="Back" className={`${iconBtn} bg-card-2 text-[#E6E8EC] hover:bg-line`}>
-            <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
-              <path d="M15 6l-6 6 6 6" />
-            </svg>
+          <button type="button" onClick={onBack} aria-label="Back" className={`grid h-11 w-11 shrink-0 place-items-center rounded-full text-[#F4F5F7] hover:bg-card-2 ${backClassName}`}>
+            {icon(<path d="M15 6l-6 6 6 6" />)}
           </button>
         )}
-        <Avatar contact={{ avatar: contact.avatar }} rounded="rounded-[12px]" />
+        <Avatar contact={{ id: contact.id, avatar: contact.avatar }} size="h-10 w-10 text-xl @2xl:h-11 @2xl:w-11 @2xl:text-2xl" />
         <div className="min-w-0 flex-1">
-          <p className="truncate font-semibold">{contact.name}</p>
-          <p className={`text-xs ${contact.online ? 'text-lime' : 'text-dim'}`}>{contact.online ? 'Online' : 'Offline'}</p>
+          <strong className="block truncate text-[15px] font-semibold @2xl:text-base">{contact.name}</strong>
+          <p className={`mt-px text-xs @2xl:mt-0.5 @2xl:text-[13px] ${contact.online ? 'text-lime' : 'text-[#8A8F99]'}`}>{contact.online ? 'Online' : 'Offline'}</p>
         </div>
         {onCall && (
-          <button type="button" onClick={onCall} aria-label={`Video call ${contact.name}`} className={`${iconBtn} bg-lime text-night hover:bg-lime-hover`}>
-            <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <rect x="2" y="6" width="14" height="12" rx="2" />
-              <path d="M16 10l6-3v10l-6-3" />
-            </svg>
+          <button
+            type="button"
+            onClick={onCall}
+            aria-label={`Video call ${contact.name}`}
+            className="flex h-11 w-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-lime text-sm font-semibold text-night hover:bg-lime-hover @2xl:w-auto @2xl:px-4"
+          >
+            {icon(
+              <>
+                <rect x="2" y="6" width="14" height="12" rx="2" />
+                <path d="M16 10l6-3v10l-6-3" />
+              </>,
+            )}
+            <span className="hidden @2xl:inline">Video call</span>
           </button>
         )}
-      </header>
+      </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 @2xl:p-6">
         {/* Pushes a short conversation to the bottom, next to the input. */}
         <div className="flex-1" />
-        <p className="mx-auto mb-3 max-w-sm rounded-xl border border-gold/20 bg-gold-bg px-3 py-2 text-center text-[11px] leading-snug text-gold">
-          Messages stay on randomCall. Never share passwords, money or private photos.
-        </p>
         {contact.met && (
-          <p className="mb-2 text-center text-[11px] text-faint">
+          <p className="mb-2 self-center text-center text-xs text-[#8A8F99]">
             You met on a {contact.met.mode} chat · {dayLabel(contact.met.at)}
           </p>
         )}
+        <p className="mb-2 self-center text-center text-[11px] text-faint">Never share passwords, money or private photos.</p>
         {messages === null && <p className="py-8 text-center text-sm text-dim">Loading…</p>}
         {messages?.length === 0 && <p className="py-8 text-center text-sm text-dim">Say hi 👋 — they&apos;ll see it even if they&apos;re away.</p>}
         {messages?.map((m, i) => {
           const prev = messages[i - 1];
           const newDay = !prev || new Date(prev.at).toDateString() !== new Date(m.at).toDateString();
-          const grouped = prev && prev.fromMe === m.fromMe && !newDay;
           return (
             <div key={m.id} className="flex flex-col">
-              {newDay && <p className="mb-1 mt-3 text-center text-[11px] text-faint">{dayLabel(m.at)}</p>}
+              {newDay && <p className="mb-1 mt-3 text-center text-[11px] text-[#8A8F99]">{dayLabel(m.at)}</p>}
               <p
-                className={`max-w-[75%] whitespace-pre-wrap break-words px-3.5 py-2.5 text-[14px] leading-snug ${grouped ? 'mt-1' : 'mt-2'} ${
-                  m.fromMe ? 'self-end rounded-[18px_18px_4px_18px] bg-lime text-night' : 'self-start rounded-[18px_18px_18px_4px] bg-card-2'
+                className={`mt-2 max-w-[75%] whitespace-pre-wrap break-words px-3.5 py-2.5 text-[15px] leading-snug @2xl:mt-2.5 @2xl:max-w-[60%] ${
+                  m.fromMe ? 'self-end rounded-[16px_16px_4px_16px] bg-lime text-night' : 'self-start rounded-[16px_16px_16px_4px] bg-card-2'
                 }`}
               >
                 {m.text}
@@ -250,7 +275,7 @@ export function WaThread({
       </div>
 
       {error && (
-        <p className="border-t border-divider bg-gold-bg px-4 py-2 text-xs text-gold" role="alert">
+        <p className="border-t border-[#1a1422] bg-gold-bg px-4 py-2 text-xs text-gold" role="alert">
           {error}
         </p>
       )}
@@ -259,25 +284,26 @@ export function WaThread({
           e.preventDefault();
           send();
         }}
-        className="flex items-center gap-2 border-t border-divider px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3"
+        className="flex gap-2 border-t border-[#1a1422] px-3 pb-[max(24px,env(safe-area-inset-bottom))] pt-2.5 @2xl:border-t-0 @2xl:px-6 @2xl:pt-4"
       >
-        <input
-          value={draft}
-          maxLength={MAX_MESSAGE_LENGTH}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Message…"
-          aria-label={`Message ${contact.name}`}
-          className="h-11 min-w-0 flex-1 rounded-full border border-line-2 bg-card px-4 text-[14px] text-[#F4F5F7] placeholder:text-faint focus:border-lime/60 focus:outline-none"
-        />
+        <label className="flex min-w-0 flex-1">
+          <span className="sr-only">Message {contact.name}</span>
+          <input
+            value={draft}
+            maxLength={MAX_MESSAGE_LENGTH}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Message…"
+            className="h-12 min-w-0 flex-1 rounded-3xl border border-line-2 bg-card px-4 text-[15px] text-[#F4F5F7] placeholder:text-faint focus:border-lime/60 focus:outline-none @2xl:h-[52px] @2xl:rounded-[14px]"
+          />
+        </label>
         <button
           type="submit"
           disabled={!draft.trim()}
           aria-label="Send"
-          className={`${iconBtn} bg-lime text-night hover:bg-lime-hover disabled:opacity-40 disabled:hover:bg-lime`}
+          className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-lime font-display text-[15px] font-bold text-night hover:bg-lime-hover disabled:opacity-40 disabled:hover:bg-lime @2xl:h-[52px] @2xl:w-auto @2xl:rounded-[14px] @2xl:px-[22px]"
         >
-          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={2} strokeLinejoin="round" aria-hidden>
-            <path d="M4 12l16-8-6 16-2-7z" />
-          </svg>
+          <span className="@2xl:hidden">{icon(<path d="M5 12h14M13 6l6 6-6 6" />)}</span>
+          <span className="hidden @2xl:inline">Send</span>
         </button>
       </form>
     </section>

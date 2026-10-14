@@ -3,16 +3,10 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import type { DmThread } from '@rc/shared';
-import { SiteHeader } from '@/components/SiteHeader';
+import { AppShell, ShellActions } from '@/components/AppShell';
 import { ThreadRow, WaThread, type WaContact } from '@/components/WaThread';
 import { useAuth } from '@/lib/auth';
 import { getSocket } from '@/lib/socket';
-
-/** Filter pill; the ::before pads the hit area to 44px without growing the 36px pill. */
-const tabCls = (on: boolean) =>
-  `relative h-9 shrink-0 rounded-full px-3.5 text-[13px] font-medium transition-colors before:absolute before:inset-x-0 before:-inset-y-1 ${
-    on ? 'bg-[#F4F5F7] text-night' : 'bg-card-2 text-mute hover:text-[#F4F5F7]'
-  }`;
 
 /** Inbox: conversations on the left, the open chat on the right (one at a time on phones). */
 export default function MessagesPage() {
@@ -79,8 +73,7 @@ export default function MessagesPage() {
 
   if (!loading && !user) {
     return (
-      <main className="flex min-h-dvh flex-col bg-night px-4 text-[#F4F5F7] sm:px-6">
-        <SiteHeader />
+      <AppShell title="Messages">
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
           <span className="grid h-14 w-14 place-items-center rounded-2xl bg-card-2 text-lime">
             <ChatIcon />
@@ -93,7 +86,7 @@ export default function MessagesPage() {
             Log in
           </Link>
         </div>
-      </main>
+      </AppShell>
     );
   }
 
@@ -101,86 +94,95 @@ export default function MessagesPage() {
   const requests = (threads ?? []).filter((t) => t.request).length;
 
   return (
-    <main className="flex h-dvh flex-col bg-night text-[#F4F5F7]">
-      {/* The same header as every other page (phones use the tab bar instead). */}
-      <div className={`px-4 sm:px-6 ${open ? 'max-md:hidden' : ''}`}>
-        <SiteHeader />
-      </div>
-
-      <div className="mx-auto flex min-h-0 w-full max-w-[1200px] flex-1 md:p-6">
-        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden md:rounded-[20px] md:border md:border-line">
-          <aside className={`flex min-h-0 w-full flex-col md:w-[380px] md:shrink-0 md:border-r md:border-divider md:bg-card ${open ? 'max-md:hidden' : ''}`}>
-            <div className="flex flex-wrap items-center justify-between gap-3 px-4 pb-3 pt-5 md:border-b md:border-divider md:p-[18px]">
-              <h1 className="font-display text-[26px] font-bold md:text-lg">Messages</h1>
-              <div className="flex gap-1.5" role="group" aria-label="Show">
-                {(['chats', 'requests'] as const).map((t) => (
-                  <button key={t} type="button" onClick={() => setTab(t)} aria-pressed={tab === t} className={tabCls(tab === t)}>
-                    {t === 'chats' ? 'Chats' : `Requests${requests ? ` (${requests})` : ''}`}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto max-md:px-4 max-md:pb-4">
-              <ul className="divide-y divide-divider overflow-hidden max-md:rounded-[18px] max-md:border max-md:border-line max-md:bg-card">
-                {threads === null && <li className="p-6 text-center text-sm text-dim">Loading…</li>}
-                {threads && shown.length === 0 && (
-                  <li className="px-6 py-10 text-center text-sm text-dim">
-                    {tab === 'requests' ? (
-                      'No message requests.'
-                    ) : (
-                      <>
-                        <span className="mb-1 block font-semibold text-[#F4F5F7]">No chats yet</span>
-                        Message people from your{' '}
-                        <Link href="/history" className="font-medium text-lime underline-offset-2 hover:underline">
-                          History
-                        </Link>{' '}
-                        or friends.
-                      </>
-                    )}
-                  </li>
-                )}
-                {shown.map((t) => (
-                  <li key={t.id}>
-                    <ThreadRow
-                      t={t}
-                      active={open?.id === t.id}
-                      onClick={() =>
-                        setOpen({
-                          id: t.id,
-                          name: t.name,
-                          avatar: t.avatar,
-                          online: t.online,
-                        })
-                      }
-                    />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </aside>
-          {open ? (
-            <WaThread
-              key={open.id}
-              contact={{ ...open, met: met[open.id] }}
-              onBack={() => {
-                setOpen(null);
-                window.history.replaceState(null, '', '/messages');
-                load();
-              }}
-              className="min-w-0 flex-1"
-            />
-          ) : (
-            <div className="hidden flex-1 flex-col items-center justify-center gap-2 p-6 text-center md:flex">
-              <span className="mb-1 grid h-14 w-14 place-items-center rounded-2xl bg-card-2 text-lime">
-                <ChatIcon />
-              </span>
-              <p className="font-semibold">Pick a chat</p>
-              <p className="max-w-[260px] text-[13px] text-dim">Open a conversation, or message someone from your History.</p>
-            </div>
-          )}
+    <AppShell
+      title={<span className="lg:sr-only">Messages</span>}
+      actions={
+        <div className="lg:hidden">
+          <ShellActions />
         </div>
+      }
+    >
+      {/* Desktop: conversations beside the open chat. Phones: the list; an open chat covers the screen (no tab bar). */}
+      <div className="flex min-h-0 flex-1 lg:-mx-10 lg:-mb-8 lg:-mt-11 lg:h-dvh lg:flex-none">
+        <section aria-label="Conversations" className="flex min-h-0 w-full flex-col gap-3.5 lg:w-[340px] lg:shrink-0 lg:border-r lg:border-[#1a1422] lg:px-4 lg:py-6">
+          <h2 aria-hidden className="mx-2 font-display text-[26px] font-bold max-lg:hidden">
+            Messages
+          </h2>
+          <div role="tablist" aria-label="Show" className="grid grid-cols-2 gap-1 rounded-xl bg-card p-1">
+            {(['chats', 'requests'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                role="tab"
+                aria-selected={tab === t}
+                onClick={() => setTab(t)}
+                className={`relative h-[38px] rounded-[9px] text-sm font-semibold before:absolute before:inset-x-0 before:-inset-y-1 ${
+                  tab === t ? 'bg-line text-[#F4F5F7]' : 'text-mute hover:text-[#F4F5F7]'
+                }`}
+              >
+                {t === 'chats' ? 'Chats' : `Requests${requests ? ` · ${requests}` : ''}`}
+              </button>
+            ))}
+          </div>
+          <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+            {threads === null && <li className="p-6 text-center text-sm text-dim">Loading…</li>}
+            {threads && shown.length === 0 && (
+              <li className="px-6 py-10 text-center text-sm text-dim">
+                {tab === 'requests' ? (
+                  'No message requests.'
+                ) : (
+                  <>
+                    <span className="mb-1 block font-semibold text-[#F4F5F7]">No chats yet</span>
+                    Message people from your{' '}
+                    <Link href="/history" className="font-medium text-lime underline-offset-2 hover:underline">
+                      History
+                    </Link>{' '}
+                    or friends.
+                  </>
+                )}
+              </li>
+            )}
+            {shown.map((t) => (
+              <li key={t.id}>
+                <ThreadRow
+                  t={t}
+                  active={open?.id === t.id}
+                  onClick={() =>
+                    setOpen({
+                      id: t.id,
+                      name: t.name,
+                      avatar: t.avatar,
+                      online: t.online,
+                    })
+                  }
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+        {open ? (
+          <WaThread
+            key={open.id}
+            contact={{ ...open, met: met[open.id] }}
+            onBack={() => {
+              setOpen(null);
+              window.history.replaceState(null, '', '/messages');
+              load();
+            }}
+            backClassName="lg:hidden"
+            className="min-w-0 flex-1 max-lg:fixed max-lg:inset-0 max-lg:z-40"
+          />
+        ) : (
+          <div className="hidden flex-1 flex-col items-center justify-center gap-2 p-6 text-center lg:flex">
+            <span className="mb-1 grid h-14 w-14 place-items-center rounded-2xl bg-card-2 text-lime">
+              <ChatIcon />
+            </span>
+            <p className="font-semibold">Pick a chat</p>
+            <p className="max-w-[260px] text-[13px] text-dim">Open a conversation, or message someone from your History.</p>
+          </div>
+        )}
       </div>
-    </main>
+    </AppShell>
   );
 }
 

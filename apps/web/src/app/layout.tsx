@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   icons: { icon: '/icon-192.png', apple: '/apple-touch-icon.png' },
 };
 
-export const viewport: Viewport = { themeColor: '#07080b' };
+export const viewport: Viewport = { themeColor: '#0b0811' };
 
 /** Space Grotesk for headings, the wordmark and big buttons; DM Sans for everything else. */
 const display = Space_Grotesk({ subsets: ['latin'], weight: ['500', '700'], variable: '--font-space', display: 'swap' });

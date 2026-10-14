@@ -50,37 +50,53 @@ export function DailyRewardCard({ className = '' }: { className?: string }) {
       : status.needsEmail
         ? 'Confirm your email to start collecting.'
         : status.needsChat
-          ? `Have one chat today to unlock ${status.reward} coins`
+          ? `chat:${status.reward}`
           : 'Your reward is ready!');
   return (
     <section
       aria-label="Daily streak"
-      className={`flex flex-col gap-2.5 rounded-[18px] border border-line bg-card p-3.5 sm:gap-3.5 sm:rounded-[20px] sm:p-[22px] ${className}`}
+      className={`flex flex-col gap-2.5 rounded-[18px] border border-line bg-card p-4 lg:gap-3 lg:rounded-[20px] lg:p-5 ${className}`}
     >
-      <div className="flex items-center gap-3">
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <h2 className="m-0 font-display text-[15px] font-bold text-[#f4f5f7] sm:text-lg">
-            Daily streak<span className="font-medium text-mute"> · day {status.streak}</span>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="m-0 font-display text-[15px] font-bold text-[#f4f5f7] lg:text-[17px]">
+            Daily streak{status.streak > 0 && <span className="font-medium text-mute"> · day {status.streak}</span>}
           </h2>
-          <p className="m-0 text-xs text-dim sm:text-[13px]" aria-live="polite">
-            {hint}
+          <p className="m-0 mt-0.5 text-xs text-mute lg:text-[13px]" aria-live="polite">
+            {hint.startsWith('chat:') ? (
+              <>
+                <span className="lg:hidden">One chat today unlocks {status.reward}</span>
+                <span className="max-lg:hidden">Have one chat today to unlock {status.reward} coins</span>
+              </>
+            ) : (
+              hint
+            )}
           </p>
         </div>
         {status.claimedToday ? (
-          <span className="shrink-0 rounded-xl border border-line px-3.5 py-2.5 text-[13px] font-semibold text-lime">Claimed ✓</span>
+          <span className="flex h-10 shrink-0 items-center rounded-[10px] border border-line px-3 text-[13px] font-semibold text-lime lg:h-11 lg:rounded-xl lg:px-[18px] lg:text-sm">
+            Claimed ✓
+          </span>
         ) : (
           <button
             onClick={() => void claim()}
             disabled={busy || !canClaim}
-            className={`h-11 shrink-0 rounded-xl px-4 text-[13px] font-semibold transition ${
-              canClaim ? 'bg-lime text-[#0b0d10] hover:bg-lime-hover' : 'cursor-not-allowed border border-line-2 bg-card text-mute'
+            aria-label={`Claim ${status.reward} coins`}
+            className={`h-11 shrink-0 rounded-[10px] px-3 text-[13px] font-semibold transition lg:rounded-xl lg:px-[18px] lg:text-sm ${
+              canClaim ? 'bg-lime text-night hover:bg-lime-hover' : 'cursor-not-allowed bg-line-2 text-[#8a8f99]'
             }`}
           >
-            {busy ? 'Claiming…' : `Claim ${status.reward}`}
+            {busy ? (
+              'Claiming…'
+            ) : (
+              <>
+                Claim<span className="max-lg:hidden"> {status.reward}</span>
+              </>
+            )}
           </button>
         )}
       </div>
-      <ol className="m-0 grid list-none grid-cols-7 gap-1 p-0 text-center sm:gap-2">
+      <ol className="m-0 grid list-none grid-cols-7 gap-1 p-0 text-center lg:gap-2">
         {STREAK_REWARDS.map((coins, i) => {
           const n = i + 1;
           const done = n <= status.streak;
@@ -89,18 +105,19 @@ export function DailyRewardCard({ className = '' }: { className?: string }) {
             <li
               key={n}
               aria-current={today ? 'step' : undefined}
-              className={`flex flex-col items-center rounded-[10px] py-2 text-[10px] sm:rounded-xl sm:py-3 sm:text-xs ${
-                today ? 'bg-lime text-[#0b0d10]' : done ? 'bg-lime/15 text-lime' : 'bg-card-2 text-dim'
+              className={`flex flex-col items-center gap-0.5 rounded-[10px] border py-1.5 lg:rounded-xl lg:px-1.5 lg:py-2.5 ${
+                today ? 'border-lime bg-pick' : done ? 'border-[#5a2a48] bg-pick' : 'border-divider bg-card-2'
               }`}
             >
-              <span>
-                <span className="max-sm:hidden">Day </span>
-                <span className="sm:hidden">D</span>
+              <span className="text-[10px] text-mute lg:text-[11px]">
+                <span className="max-lg:hidden">Day </span>
+                <span className="lg:hidden">D</span>
                 {n}
               </span>
-              <b className={`font-display text-sm font-bold sm:mt-0.5 sm:text-lg ${today ? 'text-[#0b0d10]' : done ? 'text-lime' : 'text-[#e6e8ec]'}`}>
+              <strong className={`font-display text-[13px] font-bold lg:text-base ${done ? 'text-lime' : 'text-[#f4f5f7]'}`}>
+                <span className="max-lg:hidden">+</span>
                 {coins}
-              </b>
+              </strong>
             </li>
           );
         })}

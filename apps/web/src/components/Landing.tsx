@@ -27,14 +27,29 @@ const TILE_COLORS = [
   ['linear-gradient(160deg,#d7a6ff,#8a4fd1)', '#3a1a60'],
   ['linear-gradient(160deg,#f7e07a,#c9a12e)', '#4f3e0c'],
 ] as const;
-const PLACES = ['India', 'Brazil', 'Japan', 'Spain', 'Kenya', 'Canada', 'Turkey', 'Mexico'];
+
+/**
+ * Photos for the tile wall: list them in public/faces/index.json (["face-1.webp", ...]).
+ * Without it the wall shows coloured silhouettes. They're decoration, not people online.
+ */
+function useFaces() {
+  const [faces, setFaces] = useState<string[]>([]);
+  useEffect(() => {
+    fetch('/faces/index.json')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: unknown) => setFaces(Array.isArray(list) ? list.filter((f): f is string => typeof f === 'string').map((f) => `/faces/${f}`) : []))
+      .catch(() => setFaces([]));
+  }, []);
+  return faces;
+}
 
 /** The wall of people behind the Start button: 6 columns (3 on phones), alternately drifting up and down. */
 function TileWall() {
+  const faces = useFaces();
   const cols = [0, 1, 2, 3, 4, 5].map((i) =>
     Array.from({ length: 8 }, (_, k) => {
       const [bg, fg] = TILE_COLORS[(i + k) % 6]!;
-      return { bg, fg, place: PLACES[(i * 3 + k) % 8]! };
+      return { bg, fg, face: faces.length ? faces[(i * 5 + k * 7) % faces.length] : null };
     }),
   );
   return (
@@ -45,14 +60,15 @@ function TileWall() {
           <div key={i} className={`flex flex-col gap-2.5 sm:gap-4 ${i % 2 ? 'rc-drift-up' : 'rc-drift'} ${i > 2 ? 'max-sm:hidden' : ''}`}>
             {[...tiles, ...tiles].map((t, k) => (
               <div key={k} className="relative h-[170px] shrink-0 overflow-hidden rounded-2xl sm:h-[240px] sm:rounded-[20px]" style={{ background: t.bg }}>
-                <svg viewBox="0 0 100 80" preserveAspectRatio="xMidYMax meet" className="absolute inset-x-0 bottom-0 h-4/5 w-full">
-                  <circle cx="50" cy="30" r="16" fill={t.fg} />
-                  <path d="M14 80c4-22 18-32 36-32s32 10 36 32z" fill={t.fg} />
-                </svg>
-                <span className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-black/50 px-2 py-1 text-[11px] font-semibold text-white max-sm:hidden">
-                  <i className="rc-blink h-1.5 w-1.5 rounded-full bg-lime" />
-                  {t.place}
-                </span>
+                {t.face ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={t.face} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
+                ) : (
+                  <svg viewBox="0 0 100 80" preserveAspectRatio="xMidYMax meet" className="absolute inset-x-0 bottom-0 h-4/5 w-full">
+                    <circle cx="50" cy="30" r="16" fill={t.fg} />
+                    <path d="M14 80c4-22 18-32 36-32s32 10 36 32z" fill={t.fg} />
+                  </svg>
+                )}
               </div>
             ))}
           </div>

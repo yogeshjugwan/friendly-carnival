@@ -37,9 +37,9 @@ export function BlockedList({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
       });
   };
 
-  if (items === null) return <p className={`text-sm ${dark ? 'text-dim' : 'text-dim'}`}>Loading…</p>;
+  if (items === null) return <p className={`text-sm ${dark ? 'text-dim' : 'text-mute'}`}>Loading…</p>;
   if (items.length === 0) {
-    return <p className={`text-sm ${dark ? 'text-dim' : 'text-dim'}`}>You haven&apos;t blocked anyone.</p>;
+    return <p className={`text-sm ${dark ? 'text-dim' : 'text-mute'}`}>You haven&apos;t blocked anyone.</p>;
   }
 
   return (
@@ -49,7 +49,7 @@ export function BlockedList({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
           {error}
         </p>
       )}
-      <ul className={`divide-y ${dark ? 'divide-white/10' : 'divide-divider'}`}>
+      <ul className={`divide-y ${dark ? 'divide-white/10' : 'divide-card-2'}`}>
         {items.map((b) => (
           <li key={b.id} className="flex items-center gap-3 py-2.5">
             <span className="text-xl" title={b.gender ? GENDER_LABEL[b.gender] : 'Unknown'} aria-hidden>
@@ -59,7 +59,7 @@ export function BlockedList({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
               <p className={`truncate text-sm font-medium ${dark ? 'text-[#f4f5f7]' : 'text-[#f4f5f7]'}`}>
                 {b.gender ? GENDER_LABEL[b.gender] : 'Stranger'} · {b.country ? `${flagEmoji(b.country)} ${countryName(b.country)}` : '🌐 Location not shown'}
               </p>
-              <p className={`text-xs ${dark ? 'text-dim' : 'text-dim'}`}>Blocked {fmtDate(b.createdAt)}</p>
+              <p className={`text-xs ${dark ? 'text-dim' : 'text-mute'}`}>Blocked {fmtDate(b.createdAt)}</p>
             </div>
             <button
               onClick={() => unblock(b.id)}
@@ -67,7 +67,7 @@ export function BlockedList({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
               className={`text-sm font-semibold disabled:opacity-50 ${
                 dark
                   ? 'rounded-full bg-white/10 px-3 py-1.5 text-lime hover:bg-white/20'
-                  : 'h-11 flex-none rounded-xl border border-line-2 bg-card-2 px-3.5 text-[#e6e8ec] hover:border-[#384056]'
+                  : 'h-11 flex-none rounded-xl border border-line-2 bg-transparent px-4 text-[#e6e8ec] hover:border-[#4a3f5c]'
               }`}
             >
               {busy === b.id ? 'Unblocking…' : 'Unblock'}

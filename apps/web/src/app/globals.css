@@ -143,3 +143,8 @@ input:-webkit-autofill:focus {
 @media (prefers-reduced-motion: reduce) {
   .rc-wall-up, .rc-wall-down, .rc-kb { animation: none; }
 }
+
+/* Matching ripples (final design). */
+@keyframes rc-ripple-sm { 0% { transform: scale(0.6); opacity: 0.8; } 100% { transform: scale(2.6); opacity: 0; } }
+.rc-ripple-sm { animation: rc-ripple-sm 3s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) { .rc-ripple-sm { animation: none; opacity: 0.2; } }

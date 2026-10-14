@@ -217,7 +217,8 @@ const FRIEND_LABEL: Record<RandomCall['friendState'], string> = {
 /** ❤️ Add friend on the video (both people must tap it). */
 const HeartSvg = () => (
   <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <path d="M12 21s-8-5-8-11a4 4 0 0 1 8-1 4 4 0 0 1 8 1c0 6-8 11-8 11z" />
+    <circle cx="9" cy="8" r="4" />
+    <path d="M2 21c0-4 3-6 7-6s7 2 7 6M19 8v6M16 11h6" />
   </svg>
 );
 

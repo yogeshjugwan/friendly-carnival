@@ -280,12 +280,12 @@ function InstallBanner() {
 
 /* ---------- Plus filter chips ---------- */
 
-const GENDER_OPTS: [MatchFilters['gender'], string][] = [
+export const GENDER_OPTS: [MatchFilters['gender'], string][] = [
   ['any', 'Any'],
   ['female', 'Women'],
   ['male', 'Men'],
 ];
-const COUNTRY_OPTS: [string, string][] = [
+export const COUNTRY_OPTS: [string, string][] = [
   ['any', 'Any'],
   ['IN', 'India'],
   ['US', 'USA'],
@@ -306,7 +306,7 @@ function Lock() {
   );
 }
 
-function FilterChip<T extends string>({
+export function FilterChip<T extends string>({
   label,
   value,
   options,

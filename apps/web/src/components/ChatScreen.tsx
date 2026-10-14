@@ -17,7 +17,10 @@ import { FriendButton, FriendsPanel } from './Friends';
 import { IncomingCallModal, OnlineUsersPanel } from './OnlineUsers';
 import { PlusUpsell } from './PlusUpsell';
 import { ChatPanel } from './ChatPanel';
-import { ReportButton, SafetyMenu } from './SafetyMenu';
+import { SafetyMenu } from './SafetyMenu';
+import { ReportDialog } from './ReportDialog';
+import { PlusModal } from './PlusModal';
+import { COUNTRY_OPTS, FilterChip, GENDER_OPTS } from './Landing';
 import { AccountMenu, Brand } from './SiteHeader';
 import { SettingsMenu } from './SettingsMenu';
 import { VideoTile } from './VideoTile';
@@ -327,6 +330,143 @@ function CallTimer({ since }: { since: number | null }) {
   );
 }
 
+/** Matching (final design): ripples around a gradient camera, "Finding someone…", and the Plus filters. */
+function MatchPanel({ call, onPlus }: { call: RandomCall; onPlus: () => void }) {
+  const { user, saveSettings } = useAuth();
+  const isPlus = !!user?.plus.active;
+  const [filters, setFilters] = useState(() => loadSettings().filters ?? NO_FILTERS);
+  const [menu, setMenu] = useState<'g' | 'c' | null>(null);
+  const pick = (patch: Partial<typeof filters>) => {
+    const next = { ...filters, ...patch };
+    setFilters(next);
+    setMenu(null);
+    void saveSettings({ ...loadSettings(), filters: next }).catch(() => undefined);
+  };
+  const open = (which: 'g' | 'c') => (isPlus ? setMenu(menu === which ? null : which) : onPlus());
+  if (call.status === 'browsing') {
+    return (
+      <p className="max-w-xs px-4 text-center text-sm text-mute sm:text-base">
+        Pick someone from <span className="font-semibold text-white">Online</span> or <span className="font-semibold text-white">Friends</span> to call, or press{' '}
+        <span className="font-semibold text-white">Next</span> for a random stranger.
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-col items-center gap-2.5 px-4 text-center sm:gap-3.5">
+      <div className="relative h-[110px] w-full sm:h-[220px]" aria-hidden>
+        {[0, 1, 2].map((i) => (
+          <span key={i} className="rc-ripple-sm absolute inset-0 m-auto h-[120px] w-[120px] rounded-full border-2 border-lime sm:h-[140px] sm:w-[140px]" style={{ animationDelay: `${i}s` }} />
+        ))}
+        <span className="absolute inset-0 m-auto grid h-16 w-16 place-items-center rounded-full bg-lime sm:h-[88px] sm:w-[88px]">
+          <svg viewBox="0 0 24 24" className="h-7 w-7 sm:h-9 sm:w-9" fill="none" stroke="#0b0d10" strokeWidth={2.2} aria-hidden>
+            <rect x="2" y="6" width="14" height="12" rx="2" />
+            <path d="M16 10l6-3v10l-6-3" />
+          </svg>
+        </span>
+      </div>
+      <h1 className="m-0 font-display text-[26px] font-bold sm:text-[34px]" role="status">
+        {call.status === 'connecting' ? 'Connecting…' : 'Finding someone…'}
+      </h1>
+      <p className="m-0 text-sm text-mute sm:text-[15px]">
+        {call.status === 'searching' && call.lastLeftReason ? 'They left — finding someone new · ' : ''}
+        {call.online !== null ? <span className="max-sm:hidden">{Math.max(call.online - 1, 0).toLocaleString()} online · </span> : null}
+        <span className="sm:hidden">Usually</span>
+        <span className="max-sm:hidden">usually</span> under 5 seconds
+      </p>
+      <div className="mt-1.5 flex items-center gap-2 text-left max-sm:hidden">
+        <FilterChip label="Gender" value={filters.gender} options={GENDER_OPTS} locked={!isPlus} open={menu === 'g'} onOpen={() => open('g')} onPick={(v) => pick({ gender: v })} />
+        <FilterChip label="Country" value={filters.country} options={COUNTRY_OPTS} locked={!isPlus} open={menu === 'c'} onOpen={() => open('c')} onPick={(v) => pick({ country: v })} />
+      </div>
+      {!isPlus && <p className="m-0 text-[13px] text-[#cdb766] max-sm:hidden">Filters are a Plus feature</p>}
+      {call.searchingLong && <WidenSearch />}
+      {call.status === 'searching' && <PriorityButton call={call} />}
+    </div>
+  );
+}
+
+/** Your own camera as a tile ("You"), with mic / camera buttons on phones while matching. */
+function SelfTile({ call, className = '', controls = false }: { call: RandomCall; className?: string; controls?: boolean }) {
+  return (
+    <div className={`relative overflow-hidden rounded-3xl bg-[linear-gradient(165deg,#3a4a6e,#1a2033)] ${className}`}>
+      <VideoTile stream={call.localStream} muted mirrored className="pointer-events-none absolute inset-0 h-full w-full rounded-none !bg-transparent" />
+      {(!call.localStream || !call.cameraOn) && (
+        <div className="absolute inset-0 grid place-items-center text-xs uppercase tracking-[0.08em] text-[#8a8f99]">Camera off</div>
+      )}
+      <span className="absolute left-3 top-3 flex h-[30px] items-center rounded-full bg-black/50 px-2.5 text-xs font-semibold text-white sm:left-4 sm:top-4 sm:h-9 sm:px-3 sm:text-[13px] sm:font-medium">
+        You
+      </span>
+      {controls && (
+        <div className="absolute right-3 top-3 flex gap-2 sm:hidden">
+          <button
+            type="button"
+            onClick={call.toggleMic}
+            aria-label={call.micOn ? 'Mute microphone' : 'Unmute microphone'}
+            aria-pressed={!call.micOn}
+            className={`grid h-11 w-11 place-items-center rounded-full ${call.micOn ? 'bg-black/50 text-white' : 'bg-[#f4f5f7] text-night'}`}
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+              <rect x="9" y="2" width="6" height="12" rx="3" />
+              <path d="M5 11a7 7 0 0 0 14 0M12 18v4" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={call.toggleCamera}
+            aria-label={call.cameraOn ? 'Turn camera off' : 'Turn camera on'}
+            aria-pressed={!call.cameraOn}
+            className={`grid h-11 w-11 place-items-center rounded-full ${call.cameraOn ? 'bg-black/50 text-white' : 'bg-[#f4f5f7] text-night'}`}
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+              <rect x="2" y="6" width="14" height="12" rx="2" />
+              <path d="M16 10l6-3v10l-6-3" />
+            </svg>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The first call ever: two tips pointing at Report and Next. */
+function FirstCallTips() {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    try {
+      setShow(window.localStorage.getItem('rc.tipsDone') !== '1');
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  if (!show) return null;
+  const done = () => {
+    setShow(false);
+    try {
+      window.localStorage.setItem('rc.tipsDone', '1');
+    } catch {
+      /* ignore */
+    }
+  };
+  const tip = 'fixed z-[46] w-[260px] rounded-2xl bg-[#f4f5f7] px-4 py-3.5 text-[13px] font-medium leading-[1.45] text-night shadow-[0_20px_50px_rgba(0,0,0,.5)]';
+  return (
+    <>
+      <div aria-hidden className="fixed inset-0 z-[45] bg-[rgba(11,8,17,.6)]" onClick={done} />
+      <div className={`${tip} right-4 top-[74px] sm:right-[52%] sm:top-[92px]`} role="note">
+        <b className="mb-0.5 block font-display text-[15px]">Report is right here</b>One tap hides their video and ends the call.
+      </div>
+      <div className={`${tip} bottom-[104px] right-4 sm:left-[100px] sm:right-auto`} role="note">
+        <b className="mb-0.5 block font-display text-[15px]">Press Next anytime</b>Not a match? Skip — you never owe anyone a chat.
+      </div>
+      <button
+        type="button"
+        onClick={done}
+        className="fixed left-1/2 top-[44%] z-[46] h-[52px] -translate-x-1/2 rounded-[14px] bg-lime px-8 font-display text-base font-bold text-night sm:top-1/2"
+      >
+        Got it
+      </button>
+    </>
+  );
+}
+
 export function ChatScreen({ call }: { call: RandomCall }) {
   const { t } = useI18n();
   const matched = call.status === 'in-call' || call.status === 'connecting';
@@ -385,14 +525,31 @@ export function ChatScreen({ call }: { call: RandomCall }) {
   // Space = Next (like the button says), unless you're typing.
   const nextRef = useRef(call.next);
   nextRef.current = call.next;
+  const stopRef = useRef(call.stop);
+  stopRef.current = call.stop;
+  const [reportOpen, setReportOpen] = useState(false);
+  const [plusOpen, setPlusOpen] = useState(false);
+  // Report abuse in the more menu opens the same dialog.
+  useEffect(() => {
+    const open = () => setReportOpen(true);
+    window.addEventListener('rc:report', open);
+    return () => window.removeEventListener('rc:report', open);
+  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code !== 'Space' || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
       const el = e.target as HTMLElement | null;
-      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.tagName === 'BUTTON' || el.isContentEditable)) return;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
       if (call.mode === 'text' || !['searching', 'in-call', 'connecting', 'browsing'].includes(call.status)) return;
-      e.preventDefault();
-      nextRef.current();
+      // Esc stops (or cancels matching); arrow right or Space for the next person.
+      if (e.key === 'Escape') {
+        if (document.querySelector('[role="dialog"]')) return;
+        e.preventDefault();
+        stopRef.current();
+      } else if (e.key === 'ArrowRight' || (e.code === 'Space' && el?.tagName !== 'BUTTON')) {
+        e.preventDefault();
+        nextRef.current();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -414,7 +571,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
 
   return (
     // Full-screen dark call view, like Google Meet.
-    <main ref={mainRef} className={`flex h-[100dvh] w-full flex-col overflow-hidden bg-night ${isText ? 'px-2 pb-2 pt-2 sm:px-5 sm:pb-5 sm:pt-3' : 'sm:p-4 sm:pb-5'}`}>
+    <main ref={mainRef} className={`flex h-[100dvh] w-full flex-col overflow-hidden bg-night ${isText ? 'px-2 pb-2 pt-2 sm:px-5 sm:pb-5 sm:pt-3' : 'sm:p-4'}`}>
       <div className="flex min-h-0 flex-1 flex-col gap-2 sm:gap-3 [@media(max-height:500px)]:gap-1.5">
         {/* Header (text chat): logo · online · settings · upgrade. Calls carry these over the video instead. */}
         {isText && (
@@ -558,42 +715,40 @@ export function ChatScreen({ call }: { call: RandomCall }) {
             </div>
           </div>
         ) : (
-          <div
-            className={`grid min-h-0 flex-1 grid-rows-1 gap-3 sm:gap-4 ${
-              sideOpen ? 'lg:grid-cols-[minmax(0,1fr)_360px] max-lg:landscape:grid-cols-[minmax(0,1fr)_minmax(15rem,42%)]' : ''
-            }`}
-          >
-            {/* Stage: partner video, your picture-in-picture, controls */}
+          // Video / voice: the stranger and you side by side on larger screens; on phones the stranger fills the screen with you inset.
+          <div className={`flex min-h-0 flex-1 flex-col gap-3 sm:grid ${isVoice ? '' : 'sm:grid-cols-2'}`}>
+            {/* While matching on phones, your camera comes first. */}
+            {!isVoice && !matched && <SelfTile call={call} controls className="mx-2 mt-2 shrink-0 max-sm:h-[52dvh] sm:order-2 sm:m-0" />}
             <VideoTile
               stream={matched ? call.remoteStream : null}
               videoRef={call.setPartnerVideo}
               forceVisible={call.relayActive}
-              className={`min-h-0 max-sm:rounded-none sm:rounded-3xl ${matched || isVoice ? '!bg-[#141720]' : '!bg-[radial-gradient(circle_at_50%_45%,#1e0f2a_0%,#0b0811_55%)]'}`}
+              className={`min-h-0 flex-1 sm:rounded-3xl ${
+                matched || isVoice
+                  ? 'rounded-b-[28px] !bg-[linear-gradient(165deg,#8a5fc2,#3b2a4f)]'
+                  : 'max-sm:!bg-transparent sm:border sm:border-[#1c1f26] sm:!bg-[radial-gradient(circle_at_50%_45%,#1e0f2a_0%,#120d18_65%)]'
+              }`}
               videoClassName={`transition-[filter] duration-700 ${fit ? '!object-contain' : ''} ${
-                call.partnerHidden || call.aiHidden ? 'blur-3xl brightness-50' : call.blurPartner ? 'blur-xl' : ''
+                reportOpen || call.partnerHidden || call.aiHidden ? 'blur-3xl brightness-50' : call.blurPartner ? 'blur-xl' : ''
               }`}
             >
               {!matched && !showAd && !isVoice && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center">
-                  <SearchingStage call={call} />
+                <div className="absolute inset-0 z-10 flex items-center justify-center max-sm:items-start max-sm:pt-1">
+                  <MatchPanel call={call} onPlus={() => setPlusOpen(true)} />
                 </div>
               )}
               {isVoice && !showAd && (
                 <VoiceStage call={call} matched={matched} partnerEmoji={call.partner ? (call.partner.avatar ?? GENDER_ICON[call.partner.gender]) : '🙂'} />
               )}
-              {isVoice && (
-                <div className={`absolute inset-x-0 flex justify-center px-4 ${pipOnTop ? 'bottom-4' : 'top-14'}`}>
+              {isVoice && !matched && !showAd && (
+                <div className="absolute inset-x-0 top-14 flex justify-center px-4">
                   <Searching call={call} />
                 </div>
               )}
-              {matched && (call.partnerHidden || call.aiHidden) && (
+              {matched && !reportOpen && (call.partnerHidden || call.aiHidden) && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
                   <p className="font-medium">
-                    {call.aiHidden
-                      ? 'Video hidden: it may contain nudity'
-                      : call.partner?.isNew
-                        ? 'New user — video hidden for your safety'
-                        : 'Partner video hidden'}
+                    {call.aiHidden ? 'Video hidden: it may contain nudity' : call.partner?.isNew ? 'New user — video hidden for your safety' : 'Partner video hidden'}
                   </p>
                   <button onClick={call.togglePartnerHidden} className="rounded-full bg-black/60 px-4 py-1.5 text-sm hover:bg-black/80">
                     Show anyway
@@ -609,118 +764,64 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                 </div>
               )}
 
-              {!showAd && (
-                // Top of the video: who you're talking to (or the logo and filters while searching), then safety and account.
-                <div className="absolute inset-x-3 top-3 z-20 flex flex-col gap-2 sm:inset-x-5 sm:top-5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex min-w-0 flex-wrap items-center gap-2">
-                      {matched ? (
-                        <PartnerPills call={call} />
-                      ) : (
-                        <span className="rounded-full bg-black/45 py-1 pl-1 pr-3 backdrop-blur">
-                          <Brand compact />
-                        </span>
-                      )}
-                      {call.relayActive && (
-                        <span
-                          className="flex h-9 items-center rounded-full bg-amber-500/90 px-3 text-[12px] font-medium text-white"
-                          title="Your networks blocked a direct connection, so video goes through our server with a short delay."
-                        >
-                          Relay · slight delay
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {/* While searching: just who to match with, as in the design. */}
-                      {!matched && (
-                        <div className="rounded-xl bg-black/45 backdrop-blur max-sm:hidden">
-                          <FilterBar />
-                        </div>
-                      )}
-                      {matched && <ReportButton />}
-                      {matched && <SafetyMenu call={call} />}
-                      <button
-                        onClick={toggleFriends}
-                        aria-pressed={showFriends}
-                        aria-label="Friends"
-                        title="Friends"
-                        className={`flex h-9 items-center gap-1.5 rounded-full px-3 text-[13px] backdrop-blur max-sm:hidden ${showFriends ? 'bg-[#ff7aa8] text-night' : 'bg-black/45 text-white hover:bg-black/65'}`}
+              {matched && !showAd && (
+                // Top of the video: who they are and the call clock; Report on the right.
+                <div className="absolute inset-x-4 top-4 z-20 flex items-start justify-between gap-2">
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
+                    <PartnerPills call={call} />
+                    {call.relayActive && (
+                      <span
+                        className="flex h-9 items-center rounded-full bg-amber-500/90 px-3 text-xs font-medium text-white"
+                        title="Your networks blocked a direct connection, so video goes through our server with a short delay."
                       >
-                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                          <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />
-                        </svg>
-                        <span className="max-md:hidden">Friends</span>
-                      </button>
-                      <button
-                        onClick={() => (isPlus ? (showOnline ? closeOnline() : openOnline()) : setOnlineUpsell(true))}
-                        aria-pressed={showOnline}
-                        title={isPlus ? 'See who is online and call them' : 'See who is online (Plus)'}
-                        className={`flex h-9 items-center gap-1.5 rounded-full px-3 text-[13px] backdrop-blur max-sm:hidden ${showOnline ? 'bg-lime text-night' : 'bg-black/45 text-white hover:bg-black/65'}`}
-                      >
-                        <i className="h-2 w-2 rounded-full bg-lime" aria-hidden />
-                        {isPlus && call.online !== null ? `${Math.max(0, call.online - 1).toLocaleString()} online` : 'Online 👑'}
-                      </button>
-                      {!isPlus && matched && (
-                        <Link href="/plus" target="_blank" className="flex h-9 items-center rounded-full bg-gold px-3 text-[13px] font-semibold text-[#1a1608] hover:brightness-105 max-lg:hidden">
-                          Get Plus
-                        </Link>
-                      )}
-                      {user ? (
-                        <AccountMenu />
-                      ) : (
-                        matched && <Link href="/login" target="_blank" className="flex h-9 items-center rounded-full bg-black/45 px-3 text-[13px] text-white backdrop-blur hover:bg-black/65 max-sm:hidden">
-                          Log in
-                        </Link>
-                      )}
-                    </div>
+                        Relay · slight delay
+                      </span>
+                    )}
                   </div>
-                  {/* While searching: who to match with. */}
-                  {!matched && (
-                    <div className="flex justify-center sm:hidden">
-                      <FilterBar />
-                    </div>
-                  )}
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setReportOpen(true)}
+                      aria-label="Report or block"
+                      className="flex h-11 items-center gap-1.5 rounded-full bg-black/50 text-[13px] font-medium text-stop-text max-sm:w-11 max-sm:justify-center sm:px-4"
+                    >
+                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.2} aria-hidden>
+                        <path d="M5 21V4h11l-2 4 2 4H5" />
+                      </svg>
+                      <span className="max-sm:hidden">Report</span>
+                    </button>
+                    <span className="max-sm:hidden">
+                      <SafetyMenu call={call} />
+                    </span>
+                  </div>
                 </div>
               )}
 
-              {/* You (picture-in-picture): drag it to any corner; voice calls have no picture */}
+              {/* Phones, in a call: you, inset bottom-right. */}
               {!isVoice && matched && (
-                <DraggablePip onCornerChange={setPipCorner} className="h-[150px] w-[110px] overflow-hidden rounded-[14px] border-2 border-white/20 bg-[#1f2638] shadow-xl sm:h-[170px] sm:w-[260px] sm:rounded-2xl sm:border-white/15 max-lg:landscape:h-[34%] max-lg:landscape:w-auto max-lg:landscape:aspect-video [@media(max-height:500px)]:h-[30%]">
-                  <VideoTile stream={call.localStream} muted mirrored className="pointer-events-none h-full w-full rounded-none !bg-[#1f2638]" />
-                  {(!call.localStream || !call.cameraOn) && (
-                    <div className="absolute inset-0 flex items-center justify-center text-xs uppercase tracking-[0.08em] text-[#6b7385]">Camera off</div>
-                  )}
-                  <span className="absolute bottom-2 left-2 rounded-full bg-black/45 px-2 py-0.5 text-[11px] text-white">You</span>
-                  {!call.micOn && (
-                    <span className="absolute bottom-2 right-2 flex h-6 w-6 items-center justify-center rounded-md bg-[#e5484d]" aria-label="Your microphone is off">
-                      <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="#fff" strokeWidth={2.4} strokeLinecap="round" aria-hidden>
-                        <path d="M3 3l18 18M9 9v2a3 3 0 0 0 5 2.2M15 9.3V6a3 3 0 0 0-5.6-1.5" />
-                      </svg>
-                    </span>
-                  )}
-                </DraggablePip>
+                <div className="absolute bottom-4 right-4 z-20 h-[140px] w-[104px] overflow-hidden rounded-2xl border-2 border-white/25 sm:hidden">
+                  <SelfTile call={call} className="h-full w-full !rounded-none" />
+                </div>
               )}
 
               {(call.cameraProblem || call.noFace) && (
-                <div className="absolute inset-x-0 bottom-[104px] z-20 flex justify-center px-3 sm:bottom-3" role="status">
+                <div className="absolute inset-x-0 bottom-3 z-20 flex justify-center px-3" role="status">
                   <p className={`rounded-full px-4 py-1.5 text-sm font-medium text-white shadow-lg ${call.cameraProblem ? 'bg-red-600/90' : 'bg-amber-500/90'}`}>
-                    {call.cameraProblem
-                      ? CAMERA_PROBLEM[call.cameraProblem].chip
-                      : "🙂 We can't see your face — look at the camera so people don't skip you"}
+                    {call.cameraProblem ? CAMERA_PROBLEM[call.cameraProblem].chip : "🙂 We can't see your face — look at the camera so people don't skip you"}
                   </p>
                 </div>
               )}
               <ReactionLayer call={call} />
               <GiftLayer call={call} />
               {matched && call.game && (
-                <div className="absolute inset-x-0 bottom-[104px] z-20 flex justify-center px-3 sm:bottom-3 lg:inset-x-auto lg:left-3">
+                <div className="absolute inset-x-0 bottom-3 z-20 flex justify-center px-3 lg:inset-x-auto lg:left-3">
                   <GameCard call={call} />
                 </div>
               )}
               {call.icebreaker && matched && (
-                <div className="absolute inset-x-3 top-24 z-20 flex justify-center sm:top-20">
+                <div className="absolute inset-x-3 top-20 z-20 flex justify-center">
                   <div className="w-full max-w-md rounded-2xl bg-black/70 px-4 py-3 text-center text-white shadow-xl backdrop-blur" role="status">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">🎲 Icebreaker</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-lime">Icebreaker</p>
                     <p className="mt-1 text-base font-medium sm:text-lg">{call.icebreaker.text}</p>
                     <div className="mt-2 flex justify-center gap-2 text-xs">
                       <button onClick={call.askIcebreaker} className="rounded-full bg-white/15 px-3 py-1 hover:bg-white/25">
@@ -733,29 +834,12 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                   </div>
                 </div>
               )}
-
-              {/* Phones: controls down the right edge, Stop / Next across the bottom. */}
-              <div className="absolute bottom-[104px] right-3 z-20 sm:hidden">
-                <CallControls
-                  rail
-                  minimal={!matched}
-                  call={call}
-                  matched={matched}
-                  chatOpen={chatOpen}
-                  onToggleChat={toggleChat}
-                  unread={unread}
-                  fit={fit}
-                  onToggleFit={() => setFit((f) => !f)}
-                  onToggleFullscreen={toggleFullscreen}
-                />
-              </div>
-              <div className="absolute inset-x-4 bottom-7 z-20 sm:hidden">
-                {matched || call.status === 'browsing' ? <StopNext call={call} wide /> : <CancelButton call={call} wide />}
-              </div>
             </VideoTile>
+            {/* Larger screens: you, beside them. */}
+            {!isVoice && matched && <SelfTile call={call} className="max-sm:hidden" />}
 
-            {showOnline && <OnlineUsersPanel call={call} onClose={closeOnline} className="h-full shadow-2xl max-lg:portrait:fixed max-lg:portrait:inset-x-2 max-lg:portrait:bottom-2 max-lg:portrait:top-[38%] max-lg:portrait:z-40 max-lg:portrait:h-auto" />}
-            {showFriends && <FriendsPanel call={call} onClose={closeFriends} className="h-full shadow-2xl max-lg:portrait:fixed max-lg:portrait:inset-x-2 max-lg:portrait:bottom-2 max-lg:portrait:top-[38%] max-lg:portrait:z-40 max-lg:portrait:h-auto" />}
+            {showOnline && <OnlineUsersPanel call={call} onClose={closeOnline} className="fixed z-40 inset-x-0 bottom-0 h-[400px] rounded-t-3xl shadow-2xl sm:inset-x-auto sm:bottom-[108px] sm:right-8 sm:top-8 sm:h-auto sm:w-[360px] sm:rounded-[20px]" />}
+            {showFriends && <FriendsPanel call={call} onClose={closeFriends} className="fixed z-40 inset-x-0 bottom-0 h-[400px] rounded-t-3xl shadow-2xl sm:inset-x-auto sm:bottom-[108px] sm:right-8 sm:top-8 sm:h-auto sm:w-[360px] sm:rounded-[20px]" />}
             {chatOpen && (
               <ChatPanel
                 variant="meet"
@@ -768,31 +852,49 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                 enabled={matched}
                 onSend={call.sendMessage}
                 onTyping={call.notifyTyping}
-                // Desktop and sideways phones: a column beside the video. Upright phones/tablets:
-                // a sheet over the lower video.
-                className="h-full shadow-2xl max-lg:portrait:fixed max-lg:portrait:inset-x-2 max-lg:portrait:bottom-2 max-lg:portrait:top-[38%] max-lg:portrait:z-40 max-lg:portrait:h-auto"
+                className="fixed z-40 inset-x-0 bottom-0 h-[400px] rounded-t-3xl shadow-2xl sm:inset-x-auto sm:bottom-[108px] sm:right-8 sm:top-8 sm:h-auto sm:w-[360px] sm:rounded-[20px]"
               />
             )}
           </div>
         )}
 
-        {/* Under the video (larger screens): controls on the left, Stop / Next on the right. */}
+        {/* Under the video: Stop / Next (or Cancel) on the left, the keys, the controls on the right. Phones: controls row, then Stop / Next. */}
         {!isText && (
-          <div className="flex shrink-0 items-center justify-between gap-4 px-2 pt-1 max-sm:hidden">
-            <CallControls
-              minimal={!matched}
-              call={call}
-              matched={matched}
-              chatOpen={chatOpen}
-              onToggleChat={toggleChat}
-              unread={unread}
-              fit={fit}
-              onToggleFit={() => setFit((f) => !f)}
-              onToggleFullscreen={toggleFullscreen}
-            />
-            {matched || call.status === 'browsing' ? <StopNext call={call} /> : <CancelButton call={call} />}
+          <div className="flex shrink-0 flex-col gap-3 px-4 pb-6 pt-3 sm:h-16 sm:flex-row-reverse sm:items-center sm:justify-between sm:px-1 sm:pb-0 sm:pt-0">
+            <div className={matched ? 'w-full sm:w-auto' : 'max-sm:hidden'}>
+              <CallControls
+                rail
+                minimal={!matched}
+                call={call}
+                matched={matched}
+                chatOpen={chatOpen}
+                onToggleChat={toggleChat}
+                unread={unread}
+                fit={fit}
+                onToggleFit={() => setFit((f) => !f)}
+                onToggleFullscreen={toggleFullscreen}
+              />
+            </div>
+            <span className="text-[13px] text-[#8a8f99] max-sm:hidden">{matched ? 'Esc to stop · → for next' : 'Esc to cancel'}</span>
+            {matched || call.status === 'browsing' ? (
+              <StopNext call={call} wide />
+            ) : (
+              <div className="flex w-full gap-2 sm:w-auto">
+                <CancelButton call={call} wide />
+                <button
+                  type="button"
+                  onClick={() => setPlusOpen(true)}
+                  className="flex h-14 flex-1 items-center justify-center gap-1.5 rounded-2xl border border-[#4a3f17] bg-gold-bg text-sm font-semibold text-gold sm:hidden"
+                >
+                  Filters{isPlus ? '' : ' · Plus'}
+                </button>
+              </div>
+            )}
           </div>
         )}
+        {reportOpen && <ReportDialog call={call} onClose={() => setReportOpen(false)} />}
+        {plusOpen && <PlusModal onClose={() => setPlusOpen(false)} />}
+        {matched && !isText && <FirstCallTips />}
       </div>
     </main>
   );

@@ -1,24 +1,23 @@
 'use client';
 
 import { useState } from 'react';
-import { REACTIONS } from '@rc/shared';
 import type { RandomCall } from '@/lib/useRandomCall';
-import { BackIcon, ChatIcon, ChevronUpIcon, MicIcon, MicOffIcon, SmileIcon, VideoIcon, VideoOffIcon } from './icons';
+import { BackIcon, ChatIcon, ChevronUpIcon, MicIcon, MicOffIcon, VideoIcon, VideoOffIcon } from './icons';
 import { GiftButton } from './Coins';
 import { FriendButton } from './Friends';
 import { MoreMenu } from './MoreMenu';
 import { useI18n } from '@/lib/i18n';
 
-/** Control button: translucent normally, red when "off", lime when active. Rail = the round buttons over the video on phones. */
+/** Control button: dark tile, white when switched off (muted / camera off), gradient when open. Rail = the round phone buttons. */
 const ctl = (state: 'normal' | 'off' | 'active' = 'normal', rail = false) =>
-  `relative flex h-12 w-12 shrink-0 items-center justify-center transition ${rail ? 'rounded-full backdrop-blur' : 'rounded-[14px]'} ${
+  `relative flex h-12 w-12 shrink-0 items-center justify-center transition ${rail ? 'rounded-full' : 'rounded-[14px]'} ${
     state === 'off'
-      ? 'bg-[#e5484d] text-white hover:bg-[#d93c41]'
+      ? 'bg-[#f4f5f7] text-night'
       : state === 'active'
         ? 'bg-lime text-night'
         : rail
-          ? 'bg-black/45 text-white hover:bg-black/60'
-          : 'bg-white/[.08] text-[#e6e8ec] hover:bg-white/[.14]'
+          ? 'bg-white/10 text-white hover:bg-white/20'
+          : 'bg-card-2 text-[#e6e8ec] hover:bg-[#2a2236]'
   }`;
 
 /** Mic / camera button with a small ^ that opens a device list (Meet style). */
@@ -115,31 +114,11 @@ interface ControlsProps {
 
 export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fit, onToggleFit, onToggleFullscreen, rail = false, minimal = false }: ControlsProps) {
   const { t } = useI18n();
-  const [showReactions, setShowReactions] = useState(false);
-  // Menus open above the bar, or to the left of the rail.
-  const menuPos = rail ? 'absolute right-full top-0 mr-2' : 'absolute bottom-full left-0 mb-3';
+  // Menus open above the bar.
+  const menuPos = rail ? 'absolute bottom-full right-0 mb-3' : 'absolute bottom-full right-0 mb-3';
 
   return (
-    <div className={`relative flex items-center gap-2 ${rail ? 'flex-col' : ''}`}>
-      {showReactions && (
-        <div
-          className={`absolute z-30 flex max-w-[80vw] gap-0.5 overflow-x-auto rounded-2xl border border-line-2 bg-card-2 px-2 py-1.5 shadow-lg ${rail ? 'right-full top-1/2 mr-2 -translate-y-1/2' : 'bottom-full left-0 mb-3'}`}
-          role="toolbar"
-          aria-label="Reactions"
-        >
-          {REACTIONS.map((emoji) => (
-            <button
-              key={emoji}
-              disabled={!matched}
-              onClick={() => call.sendReaction(emoji)}
-              aria-label={emoji === '✋' ? 'Raise hand' : `Send ${emoji}`}
-              className="rounded-full p-1.5 text-xl transition hover:scale-125 hover:bg-white/10 disabled:opacity-40 sm:text-2xl"
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
-      )}
+    <div className={`relative flex items-center gap-2 ${rail ? 'w-full justify-between' : ''}`}>
       {call.canGoBack && !rail && (
         <button onClick={call.back} aria-label={t('call.back')} title={t('call.back')} className={ctl()}>
           <BackIcon />
@@ -186,16 +165,7 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
         )}
       </button>
       {matched && <FriendButton call={call} iconClass={ctl('normal', rail)} />}
-      {matched && <GiftButton call={call} iconClass={ctl('normal', rail)} menuPos={rail ? '!left-auto right-full top-0 mr-2' : 'bottom-full mb-3'} />}
-      <button
-        onClick={() => setShowReactions((s) => !s)}
-        aria-label="Reactions"
-        aria-pressed={showReactions}
-        title={t('call.reactions')}
-        className={ctl(showReactions ? 'active' : 'normal', rail)}
-      >
-        <SmileIcon />
-      </button>
+      {matched && <GiftButton call={call} iconClass={ctl('normal', rail)} menuPos="!left-auto right-0 bottom-full mb-3" />}
       <MoreMenu call={call} className={ctl('normal', rail)} fit={fit} onToggleFit={onToggleFit} onToggleFullscreen={onToggleFullscreen} menuPos={menuPos} />
         </>
       )}
@@ -203,19 +173,20 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
   );
 }
 
-/** Cancel matching (dark red), in place of Stop / Next while looking for someone. */
+/** Cancel matching (outlined), in place of Stop / Next while looking for someone. Esc also works. */
 export function CancelButton({ call, wide = false }: { call: RandomCall; wide?: boolean }) {
   return (
     <button
       onClick={call.stop}
-      className={`h-14 rounded-2xl bg-stop px-7 text-base font-semibold text-stop-text transition hover:brightness-125 ${wide ? 'w-full' : ''}`}
+      aria-keyshortcuts="Escape"
+      className={`h-14 rounded-2xl border-[1.5px] border-[#4a3f5c] px-8 text-base font-semibold text-[#e6e8ec] transition hover:bg-white/5 ${wide ? 'flex-1' : ''}`}
     >
       Cancel
     </button>
   );
 }
 
-/** Stop (dark red) and Next (lime; the Space key also works). `wide` = full width on phones. */
+/** Stop (outlined) and Next → (gradient). Keys: Esc stops, → (or Space) for next. `wide` = full width on phones. */
 export function StopNext({ call, wide = false, compact = false }: { call: RandomCall; wide?: boolean; compact?: boolean }) {
   const { t } = useI18n();
   const h = compact ? 'h-12' : 'h-14 max-sm:h-[58px]';
@@ -225,16 +196,17 @@ export function StopNext({ call, wide = false, compact = false }: { call: Random
         onClick={call.stop}
         aria-label={t('call.end')}
         title={t('call.end')}
-        className={`${h} rounded-2xl bg-stop px-6 text-base font-semibold text-stop-text transition hover:brightness-125 ${wide ? 'w-24 px-0' : ''}`}
+        aria-keyshortcuts="Escape"
+        className={`${h} rounded-2xl border-[1.5px] border-[#4a3f5c] px-6 text-base font-semibold text-[#e6e8ec] transition hover:bg-white/5 ${wide ? 'w-24 px-0' : ''}`}
       >
         {t('call.stop')}
       </button>
       <button
         onClick={call.next}
         aria-label={t('call.nextStranger')}
-        title={`${t('call.nextStranger')} (Space)`}
-        aria-keyshortcuts="Space"
-        className={`${h} rounded-2xl bg-lime px-9 font-display text-lg font-bold text-night transition hover:bg-lime-hover ${wide ? 'flex-1 px-0 text-[19px]' : ''}`}
+        title={`${t('call.nextStranger')} (→)`}
+        aria-keyshortcuts="ArrowRight Space"
+        className={`${h} rounded-2xl bg-lime px-10 font-display text-lg font-bold text-night transition ${wide ? 'flex-1 px-0 text-[19px]' : ''}`}
       >
         {t('call.next')} →
       </button>

@@ -3,30 +3,38 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useId, useState } from 'react';
-import { ageLabel, MIN_PASSWORD_LENGTH, type PublicUser, type UserSettings } from '@rc/shared';
-import { SiteFooter, SiteHeader } from '@/components/SiteHeader';
+import { MIN_PASSWORD_LENGTH, type PublicUser, type UserSettings } from '@rc/shared';
+import { AppShell } from '@/components/AppShell';
 import { errorText } from '@/components/forms/fields';
 import { api, useAuth } from '@/lib/auth';
+import { LANGS, useI18n, type Lang } from '@/lib/i18n';
 import { loadSettings } from '@/lib/settings';
 import { BlockedList } from '@/components/BlockedList';
-import { InstallButton, NotificationsToggle } from '@/components/Pwa';
-import { ProfileEditor } from '@/components/ProfileEditor';
+import { NotificationsToggle, useInstall } from '@/components/Pwa';
+import { ProfileAvatar, ProfileEditor, profilePreview } from '@/components/ProfileEditor';
 
-/** Phones show one view at a time (like an app's "Me" tab); desktop shows every card side by side. */
+/** Phones show one view at a time (the "Me" tab and its sub-pages); desktop shows every card in two columns. */
 type View = 'main' | 'profile' | 'account' | 'privacy';
 
-const card = 'rounded-[18px] border border-line bg-card lg:rounded-[20px]';
+const card = 'flex flex-col gap-3.5 rounded-[18px] border border-line bg-card p-4 lg:rounded-[20px] lg:p-5';
+/** Phone list group (MeMobile `.grp`). */
+const group = 'overflow-hidden rounded-2xl border border-line bg-card';
 const input =
-  'h-[46px] w-full rounded-xl border border-line-2 bg-card-2 px-3.5 text-base text-[#f4f5f7] outline-none placeholder:text-faint focus:border-lime';
+  'h-[46px] w-full min-w-0 rounded-xl border border-line-2 bg-[#120D18] px-3.5 text-[15px] text-[#f4f5f7] outline-none placeholder:text-faint focus:border-lime';
 const label = 'flex flex-col gap-1.5 text-[13px] text-mute';
-const pill =
-  'inline-flex h-11 flex-none items-center justify-center rounded-xl border border-line bg-card px-3.5 text-[13px] font-medium text-[#c9cdd4] hover:border-line-2 disabled:opacity-50';
+const ghost =
+  'inline-flex h-11 flex-none items-center justify-center rounded-xl border border-line-2 bg-transparent px-4 text-sm font-semibold text-[#e6e8ec] hover:border-[#4a3f5c] disabled:opacity-50';
 const primary =
-  'h-14 w-full rounded-2xl bg-lime font-display text-[17px] font-bold text-[#0b0d10] hover:bg-lime-hover disabled:opacity-50 lg:h-12 lg:rounded-xl lg:text-[15px]';
+  'h-[54px] w-full rounded-[14px] bg-lime font-display text-[17px] font-bold text-night disabled:opacity-50 lg:h-[46px] lg:w-auto lg:self-end lg:rounded-xl lg:px-6 lg:text-[15px]';
+const cardTitle = 'm-0 font-display text-[17px] font-bold';
+/** Desktop card row (top divider) / phone list row (bottom divider). */
+const row =
+  'flex min-h-12 items-center justify-between gap-3 border-b border-card-2 px-3.5 py-2 last:border-b-0 lg:min-h-[52px] lg:border-b-0 lg:border-t lg:px-0 lg:pb-0 lg:pt-3';
+const listRow = 'flex min-h-12 w-full items-center justify-between gap-2.5 border-b border-card-2 px-3.5 py-2 text-left text-[15px] text-[#f4f5f7] last:border-b-0';
 
 function Alert({ children }: { children: React.ReactNode }) {
   return (
-    <p role="alert" className="rounded-xl border border-stop bg-[#1a0f0f] px-3 py-2 text-sm text-stop-text">
+    <p role="alert" className="m-0 rounded-xl border border-[#4a2424] bg-[#2a1616] px-3 py-2 text-sm text-stop-text">
       {children}
     </p>
   );
@@ -34,13 +42,13 @@ function Alert({ children }: { children: React.ReactNode }) {
 
 function Note({ children }: { children: React.ReactNode }) {
   return (
-    <p role="status" className="rounded-xl border border-[#2c3a14] bg-[#12170a] px-3 py-2 text-sm text-lime">
+    <p role="status" className="m-0 rounded-xl border border-lime bg-pick px-3 py-2 text-sm text-lime">
       {children}
     </p>
   );
 }
 
-/** A labelled on/off switch (44×26 track, 44px tap target). */
+/** A labelled on/off switch: 52×32 track, gradient when on. */
 function SwitchRow({
   checked,
   onChange,
@@ -56,17 +64,17 @@ function SwitchRow({
 }) {
   const id = useId();
   return (
-    <div className="flex items-center justify-between gap-4 px-3.5 py-3 lg:px-0 lg:py-0">
-      <div className="min-w-0">
-        <div id={`${id}-t`} className="text-sm font-semibold text-[#f4f5f7] lg:text-[15px]">
+    <div className={row}>
+      <span className="min-w-0">
+        <span id={`${id}-t`} className="block text-[15px]">
           {title}
-        </div>
+        </span>
         {detail && (
-          <div id={`${id}-d`} className="text-xs text-dim lg:text-[13px]">
+          <span id={`${id}-d`} className="text-xs text-mute lg:text-[13px]">
             {detail}
-          </div>
+          </span>
         )}
-      </div>
+      </span>
       <button
         type="button"
         role="switch"
@@ -75,49 +83,82 @@ function SwitchRow({
         aria-describedby={detail ? `${id}-d` : undefined}
         disabled={disabled}
         onClick={() => onChange(!checked)}
-        className="-my-2 flex h-11 w-14 flex-none items-center justify-center rounded-full disabled:opacity-50"
+        className={`flex h-8 w-[52px] flex-none rounded-full p-[3px] transition-colors disabled:opacity-50 ${checked ? 'justify-end bg-lime' : 'justify-start bg-line-2'}`}
       >
-        <span className={`relative h-[26px] w-11 rounded-full transition-colors ${checked ? 'bg-lime' : 'bg-line-2'}`}>
-          <span
-            className={`absolute top-[3px] h-5 w-5 rounded-full transition-all ${checked ? 'left-[21px] bg-[#0b0d10]' : 'left-[3px] bg-[#7d828c]'}`}
-          />
-        </span>
+        <span className={`h-[26px] w-[26px] rounded-full ${checked ? 'bg-[#0b0d10]' : 'bg-[#8a8f99]'}`} />
       </button>
     </div>
   );
 }
 
-const Chevron = () => (
-  <span className="text-faint" aria-hidden>
-    ›
-  </span>
-);
-
-/** Phone sub-view header: round back button + title. */
+/** Phone sub-view header: back arrow + title. */
 function PhoneBack({ title, onBack }: { title: string; onBack: () => void }) {
   return (
-    <div className="flex items-center gap-2.5 lg:hidden">
-      <button type="button" aria-label="Back to settings" onClick={onBack} className="grid h-11 w-11 place-items-center rounded-full bg-card-2 text-[#e6e8ec]">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <div className="flex items-center gap-2 lg:hidden">
+      <button type="button" aria-label="Back to settings" onClick={onBack} className="grid h-11 w-11 place-items-center rounded-full text-[#f4f5f7]">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M15 6l-6 6 6 6" />
         </svg>
       </button>
-      <h1 className="font-display text-[22px] font-bold text-[#f4f5f7]">{title}</h1>
+      <h2 className="m-0 font-display text-[22px] font-bold">{title}</h2>
     </div>
   );
 }
 
 const plusText = (user: PublicUser) =>
   user.plus.active
-    ? `👑 Active${user.plus.until ? ` until ${new Date(user.plus.until).toLocaleDateString()}` : ''}${user.plus.cancelAtPeriodEnd ? ' (will not renew)' : ''}`
-    : 'Unlock gender and country filters and remove ads';
+    ? `Active${user.plus.until ? ` until ${new Date(user.plus.until).toLocaleDateString()}` : ''}${user.plus.cancelAtPeriodEnd ? ' · will not renew' : ''}`
+    : 'Not active · unlock filters & more';
 
 const badgeText = (user: PublicUser) =>
   user.verification === 'verified'
-    ? '✓ Verified — partners see the blue badge'
+    ? 'Partners see the blue badge'
     : user.verification === 'pending'
-      ? '⏳ Selfie under review'
-      : 'Show strangers you are a real person with a quick selfie';
+      ? 'Selfie under review'
+      : 'Show strangers you are a real person';
+
+function BadgePill({ user }: { user: PublicUser }) {
+  if (user.verification === 'verified') {
+    return <span className="flex h-7 flex-none items-center rounded-full bg-pick px-2.5 text-xs font-semibold text-lime">Verified</span>;
+  }
+  if (user.verification === 'pending') {
+    return <span className="flex h-7 flex-none items-center rounded-full bg-gold-bg px-2.5 text-xs font-semibold text-gold">Pending</span>;
+  }
+  return (
+    <Link href="/get-verified" className={ghost}>
+      Get verified
+    </Link>
+  );
+}
+
+/** "Install app — Add to home screen" (hidden when installed or not installable). */
+function InstallRow() {
+  const { state, install } = useInstall();
+  const [help, setHelp] = useState(false);
+  if (state === 'hidden') return null;
+  return (
+    <>
+      <button type="button" onClick={() => (state === 'prompt' ? void install() : setHelp(!help))} aria-expanded={state === 'ios' ? help : undefined} className={listRow}>
+        <span>Install app</span>
+        <span className="text-[13px] text-lime">Add to home screen ›</span>
+      </button>
+      {help && <p className="m-0 border-b border-card-2 px-3.5 py-2 text-[13px] text-mute">Tap Share, then Add to Home Screen.</p>}
+    </>
+  );
+}
+
+function LanguageSelect({ id, className }: { id: string; className: string }) {
+  const { lang, setLang } = useI18n();
+  return (
+    <select id={id} value={lang} onChange={(e) => setLang(e.target.value as Lang)} className={className}>
+      {LANGS.map((l) => (
+        <option key={l.code} value={l.code}>
+          {l.name}
+        </option>
+      ))}
+    </select>
+  );
+}
 
 export default function SettingsPage() {
   const { user, token, loading, saveSettings, logout, forget, refresh } = useAuth();
@@ -130,21 +171,20 @@ export default function SettingsPage() {
   const [emailsBusy, setEmailsBusy] = useState(false);
   const [welcome, setWelcome] = useState(false);
   const [view, setView] = useState<View>('main');
-  const [active, setActive] = useState('profile');
+  const [deleting, setDeleting] = useState(false);
 
   // Load once: later `user` updates (after a toggle saves, or emails/verification refresh) must not wipe unsaved profile edits.
   useEffect(() => {
     if (loading || settings) return;
-    const s = user?.settings ?? loadSettings();
-    setSettings(s);
+    setSettings(user?.settings ?? loadSettings());
     setWelcome(new URLSearchParams(window.location.search).has('welcome'));
   }, [loading, user, settings]);
 
   if (!settings) {
     return (
-      <main className="mx-auto max-w-[1200px] px-4 py-6 sm:px-6">
-        <SiteHeader />
-      </main>
+      <AppShell title="Settings">
+        <p className="text-sm text-mute">Loading…</p>
+      </AppShell>
     );
   }
 
@@ -176,76 +216,43 @@ export default function SettingsPage() {
     router.push('/');
   };
 
+  /** Phone: show only on view `v`; desktop: always. */
   const onPhone = (v: View) => (view === v ? '' : 'max-lg:hidden');
-  const initial = (settings.name?.trim()[0] ?? 'S').toUpperCase();
-
-  const sideItems: [string, string][] = [
-    ['profile', 'Profile'],
-    ...(user ? ([['account', 'Account']] as [string, string][]) : []),
-    ['chat', user ? 'Notifications' : 'Chat'],
-    ...(user ? ([['plus', 'Plus & badge']] as [string, string][]) : []),
-    ['privacy', 'Privacy & blocks'],
-  ];
+  const phoneMain = `lg:hidden ${view === 'main' ? '' : 'hidden'}`;
+  const signedIn = user && token ? { user, token } : null;
 
   return (
-    <main className="mx-auto flex min-h-full max-w-[1200px] flex-col gap-4 px-4 py-6 text-[#f4f5f7] sm:px-6">
-      <SiteHeader />
+    <AppShell title="Settings">
+      {welcome && user && <Note>Welcome! We sent a confirmation link to {user.email}.</Note>}
 
-      <div className="mt-2 grid items-start gap-4 lg:mt-4 lg:grid-cols-[220px_minmax(0,1fr)_minmax(0,1fr)] lg:gap-5">
-        {/* Desktop side menu */}
-        <aside className="flex flex-col gap-1 max-lg:hidden lg:sticky lg:top-6">
-          <h1 className="mb-3 font-display text-[32px] font-bold">Settings</h1>
-          <nav aria-label="Settings sections" className="flex flex-col gap-1">
-            {sideItems.map(([id, text]) => (
-              <a
-                key={id}
-                href={`#${id}`}
-                onClick={() => setActive(id)}
-                aria-current={active === id ? 'true' : undefined}
-                className={`flex h-[42px] items-center rounded-[10px] px-3.5 text-sm font-medium ${
-                  active === id ? 'bg-card-2 text-[#f4f5f7]' : 'text-mute hover:text-[#f4f5f7]'
-                }`}
-              >
-                {text}
-              </a>
-            ))}
-          </nav>
-        </aside>
-
-        {/* Middle column: profile card, privacy & blocks */}
-        <div className="flex min-w-0 flex-col gap-4 lg:gap-5">
-          <div className={`flex flex-col gap-3.5 lg:hidden ${view === 'main' ? '' : 'hidden'}`}>
-            <h1 className="font-display text-[26px] font-bold">Settings</h1>
-            {welcome && user && <Note>Welcome! We sent a confirmation link to {user.email}.</Note>}
-            <div className={`${card} flex items-center gap-3 p-3.5`}>
-              <span className="flex h-[52px] w-[52px] flex-none items-center justify-center rounded-[14px] bg-gold font-display text-2xl font-bold text-gold-bg" aria-hidden>
-                {initial}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 font-semibold">
-                  <span className="truncate">{settings.name || (user ? user.email : 'Guest')}</span>
-                  {user?.plus.active && <span className="flex-none text-[11px] font-bold text-gold">PLUS</span>}
-                </div>
-                <div className="truncate text-xs text-dim">
-                  Partners see: {settings.name || 'Stranger'}
-                  {settings.age ? ` · ${ageLabel(settings.age)}` : ''}
-                </div>
-              </div>
-              <button type="button" onClick={() => go('profile')} className="h-11 flex-none rounded-[10px] border border-line-2 px-3.5 text-[13px] font-medium text-[#e6e8ec]">
-                Edit
-              </button>
+      <div className="grid min-w-0 items-start gap-3 lg:grid-cols-2 lg:gap-4">
+        {/* Left column */}
+        <div className="flex min-w-0 flex-col gap-3 lg:gap-4">
+          {/* Phone "Me": profile row */}
+          <div className={`flex items-center gap-3 ${phoneMain}`}>
+            <ProfileAvatar settings={settings} size="sm" />
+            <div className="min-w-0 flex-1">
+              <strong className="block truncate font-display text-lg font-bold">{settings.name?.trim() || (user ? user.email.split('@')[0] : 'Guest')}</strong>
+              <p className="m-0 mt-0.5 truncate text-xs text-mute">Partners see: {profilePreview(settings)}</p>
             </div>
+            <button type="button" onClick={() => go('profile')} className="flex h-11 flex-none items-center rounded-xl border border-line-2 px-3.5 text-[13px] font-semibold text-[#e6e8ec]">
+              Edit
+            </button>
           </div>
-          {welcome && user && (
-            <div className="max-lg:hidden">
-              <Note>Welcome! We sent a confirmation link to {user.email}.</Note>
-            </div>
-          )}
 
-          <section id="profile" aria-labelledby="profile-h" className={`flex scroll-mt-6 flex-col gap-4 ${onPhone('profile')}`}>
+          {/* Phone "Me": Plus banner */}
+          <Link href="/plus" className={`flex items-center justify-between gap-3 rounded-2xl border border-[#4a3f17] bg-gold-bg p-3.5 text-gold ${phoneMain}`}>
+            <span className="min-w-0">
+              <strong className="block font-display text-[15px] font-bold">{user?.plus.active ? 'Plus active' : 'Get Plus'}</strong>
+              <span className="block text-xs text-[#cdb766]">{user?.plus.active ? plusText(user) : 'Gender & country filters, unlimited matches'}</span>
+            </span>
+            <span className="flex-none text-[13px]">{user?.plus.active ? 'Manage ›' : 'Upgrade ›'}</span>
+          </Link>
+
+          <section id="profile" aria-labelledby="profile-h" className={`flex scroll-mt-6 flex-col gap-3.5 ${onPhone('profile')}`}>
             <PhoneBack title="Edit profile" onBack={() => go('main')} />
             <form
-              className="flex flex-col gap-3.5 lg:rounded-[20px] lg:border lg:border-line lg:bg-card lg:p-[22px]"
+              className="flex flex-col gap-3.5 lg:rounded-[20px] lg:border lg:border-line lg:bg-card lg:p-5"
               onSubmit={async (e) => {
                 e.preventDefault();
                 setSaving(true);
@@ -260,12 +267,9 @@ export default function SettingsPage() {
                 }
               }}
             >
-              <div className="max-lg:sr-only">
-                <h2 id="profile-h" className="font-display text-lg font-bold">
-                  Profile card
-                </h2>
-                <p className="text-[13px] text-dim">What strangers see next to your country.</p>
-              </div>
+              <h2 id="profile-h" className="sr-only">
+                Profile
+              </h2>
               <ProfileEditor settings={settings} onChange={update} />
               {error && <Alert>{error}</Alert>}
               {saved && <Note>Saved{user ? ' to your account' : ' in this browser'}.</Note>}
@@ -273,7 +277,7 @@ export default function SettingsPage() {
                 {saving ? 'Saving…' : 'Save'}
               </button>
               {!user && (
-                <p className="text-[13px] text-dim">
+                <p className="m-0 text-[13px] text-mute">
                   Settings are saved in this browser.{' '}
                   <Link href="/signup" className="font-medium text-lime hover:underline">
                     Create an account
@@ -284,18 +288,28 @@ export default function SettingsPage() {
             </form>
           </section>
 
-          <section id="privacy" aria-labelledby="privacy-h" className={`flex scroll-mt-6 flex-col gap-4 ${onPhone('privacy')}`}>
+          <section aria-labelledby="lang-h" className={`${card} max-lg:hidden`}>
+            <h2 id="lang-h" className={cardTitle}>
+              Language
+            </h2>
+            <label htmlFor="app-lang" className={label}>
+              App language
+              <LanguageSelect id="app-lang" className={input} />
+            </label>
+          </section>
+
+          <section id="privacy" aria-labelledby="privacy-h" className={`flex scroll-mt-6 flex-col gap-3.5 ${onPhone('privacy')}`}>
             <PhoneBack title="Privacy & blocks" onBack={() => go('main')} />
-            <div className={`${card} flex flex-col gap-3 p-4 lg:p-[22px]`}>
-              <h2 id="privacy-h" className="font-display text-lg font-bold">
+            <div className={card}>
+              <h2 id="privacy-h" className={cardTitle}>
                 Blocked people
               </h2>
-              <p className="text-[13px] text-dim">Blocks are saved on this device. Unblock someone to let them be matched with you again.</p>
+              <p className="m-0 text-[13px] text-mute">Blocks are saved on this device. Unblock someone to let them be matched with you again.</p>
               <BlockedList />
             </div>
-            <div className={`${card} flex flex-col gap-2 p-4 lg:p-[22px]`}>
-              <h2 className="font-display text-lg font-bold">Privacy</h2>
-              <p className="text-[13px] leading-relaxed text-mute">
+            <div className={card}>
+              <h2 className={cardTitle}>Privacy</h2>
+              <p className="m-0 text-[13px] leading-relaxed text-mute">
                 randomCall uses no advertising or analytics cookies. Your browser stores only what the app needs: a random device id (for
                 safety tools like blocks and bans), your settings, and your login session. Read the{' '}
                 <Link href="/privacy" className="text-lime underline">
@@ -307,52 +321,49 @@ export default function SettingsPage() {
           </section>
         </div>
 
-        {/* Right column: switches, account */}
-        <div className="flex min-w-0 flex-col gap-4 lg:gap-5">
-          <section id="chat" aria-labelledby="chat-h" className={`${card} scroll-mt-6 lg:flex lg:flex-col lg:gap-3.5 lg:p-[22px] ${onPhone('main')}`}>
-            <h2 id="chat-h" className="font-display text-lg font-bold max-lg:sr-only">
-              {user ? 'Chat & notifications' : 'Chat'}
+        {/* Right column */}
+        <div className="flex min-w-0 flex-col gap-3 lg:gap-4">
+          <section aria-labelledby="chat-h" className={`${group} lg:flex lg:flex-col lg:gap-3.5 lg:rounded-[20px] lg:p-5 ${onPhone('main')}`}>
+            <h2 id="chat-h" className={`${cardTitle} max-lg:sr-only`}>
+              Chat
             </h2>
-            <div className="divide-y divide-divider lg:flex lg:flex-col lg:gap-3.5 lg:divide-y-0">
-              <SwitchRow
-                checked={settings.allowReconnect}
-                onChange={(v) => void saveToggle({ allowReconnect: v })}
-                title="Allow reconnect"
-                detail="People you skip can press Back to reach you again"
-              />
-              <SwitchRow
-                checked={settings.hideCountry}
-                onChange={(v) => void saveToggle({ hideCountry: v })}
-                title="Hide my country"
-                detail="Partners see “Location hidden” instead of your flag"
-              />
-              {user && token && (
-                <>
-                  <SwitchRow
-                    checked={user.emailsOn}
-                    disabled={emailsBusy}
-                    onChange={async (on) => {
-                      setEmailsBusy(true);
-                      await api('/auth/emails', { optOut: !on }, token).catch(() => undefined);
-                      await refresh().catch(() => undefined);
-                      setEmailsBusy(false);
-                    }}
-                    title="Away emails"
-                    detail="At most one every two weeks: who's online and your daily reward"
-                  />
-                  <div className="flex flex-col gap-2 px-3.5 py-3 lg:px-0 lg:py-0">
-                    <div>
-                      <div className="text-sm font-semibold lg:text-[15px]">Push notifications</div>
-                      <div className="text-xs text-dim lg:text-[13px]">When a friend comes online, your badge is approved or an invite pays off</div>
-                    </div>
-                    <div className="[&_button]:h-11 [&_button]:rounded-xl [&_button]:border [&_button]:border-line-2 [&_button]:bg-card-2 [&_button]:px-3.5 [&_button]:text-[13px] [&_button]:font-medium [&_button]:text-[#e6e8ec] [&_p]:text-[13px] [&_p]:text-dim">
-                      <NotificationsToggle />
-                    </div>
+            <SwitchRow
+              checked={settings.allowReconnect}
+              onChange={(v) => void saveToggle({ allowReconnect: v })}
+              title="Allow reconnect"
+              detail="People you skip can press Back"
+            />
+            <SwitchRow
+              checked={settings.hideCountry}
+              onChange={(v) => void saveToggle({ hideCountry: v })}
+              title="Hide my country"
+              detail="Partners see “Location hidden”"
+            />
+            {signedIn && (
+              <>
+                <SwitchRow
+                  checked={signedIn.user.emailsOn}
+                  disabled={emailsBusy}
+                  onChange={async (on) => {
+                    setEmailsBusy(true);
+                    await api('/auth/emails', { optOut: !on }, signedIn.token).catch(() => undefined);
+                    await refresh().catch(() => undefined);
+                    setEmailsBusy(false);
+                  }}
+                  title="Away emails"
+                  detail="At most once every 2 weeks"
+                />
+                <div className={`${row} flex-wrap`}>
+                  <span className="min-w-0">
+                    <span className="block text-[15px]">Push notifications</span>
+                    <span className="text-xs text-mute lg:text-[13px]">When a friend comes online or your badge is approved</span>
+                  </span>
+                  <div className="[&_button]:h-11 [&_button]:rounded-xl [&_button]:border [&_button]:border-line-2 [&_button]:bg-transparent [&_button]:px-4 [&_button]:text-sm [&_button]:font-semibold [&_button]:text-[#e6e8ec] [&_p]:text-[13px] [&_p]:text-mute">
+                    <NotificationsToggle />
                   </div>
-                </>
-              )}
-              <InstallButton className="px-3.5 py-3 lg:px-0 lg:py-0 [&_p]:text-[13px] [&_p]:text-mute" />
-            </div>
+                </div>
+              </>
+            )}
             {toggleError && (
               <div className="p-3.5 lg:p-0">
                 <Alert>{toggleError}</Alert>
@@ -360,198 +371,191 @@ export default function SettingsPage() {
             )}
           </section>
 
-          {user && token ? (
-            <>
-              {/* Phone list card (main view) */}
-              <nav aria-label="More settings" className={`${card} divide-y divide-divider overflow-hidden lg:hidden ${view === 'main' ? '' : 'hidden'}`}>
-                <Link href="/plus" className="flex min-h-14 items-center justify-between gap-3 px-3.5 py-3 text-sm">
-                  <span className="min-w-0">
-                    Plus
-                    <span className={`block text-xs ${user.plus.active ? 'text-gold' : 'text-dim'}`}>{plusText(user)}</span>
-                  </span>
-                  <span className="flex-none text-faint">{user.plus.active ? 'Manage ›' : 'See plans ›'}</span>
+          {signedIn && (
+            <section aria-label="Plus and verification" className={`${card} max-lg:hidden`}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="min-w-0">
+                  <strong className={`${cardTitle} block text-gold`}>Plus</strong>
+                  <span className="block text-[13px] text-mute">{plusText(signedIn.user)}</span>
+                </span>
+                <Link href="/plus" className={`${ghost} border-[#4a3f17] text-gold hover:border-gold`}>
+                  {signedIn.user.plus.active ? 'Manage' : 'Get Plus'}
                 </Link>
-                {user.verification === 'verified' || user.verification === 'pending' ? (
-                  <div className="flex min-h-14 items-center px-3.5 py-3 text-sm">
-                    <span>
-                      Verified badge
-                      <span className="block text-xs text-dim">{badgeText(user)}</span>
+              </div>
+              <div className={row}>
+                <span className="min-w-0">
+                  <span className="block text-[15px]">Verified badge</span>
+                  <span className="text-[13px] text-mute">{badgeText(signedIn.user)}</span>
+                </span>
+                <BadgePill user={signedIn.user} />
+              </div>
+            </section>
+          )}
+
+          {/* Phone "Me": list of links */}
+          <nav aria-label="More settings" className={`${group} ${phoneMain}`}>
+            <InstallRow />
+            <label htmlFor="app-lang-phone" className={`${listRow} relative`}>
+              <span>Language</span>
+              <span className="flex items-center text-[13px] text-mute">
+                <LanguageSelect id="app-lang-phone" className="h-11 max-w-[150px] cursor-pointer appearance-none bg-transparent text-right text-[13px] text-mute outline-none" />
+                <span aria-hidden className="ml-1">
+                  ›
+                </span>
+              </span>
+            </label>
+            <Link href="/invite" className={listRow}>
+              <span>Invite friends</span>
+              <span className="text-[13px] text-lime">Free Plus ›</span>
+            </Link>
+            {signedIn && (
+              <>
+                {signedIn.user.verification === 'verified' || signedIn.user.verification === 'pending' ? (
+                  <div className={listRow}>
+                    <span>Verified badge</span>
+                    <span className={`text-[13px] ${signedIn.user.verification === 'verified' ? 'text-lime' : 'text-gold'}`}>
+                      {signedIn.user.verification === 'verified' ? 'Verified' : 'Pending'}
                     </span>
                   </div>
                 ) : (
-                  <Link href="/get-verified" className="flex min-h-14 items-center justify-between gap-3 px-3.5 py-3 text-sm">
-                    <span className="min-w-0">
-                      Verified badge
-                      <span className="block text-xs text-dim">{badgeText(user)}</span>
-                    </span>
-                    <Chevron />
+                  <Link href="/get-verified" className={listRow}>
+                    <span>Verified badge</span>
+                    <span className="text-[13px] text-gold">Get verified ›</span>
                   </Link>
                 )}
-                <button type="button" onClick={() => go('account')} className="flex min-h-14 w-full items-center justify-between gap-3 px-3.5 py-3 text-left text-sm">
-                  <span className="min-w-0">
-                    Account
-                    <span className="block truncate text-xs text-dim">{user.email}</span>
+                <button type="button" onClick={() => go('account')} className={listRow}>
+                  <span>Account</span>
+                  <span className="text-faint" aria-hidden>
+                    ›
                   </span>
-                  <Chevron />
                 </button>
-                <Link href="/invite" className="flex min-h-14 items-center justify-between gap-3 px-3.5 py-3 text-sm">
-                  <span className="min-w-0">
-                    Invite friends
-                    <span className="block text-xs text-dim">You both get a free day of Plus</span>
-                  </span>
-                  <Chevron />
-                </Link>
-                <button type="button" onClick={() => go('privacy')} className="flex min-h-14 w-full items-center justify-between gap-3 px-3.5 py-3 text-left text-sm">
-                  Privacy &amp; blocked people
-                  <Chevron />
-                </button>
-              </nav>
-
-              <section id="account" aria-labelledby="account-h" className={`flex scroll-mt-6 flex-col gap-4 ${onPhone('account')}`}>
-                <PhoneBack title="Account" onBack={() => go('main')} />
-                <AccountCard
-                  user={user}
-                  token={token}
-                  onLogout={() => void logOut()}
-                  onDeleted={() => {
-                    forget();
-                    router.push('/');
-                  }}
-                />
-              </section>
-
-              <button
-                type="button"
-                onClick={() => void logOut()}
-                className={`h-11 rounded-xl border border-stop text-sm font-semibold text-stop-text lg:hidden ${view === 'main' ? '' : 'hidden'}`}
-              >
+              </>
+            )}
+            <button type="button" onClick={() => go('privacy')} className={listRow}>
+              <span>Privacy &amp; blocked people</span>
+              <span className="text-faint" aria-hidden>
+                ›
+              </span>
+            </button>
+            <Link href="/help" className={listRow}>
+              <span>Help &amp; support</span>
+              <span className="text-faint" aria-hidden>
+                ›
+              </span>
+            </Link>
+            {signedIn ? (
+              <button type="button" onClick={() => void logOut()} className={`${listRow} text-stop-text`}>
                 Log out
               </button>
-            </>
+            ) : (
+              <Link href="/login" className={`${listRow} text-lime`}>
+                Log in
+              </Link>
+            )}
+          </nav>
+
+          {signedIn ? (
+            <section id="account" aria-labelledby="account-h" className={`flex scroll-mt-6 flex-col gap-3.5 ${onPhone('account')}`}>
+              <PhoneBack title="Account" onBack={() => go('main')} />
+              <AccountCard user={signedIn.user} token={signedIn.token} onLogout={() => void logOut()} onDelete={() => setDeleting(true)} />
+            </section>
           ) : (
-            <>
-              <nav aria-label="More settings" className={`${card} overflow-hidden lg:hidden ${view === 'main' ? '' : 'hidden'}`}>
-                <button type="button" onClick={() => go('privacy')} className="flex min-h-14 w-full items-center justify-between gap-3 px-3.5 py-3 text-left text-sm">
-                  Privacy &amp; blocked people
-                  <Chevron />
-                </button>
-              </nav>
-              <section className={`${card} flex flex-col gap-3 p-4 lg:p-[22px] ${onPhone('main')}`}>
-                <h2 className="font-display text-lg font-bold">Keep your settings</h2>
-                <p className="text-[13px] text-mute">Settings are saved in this browser. Create a free account to keep them on every device.</p>
-                <div className="flex flex-wrap gap-2">
-                  <Link href="/signup" className="inline-flex h-11 items-center rounded-xl bg-lime px-4 font-display text-[15px] font-bold text-[#0b0d10] hover:bg-lime-hover">
-                    Create an account
-                  </Link>
-                  <Link href="/login" className={pill}>
-                    Log in
-                  </Link>
-                </div>
-              </section>
-            </>
+            <section aria-labelledby="keep-h" className={`${card} ${onPhone('main')}`}>
+              <h2 id="keep-h" className={cardTitle}>
+                Keep your settings
+              </h2>
+              <p className="m-0 text-[13px] text-mute">Settings are saved in this browser. Create a free account to keep them on every device.</p>
+              <div className="flex flex-wrap gap-2">
+                <Link href="/signup" className="inline-flex h-11 items-center rounded-xl bg-lime px-4 font-display text-[15px] font-bold text-night">
+                  Create an account
+                </Link>
+                <Link href="/login" className={ghost}>
+                  Log in
+                </Link>
+              </div>
+            </section>
           )}
         </div>
       </div>
-      <SiteFooter />
-    </main>
+
+      {signedIn && deleting && (
+        <DeleteDialog
+          token={signedIn.token}
+          onClose={() => setDeleting(false)}
+          onDeleted={() => {
+            forget();
+            router.push('/');
+          }}
+        />
+      )}
+    </AppShell>
   );
 }
 
-function AccountCard({ user, token, onLogout, onDeleted }: { user: PublicUser; token: string; onLogout: () => void; onDeleted: () => void }) {
-  const [open, setOpen] = useState<'password' | 'delete' | null>(null);
-  const row = 'flex flex-wrap items-center justify-between gap-x-4 gap-y-2';
-  const caption = 'text-[13px] text-dim';
+function AccountCard({ user, token, onLogout, onDelete }: { user: PublicUser; token: string; onLogout: () => void; onDelete: () => void }) {
+  const [changing, setChanging] = useState(false);
   return (
-    <div className={`${card} flex flex-col gap-4 p-4 lg:p-[22px]`}>
-      <h2 id="account-h" className="sr-only">
-        Account
-      </h2>
-      <div className={row}>
-        <div className="min-w-0">
-          <div className={caption}>Account</div>
-          <div className="break-all font-semibold">
-            {user.email}{' '}
-            {user.emailVerified ? <span className="text-[11px] font-semibold text-lime">confirmed</span> : <ResendVerification token={token} />}
-          </div>
-          <div className="text-xs text-faint">Member since {new Date(user.createdAt).toLocaleDateString()}</div>
-        </div>
-        <button type="button" onClick={onLogout} className={`${pill} max-lg:hidden`}>
-          Log out
-        </button>
-      </div>
-
-      <div id="plus" className={`${row} scroll-mt-6`}>
-        <div className="min-w-0">
-          <div className={caption}>Plus</div>
-          <div className={`font-semibold ${user.plus.active ? 'text-gold' : 'text-mute'}`}>{plusText(user)}</div>
-        </div>
-        <Link href="/plus" className={pill}>
-          {user.plus.active ? 'Manage' : 'See Plus plans'}
-        </Link>
-      </div>
-
-      <div className={row}>
-        <div className="min-w-0">
-          <div className={caption}>Verified badge</div>
-          <div className="font-semibold">{badgeText(user)}</div>
-        </div>
-        {user.verification !== 'verified' && user.verification !== 'pending' && (
-          <Link href="/get-verified" className={pill}>
-            Get verified
-          </Link>
-        )}
-      </div>
-
-      <div className={`${row} max-lg:hidden`}>
-        <div className="min-w-0">
-          <div className={caption}>Invite friends</div>
-          <div className="font-semibold">You and each friend who joins get a free day of Plus</div>
-        </div>
-        <Link href="/invite" className={pill}>
-          Get your link
-        </Link>
-      </div>
-
-      <div className="flex flex-wrap justify-between gap-2">
-        <button type="button" aria-expanded={open === 'password'} onClick={() => setOpen(open === 'password' ? null : 'password')} className={pill}>
+    <div className={card}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span className="min-w-0">
+          <h2 id="account-h" className={`${cardTitle} block`}>
+            Account
+          </h2>
+          <span className="block break-all text-[13px] text-mute">
+            {user.email} · {user.emailVerified ? 'confirmed' : <span className="text-gold">not confirmed</span>}
+          </span>
+          <span className="block text-xs text-faint">Member since {new Date(user.createdAt).toLocaleDateString()}</span>
+        </span>
+        <button type="button" aria-expanded={changing} onClick={() => setChanging(!changing)} className={ghost}>
           Change password
         </button>
-        <button
-          type="button"
-          aria-expanded={open === 'delete'}
-          onClick={() => setOpen(open === 'delete' ? null : 'delete')}
-          className={`${pill} border-stop text-stop-text hover:border-[#5a2a2a]`}
-        >
-          Delete account
-        </button>
       </div>
-      {open === 'password' && <ChangePassword token={token} />}
-      {open === 'delete' && <DeleteAccount token={token} onDeleted={onDeleted} />}
+      {!user.emailVerified && <ResendVerification token={token} />}
+      {changing && <ChangePassword token={token} />}
+
+      {/* Phone: Plus & badge live on the Me list, so repeat them here only as text rows */}
+      <div className={`${row} lg:hidden`}>
+        <span className="min-w-0">
+          <span className="block text-[15px] text-gold">Plus</span>
+          <span className="text-xs text-mute">{plusText(user)}</span>
+        </span>
+        <Link href="/plus" className={`${ghost} border-[#4a3f17] text-gold`}>
+          {user.plus.active ? 'Manage' : 'Get Plus'}
+        </Link>
+      </div>
+
+      <div className={`${row} flex-wrap`}>
+        <a href="#privacy" className="text-[15px] text-[#e6e8ec] underline max-lg:hidden">
+          Privacy &amp; blocked people
+        </a>
+        <span className="flex flex-wrap gap-2">
+          <button type="button" onClick={onLogout} className={`${ghost} max-lg:hidden`}>
+            Log out
+          </button>
+          <button type="button" onClick={onDelete} className={`${ghost} border-[#4a2424] text-stop-text hover:border-stop-text`}>
+            Delete account
+          </button>
+        </span>
+      </div>
     </div>
   );
 }
 
 function ResendVerification({ token }: { token: string }) {
   const [state, setState] = useState<'idle' | 'sent' | 'error'>('idle');
+  if (state === 'sent') return <p className="m-0 text-[13px] text-mute">Link sent — check your inbox.</p>;
   return (
-    <span className="inline-flex flex-wrap items-center gap-x-2 text-[11px] font-normal">
-      <span className="font-semibold text-gold">not confirmed</span>
-      {state === 'sent' ? (
-        <span className="text-dim">Link sent — check your inbox.</span>
-      ) : (
-        <button
-          type="button"
-          className="min-h-8 text-lime underline"
-          onClick={() =>
-            api('/auth/resend-verification', {}, token)
-              .then(() => setState('sent'))
-              .catch(() => setState('error'))
-          }
-        >
-          {state === 'error' ? 'Could not send — retry' : 'Resend confirmation email'}
-        </button>
-      )}
-    </span>
+    <button
+      type="button"
+      className="min-h-11 self-start text-sm font-semibold text-lime underline"
+      onClick={() =>
+        api('/auth/resend-verification', {}, token)
+          .then(() => setState('sent'))
+          .catch(() => setState('error'))
+      }
+    >
+      {state === 'error' ? 'Could not send — retry' : 'Resend confirmation email'}
+    </button>
   );
 }
 
@@ -564,7 +568,7 @@ function ChangePassword({ token }: { token: string }) {
   return (
     <form
       aria-label="Change password"
-      className="flex flex-col gap-3 border-t border-divider pt-4"
+      className="flex flex-col gap-3 border-t border-card-2 pt-3"
       onSubmit={async (e) => {
         e.preventDefault();
         setBusy(true);
@@ -608,44 +612,70 @@ function ChangePassword({ token }: { token: string }) {
   );
 }
 
-function DeleteAccount({ token, onDeleted }: { token: string; onDeleted: () => void }) {
+/** "Delete your account?" dialog; the server needs the password to confirm. */
+function DeleteDialog({ token, onClose, onDeleted }: { token: string; onClose: () => void; onDeleted: () => void }) {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   return (
-    <form
-      aria-label="Delete account"
-      className="flex flex-col gap-3 border-t border-divider pt-4"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        setBusy(true);
-        setError(null);
-        try {
-          await api('/auth/delete', { password }, token);
-          onDeleted();
-        } catch (err) {
-          setError(errorText(err));
-          setBusy(false);
-        }
-      }}
-    >
-      <p className="text-[13px] text-mute">Permanently deletes your account and saved settings. This cannot be undone.</p>
-      <label htmlFor="delete-password" className={label}>
-        Enter your password to confirm
-        <input
-          id="delete-password"
-          type="password"
-          autoComplete="current-password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className={input}
-        />
-      </label>
-      {error && <Alert>{error}</Alert>}
-      <button type="submit" disabled={busy} className="h-12 rounded-xl bg-[#d93a2f] text-[15px] font-semibold text-white hover:bg-[#c23026] disabled:opacity-50">
-        {busy ? 'Deleting…' : 'Permanently delete account'}
-      </button>
-    </form>
+    <div className="fixed inset-0 z-50 grid place-items-center p-4">
+      <div aria-hidden className="absolute inset-0 bg-[rgba(11,8,17,.72)]" onClick={onClose} />
+      <form
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-h"
+        className="relative flex w-[440px] max-w-full flex-col gap-3.5 rounded-[22px] border border-divider bg-card p-6 shadow-[0_30px_80px_rgba(0,0,0,.6)]"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          setError(null);
+          try {
+            await api('/auth/delete', { password }, token);
+            onDeleted();
+          } catch (err) {
+            setError(errorText(err));
+            setBusy(false);
+          }
+        }}
+      >
+        <h2 id="delete-h" className="m-0 font-display text-xl font-bold text-stop-text">
+          Delete your account?
+        </h2>
+        <ul className="m-0 list-disc pl-[18px] text-sm leading-relaxed text-[#c9cdd4]">
+          <li>Your account, profile and saved settings are removed</li>
+          <li>Unused coins and Plus time are lost</li>
+          <li>This cannot be undone</li>
+        </ul>
+        <label htmlFor="delete-password" className={label}>
+          Enter your password to confirm
+          <input
+            id="delete-password"
+            type="password"
+            autoComplete="current-password"
+            required
+            autoFocus
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={`${input} bg-night`}
+          />
+        </label>
+        {error && <Alert>{error}</Alert>}
+        <div className="flex gap-2.5">
+          <button type="button" onClick={onClose} className="h-[50px] flex-1 rounded-[14px] border-[1.5px] border-[#4a3f5c] text-[15px] font-semibold text-[#e6e8ec]">
+            Cancel
+          </button>
+          <button type="submit" disabled={busy} className="h-[50px] flex-[1.3] rounded-[14px] bg-[#ff5a5a] font-display text-[15px] font-bold text-white disabled:opacity-50">
+            {busy ? 'Deleting…' : 'Delete permanently'}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }

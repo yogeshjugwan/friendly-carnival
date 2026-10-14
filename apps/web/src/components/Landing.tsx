@@ -59,8 +59,11 @@ export function SampleWall({ cols, tileH, compact = false }: { cols: number; til
     return {
       bg,
       photo,
-      ph: { backgroundPosition: POS[i % 6], backgroundSize: SIZE[(i * 5) % 6], filter: FILTER[(i * 3) % 7], animationDelay: `-${i % 12}s` },
-      mirror: i % 2 === 1,
+      // One illustration gets varied crops and tints; a set of real photos is shown as is.
+      ph: faces.length
+        ? { backgroundPosition: 'center 30%', backgroundSize: 'cover', animationDelay: `-${i % 12}s` }
+        : { backgroundPosition: POS[i % 6], backgroundSize: SIZE[(i * 5) % 6], filter: FILTER[(i * 3) % 7], animationDelay: `-${i % 12}s` },
+      mirror: !faces.length && i % 2 === 1,
       label: `${NAMES[i % NAMES.length]}, ${19 + ((i * 7) % 11)} · ${PLACES[(i * 5) % PLACES.length]}`,
     };
   };

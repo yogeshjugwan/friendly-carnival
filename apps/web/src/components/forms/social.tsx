@@ -78,14 +78,14 @@ export function GoogleSignIn({ agreed, onNeedAgreement, next }: { agreed: boolea
         {going ? 'Connecting to Google…' : 'Continue with Google'}
       </a>
       {blocked && (
-        <p role="alert" className="mt-2 text-center text-sm font-medium text-red-600">
+        <p role="alert" className="mt-2 text-center text-sm font-medium text-stop-text">
           Tick both boxes below first ↓
         </p>
       )}
-      <div className="my-4 flex items-center gap-3 text-xs font-medium text-slate-400">
-        <span className="h-px flex-1 bg-slate-200" />
+      <div className="my-4 flex items-center gap-3 text-xs font-medium text-dim">
+        <span className="h-px flex-1 bg-line" />
         OR
-        <span className="h-px flex-1 bg-slate-200" />
+        <span className="h-px flex-1 bg-line" />
       </div>
     </>
   );
@@ -110,22 +110,22 @@ export function Agreement({
   return (
     <fieldset
       id="agreement"
-      className={`mt-4 rounded-xl text-sm text-slate-600 transition ${missing ? 'bg-red-50 p-3 ring-2 ring-red-400' : ''}`}
+      className={`mt-4 rounded-xl text-[13px] text-mute transition ${missing ? 'bg-stop p-3 ring-2 ring-stop-text' : ''}`}
     >
       <legend className="mb-2">By creating an account or logging in, you certify that</legend>
       <label className="flex items-start gap-2">
-        <input type="checkbox" checked={adult} onChange={(e) => onAdult(e.target.checked)} className="mt-0.5 h-4 w-4" />
+        <input type="checkbox" checked={adult} onChange={(e) => onAdult(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-lime" />
         <span>I am at least 18 years old.</span>
       </label>
       <label className="mt-2 flex items-start gap-2">
-        <input type="checkbox" checked={terms} onChange={(e) => onTerms(e.target.checked)} className="mt-0.5 h-4 w-4" />
+        <input type="checkbox" checked={terms} onChange={(e) => onTerms(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-lime" />
         <span>
           I have read and agree to the{' '}
-          <Link href="/terms" className="text-brand underline">
+          <Link href="/terms" className="text-lime underline">
             Terms of Use
           </Link>{' '}
           and{' '}
-          <Link href="/privacy" className="text-brand underline">
+          <Link href="/privacy" className="text-lime underline">
             Privacy Policy
           </Link>
           .

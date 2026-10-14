@@ -130,7 +130,7 @@ export function createAuthHandler(deps: AuthDeps) {
     const fail = (status: number, error: string) => (sendJson(res, status, { error }), true);
 
     try {
-      if (['POST /auth/signup', 'POST /auth/login', 'POST /auth/forgot', 'POST /auth/reset'].includes(route)) {
+      if (['POST /auth/signup', 'POST /auth/login', 'POST /auth/check', 'POST /auth/forgot', 'POST /auth/reset'].includes(route)) {
         if (!strict.allow(deps.clientKey(req))) return fail(429, 'Too many attempts. Try again in a few minutes.');
       }
 
@@ -149,6 +149,14 @@ export function createAuthHandler(deps: AuthDeps) {
         await sendVerification(user).catch((e) => console.error('[mail]', e));
         const token = await accounts.createToken(user.id, 'session');
         return sendJson(res, 201, { token, user: publicUser(user) }), true;
+      }
+
+      // One sign-in box: does this email have an account (log in) or not (create one)? Rate-limited like login.
+      if (route === 'POST /auth/check') {
+        const { email } = await readJson(req);
+        if (typeof email !== 'string' || !EMAIL.test(email.trim())) return fail(400, 'Enter a valid email address');
+        const user = await accounts.userByEmail(email);
+        return sendJson(res, 200, { exists: !!user }), true;
       }
 
       if (route === 'POST /auth/login') {

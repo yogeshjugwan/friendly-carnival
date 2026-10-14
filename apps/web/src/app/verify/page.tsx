@@ -34,7 +34,7 @@ export default function VerifyPage() {
 
   return (
     <AuthCard title="Confirm your email">
-      {state === 'working' && <p className="mt-3 text-slate-600">Confirming…</p>}
+      {state === 'working' && <p className="mt-3 text-mute">Confirming…</p>}
       {state === 'done' && (
         <FormNote>
           Your email is confirmed.{' '}

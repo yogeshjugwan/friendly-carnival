@@ -173,11 +173,8 @@ export function SiteHeader({ online, home = false }: { online?: number | null; h
                 <Link href="/plus" className="flex h-10 items-center px-2 text-sm font-semibold text-gold hover:text-[#ffe48c] max-sm:hidden">
                   {t('header.getPlus')}
                 </Link>
-                <Link href="/login" className="flex h-10 items-center rounded-xl px-3 text-sm font-medium text-[#e6e8ec] hover:bg-card">
+                <Link href="/login" className="flex h-10 items-center rounded-xl bg-lime px-4 text-sm font-semibold text-night hover:bg-lime-hover">
                   {t('header.login')}
-                </Link>
-                <Link href="/signup" className="flex h-10 items-center rounded-xl bg-lime px-4 text-sm font-semibold text-night hover:bg-lime-hover max-sm:hidden">
-                  {t('header.signup')}
                 </Link>
               </>
             ))}
@@ -257,8 +254,8 @@ export function AuthCard({ title, children }: { title: string; children: React.R
     <main className="mx-auto flex min-h-full max-w-5xl flex-col px-4 py-6 sm:px-6">
       <SiteHeader />
       <section className="flex flex-1 items-center justify-center py-10">
-        <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-ink shadow-xl">
-          <h1 className="text-2xl font-semibold">{title}</h1>
+        <div className="w-full max-w-sm rounded-[20px] border border-line bg-card p-6 text-[#f4f5f7] sm:p-7">
+          <h1 className="m-0 font-display text-[26px] font-bold">{title}</h1>
           {children}
         </div>
       </section>

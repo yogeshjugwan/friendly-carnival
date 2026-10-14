@@ -237,10 +237,11 @@ export default function PlusPage() {
               </div>
               <button
                 onClick={() => void subscribe(picked)}
-                disabled={!enabled || busy !== null}
+                // Logged out: always clickable (it goes to log in / sign up first).
+                disabled={(!!user && !enabled) || busy !== null}
                 className="h-[58px] rounded-2xl bg-gold font-display text-lg font-bold text-gold-bg transition hover:brightness-110 disabled:opacity-50"
               >
-                {busy === picked ? 'Opening checkout…' : user ? 'Continue' : 'Sign up to subscribe'}
+                {busy === picked ? 'Opening checkout…' : user ? 'Continue' : 'Log in to subscribe'}
               </button>
               <p className="m-0 text-center text-xs text-dim">
                 {PLAN_INFO[chosen.plan].name} · {billedText(chosen)}

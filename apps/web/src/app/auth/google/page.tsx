@@ -31,7 +31,7 @@ export default function GoogleCallbackPage() {
 
   return (
     <AuthCard title="Signing you in…">
-      {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : <p className="mt-3 text-sm text-slate-500">One moment.</p>}
+      {error ? <p className="mt-3 text-sm text-stop-text">{error}</p> : <p className="mt-3 text-sm text-dim">One moment.</p>}
     </AuthCard>
   );
 }

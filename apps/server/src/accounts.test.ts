@@ -123,6 +123,10 @@ describe('auth HTTP API and sockets', () => {
 
     assert.equal((await post('/auth/login', { email, password: 'nope nope' })).status, 401);
     assert.equal((await post('/auth/login', { email: 'ghost@example.com', password: 'nope nope' })).status, 401);
+    // One sign-in box: known emails log in, new ones sign up.
+    assert.deepEqual(await (await post('/auth/check', { email })).json(), { exists: true });
+    assert.deepEqual(await (await post('/auth/check', { email: 'ghost@example.com' })).json(), { exists: false });
+    assert.equal((await post('/auth/check', { email: 'not an email' })).status, 400);
     const login = await post('/auth/login', { email, password: 'first password', birthDate: '1995-05-05' });
     assert.equal(login.status, 200);
     const session2 = (await login.json()).token;

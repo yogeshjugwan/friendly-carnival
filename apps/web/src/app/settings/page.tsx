@@ -339,6 +339,12 @@ export default function SettingsPage() {
               title="Hide my country"
               detail="Partners see “Location hidden”"
             />
+            <SwitchRow
+              checked={!!settings.safetyBlur}
+              onChange={(v) => void saveToggle({ safetyBlur: v })}
+              title="Blur flagged video"
+              detail="Blur video that may show nudity, and new users' video, until you tap to reveal"
+            />
             {signedIn && (
               <>
                 <SwitchRow

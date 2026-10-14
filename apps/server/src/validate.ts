@@ -117,6 +117,7 @@ export function parseSettings(input: unknown): UserSettings | null {
     interests: join.interests,
     allowReconnect: s.allowReconnect,
     hideCountry: s.hideCountry,
+    ...(s.safetyBlur === true ? { safetyBlur: true } : {}),
     filters: parseFilters(s.filters) ?? { gender: 'any', country: 'any' },
     ...parseProfile(s),
   };

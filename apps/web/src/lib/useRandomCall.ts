@@ -473,7 +473,7 @@ export function useRandomCall() {
       setMatchStartedAt(Date.now());
       setPartner(match.partner);
       // New-user protection: a brand-new account's video starts hidden.
-      if (match.partner.isNew && match.mode === 'video') setPartnerHidden(true);
+      if (match.partner.isNew && match.mode === 'video' && loadSettings().safetyBlur) setPartnerHidden(true);
       setLastLeftReason(null);
       setMessages([]);
       // Every change of partner shows a fresh ad; Start/Next/partner-left start it
@@ -1271,8 +1271,11 @@ export function useRandomCall() {
         hits = score >= SCREEN_THRESHOLD ? hits + 1 : 0;
         if (hits >= SCREEN_HITS && !aiReported.current) {
           aiReported.current = true;
-          setAiHidden(true);
-          flash('We blurred this video because it may contain nudity. It was reported automatically.');
+          // Blurring is opt-in (Settings → Blur flagged video); the automatic report always goes out.
+          if (loadSettings().safetyBlur) {
+            setAiHidden(true);
+            flash('We blurred this video because it may contain nudity. It was reported automatically.');
+          }
           getSocket().emit('report:submit', {
             target: 'current',
             reason: 'nudity',

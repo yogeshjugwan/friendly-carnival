@@ -797,6 +797,8 @@ export interface UserSettings {
   interests: string[];
   allowReconnect: boolean;
   hideCountry: boolean;
+  /** Blur a partner's video when it's flagged (possible nudity) or they're brand new. Off by default. */
+  safetyBlur?: boolean;
   /** Plus match filters (kept for everyone, applied only with Plus). */
   filters: MatchFilters;
   /** Profile card shown to partners. */

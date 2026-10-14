@@ -46,7 +46,12 @@ services:
         value: https://call-random-call.vercel.app
       # Free users' daily matches (0 = no limit) and the rewarded-video top-up.
       - key: FREE_DAILY_MATCHES
-        value: "30"
+        value: "50"
+      # Free video/voice call time, then a break (hours).
+      - key: FREE_CALL_HOURS
+        value: "5"
+      - key: FREE_BREAK_HOURS
+        value: "1"
       - key: REWARD_AD_MATCHES
         value: "10"
       # "Continue with Google" (Google Cloud OAuth client); the button is hidden until both are set.

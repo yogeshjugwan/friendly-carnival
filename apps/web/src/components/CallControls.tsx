@@ -46,16 +46,6 @@ function DeviceButton({
   const [open, setOpen] = useState(false);
   return (
     <div className="relative flex items-center">
-      {devices.length > 1 && !rail && (
-        <button
-          onClick={() => setOpen((o) => !o)}
-          aria-label={`Choose ${label.toLowerCase()}`}
-          aria-expanded={open}
-          className="flex h-12 w-5 items-center justify-center text-dim hover:text-white"
-        >
-          <ChevronUpIcon />
-        </button>
-      )}
       <button
         onClick={onToggle}
         aria-label={on ? `Turn ${label.toLowerCase()} off` : `Turn ${label.toLowerCase()} on`}
@@ -65,6 +55,17 @@ function DeviceButton({
       >
         {on ? <OnIcon /> : <OffIcon />}
       </button>
+      {/* Pick another mic/camera: a small badge on the button's corner, like Meet. */}
+      {devices.length > 1 && !rail && (
+        <button
+          onClick={() => setOpen((o) => !o)}
+          aria-label={`Choose ${label.toLowerCase()}`}
+          aria-expanded={open}
+          className="absolute -right-1.5 -top-1.5 z-10 flex h-5 w-5 items-center justify-center rounded-full border border-line-2 bg-card text-mute hover:text-white [&_svg]:h-3 [&_svg]:w-3"
+        >
+          <ChevronUpIcon />
+        </button>
+      )}
       {open && (
         <>
           <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} aria-hidden />

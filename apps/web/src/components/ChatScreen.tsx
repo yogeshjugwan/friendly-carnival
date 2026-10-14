@@ -192,9 +192,10 @@ function SearchingStage({ call }: { call: RandomCall }) {
   if (call.status !== 'searching' && call.status !== 'connecting') return null;
   const isPlus = !!user?.plus.active;
   return (
-    <div className="flex flex-col items-center gap-6 px-4 text-center sm:gap-8">
+    // Starts below the top bar, and the orbit shrinks on short screens so it never runs into the filters.
+    <div className="flex flex-col items-center gap-6 px-4 pt-14 text-center sm:gap-8">
       {/* You in the middle, people orbiting, ripples going out. */}
-      <div className="relative h-[300px] w-[300px] sm:h-[440px] sm:w-[440px]" aria-hidden>
+      <div className="relative h-[min(300px,40dvh)] w-[min(300px,40dvh)] sm:h-[min(440px,46dvh)] sm:w-[min(440px,46dvh)]" aria-hidden>
         {[0, 1, 2].map((i) => (
           <span key={i} className="rc-ripple absolute inset-0 m-auto h-[130px] w-[130px] rounded-full border-2 border-lime sm:h-[200px] sm:w-[200px]" style={{ animationDelay: `${i}s` }} />
         ))}

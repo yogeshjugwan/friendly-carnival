@@ -23,6 +23,25 @@ test('free users get a daily allowance; Plus is unlimited; it resets at midnight
   assert.equal(l.canMatch('a', false), true, 'new day');
 });
 
+test('free call time: 5 h of video/voice, then a 1 h break, then 5 h again; text and Plus are not limited', () => {
+  let now = 1_000_000;
+  const H = 3_600_000;
+  const l = new MatchLimits({ ...opts, daily: 100, callMs: 5 * H, breakMs: H }, () => now);
+  l.addCallTime('a', 3 * H);
+  assert.equal(l.callMsLeft('a'), 2 * H);
+  assert.equal(l.canMatch('a', false, 'video'), true);
+  l.addCallTime('a', 2 * H);
+  assert.equal(l.canMatch('a', false, 'video'), false, 'break');
+  assert.equal(l.canMatch('a', false, 'voice'), false);
+  assert.equal(l.canMatch('a', false, 'text'), true, 'text chat stays open');
+  assert.equal(l.canMatch('a', true, 'video'), true, 'Plus');
+  assert.equal(l.status('a', false).breakUntil, now + H);
+  now += H;
+  assert.equal(l.canMatch('a', false, 'video'), true, 'break over');
+  assert.equal(l.callMsLeft('a'), 5 * H, 'a fresh 5 hours');
+  assert.equal(l.status('a', false).breakUntil, null);
+});
+
 test('a rewarded video adds matches only after it played long enough, within the daily cap', () => {
   let now = 1_000_000;
   const l = new MatchLimits(opts, () => now);

@@ -9,6 +9,15 @@ export interface LimitOptions {
   maxAds: number;
   /** Minimum time between ad start and ad done. */
   adMs: number;
+  /** Free video/voice call time before a break (0 or unset: no time limit). */
+  callMs?: number;
+  /** Length of that break. */
+  breakMs?: number;
+}
+
+interface TimeEntry {
+  usedMs: number;
+  breakUntil: number | null;
 }
 
 interface Entry {
@@ -30,6 +39,8 @@ const nextMidnight = (t: number) => Math.floor(t / DAY_MS) * DAY_MS + DAY_MS;
  */
 export class MatchLimits {
   private entries = new Map<string, Entry>();
+  /** Call time: N hours free, then a break, then N hours again (not tied to the day). */
+  private time = new Map<string, TimeEntry>();
 
   constructor(
     readonly opts: LimitOptions,
@@ -51,9 +62,50 @@ export class MatchLimits {
     for (const [k, v] of this.entries) if (v.day !== today) this.entries.delete(k);
   }
 
+  private timeEntry(key: string): TimeEntry {
+    let t = this.time.get(key);
+    if (!t) {
+      t = { usedMs: 0, breakUntil: null };
+      this.time.set(key, t);
+      if (this.time.size > 200_000) for (const [k, v] of this.time) if (v.usedMs === 0 && v.breakUntil === null) this.time.delete(k);
+    }
+    // Break over: a fresh stretch of free time.
+    if (t.breakUntil !== null && t.breakUntil <= this.now()) {
+      t.usedMs = 0;
+      t.breakUntil = null;
+    }
+    return t;
+  }
+
+  private get timed() {
+    return (this.opts.callMs ?? 0) > 0;
+  }
+
+  /** When the current break ends, or null if not on a break. */
+  breakUntil(key: string): number | null {
+    return this.timed ? this.timeEntry(key).breakUntil : null;
+  }
+
+  /** Free call time left before a break, ms (Infinity without a time limit). */
+  callMsLeft(key: string): number {
+    if (!this.timed) return Infinity;
+    const t = this.timeEntry(key);
+    return t.breakUntil !== null ? 0 : Math.max(0, this.opts.callMs! - t.usedMs);
+  }
+
+  /** Adds finished call time; using up the free time starts the break. */
+  addCallTime(key: string, ms: number) {
+    if (!this.timed || ms <= 0) return;
+    const t = this.timeEntry(key);
+    if (t.breakUntil !== null) return;
+    t.usedMs += ms;
+    if (t.usedMs >= this.opts.callMs!) t.breakUntil = this.now() + (this.opts.breakMs ?? 0);
+  }
+
   status(key: string, unlimited: boolean): MatchLimitStatus {
     const e = this.entry(key);
     const limit = this.opts.daily + e.bonus;
+    const left = this.callMsLeft(key);
     return {
       unlimited,
       used: e.used,
@@ -63,13 +115,19 @@ export class MatchLimits {
       adBonus: this.opts.adBonus,
       adMs: this.opts.adMs,
       resetsAt: nextMidnight(this.now()),
+      callMsLeft: unlimited || left === Infinity ? null : left,
+      breakUntil: unlimited ? null : this.breakUntil(key),
+      callMs: this.opts.callMs ?? 0,
+      breakMs: this.opts.breakMs ?? 0,
     };
   }
 
-  canMatch(key: string, unlimited: boolean): boolean {
+  /** Free matches left, and (for video/voice) not on a call-time break. */
+  canMatch(key: string, unlimited: boolean, mode: 'video' | 'voice' | 'text' = 'video'): boolean {
     if (unlimited) return true;
     const e = this.entry(key);
-    return e.used < this.opts.daily + e.bonus;
+    if (e.used >= this.opts.daily + e.bonus) return false;
+    return mode === 'text' || this.breakUntil(key) === null;
   }
 
   /** Extra matches for today (bought with coins). */

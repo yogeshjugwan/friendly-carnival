@@ -25,10 +25,13 @@ export const config = {
   databaseUrl: env.DATABASE_URL || undefined,
   /** Daily matches for free users (0 turns the limit off) and the rewarded-video top-up. */
   limits: {
-    daily: Number(env.FREE_DAILY_MATCHES ?? 30),
+    daily: Number(env.FREE_DAILY_MATCHES ?? 50),
     adBonus: Number(env.REWARD_AD_MATCHES ?? 10),
     maxAds: Number(env.REWARD_ADS_PER_DAY ?? 5),
     adMs: Number(env.REWARD_AD_MS ?? 15_000),
+    // Free video/voice: 5 hours of calls, then a 1-hour break, then 5 more hours.
+    callMs: Number(env.FREE_CALL_HOURS ?? 5) * 3_600_000,
+    breakMs: Number(env.FREE_BREAK_HOURS ?? 1) * 3_600_000,
   },
   /** Public URL of this server (Google redirects back here). Render sets RENDER_EXTERNAL_URL. */
   serverUrl: (env.SERVER_URL || env.RENDER_EXTERNAL_URL || `http://localhost:${env.PORT ?? 4100}`).replace(/\/$/, ''),

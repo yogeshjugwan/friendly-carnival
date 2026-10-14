@@ -469,6 +469,13 @@ export interface MatchLimitStatus {
   adMs: number;
   /** When the count resets (next midnight UTC), epoch ms. */
   resetsAt: number;
+  /** Free video/voice call time left before a break, ms (null: no time limit). */
+  callMsLeft: number | null;
+  /** On a break after using the free call time: calls unlock at this time (epoch ms). */
+  breakUntil: number | null;
+  /** Free call time per stretch and the break after it, ms (0: no time limit). */
+  callMs: number;
+  breakMs: number;
 }
 
 /** Reactions partners can send during a call (✋ = raise hand). */

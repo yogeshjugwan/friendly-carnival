@@ -327,9 +327,13 @@ export class Matchmaker {
   }
 
   /** Ends the session's current match. Returns the former partner, if any. */
+  /** Called when a match ends (before both sides are cleared). */
+  onMatchEnd: ((a: Session, b: Session, matchId: string) => void) | null = null;
+
   endMatch(id: string): Session | undefined {
     const session = this.sessions.get(id);
     const partner = this.partnerOf(id);
+    if (session && partner && session.matchId) this.onMatchEnd?.(session, partner, session.matchId);
     if (session) {
       session.partnerId = null;
       session.matchId = null;

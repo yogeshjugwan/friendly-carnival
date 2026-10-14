@@ -8,12 +8,67 @@ import { AdSlot } from './AdSlot';
 import { spendError, useWallet } from './Coins';
 
 const hoursUntil = (t: number) => Math.max(1, Math.ceil((t - Date.now()) / 3_600_000));
+const hours = (ms: number) => `${Math.round(ms / 3_600_000)} ${Math.round(ms / 3_600_000) === 1 ? 'hour' : 'hours'}`;
+
+/** mm:ss (or h:mm:ss) until `t`, ticking. */
+function Countdown({ until }: { until: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, []);
+  const s = Math.max(0, Math.ceil((until - now) / 1000));
+  const h = Math.floor(s / 3600);
+  const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+  const ss = String(s % 60).padStart(2, '0');
+  return <span className="tabular-nums">{h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`}</span>;
+}
+
+/** Free call time used up: a short break, then more free time (or Plus / text chat now). */
+function BreakModal({ call, until, callMs, breakMs }: { call: RandomCall; until: number; callMs: number; breakMs: number }) {
+  useEffect(() => {
+    // Break over: back to matching.
+    const t = window.setTimeout(() => call.resumeAfterBreak(), Math.max(0, until - Date.now()) + 1500);
+    return () => window.clearTimeout(t);
+  }, [until, call]);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="break-title">
+      <div className="relative w-full max-w-sm rounded-3xl border border-line bg-card p-6 text-center text-[#e8ebf2] shadow-2xl">
+        <button onClick={call.stop} aria-label="Close" className="absolute right-4 top-4 rounded-full p-1 text-2xl leading-none text-dim hover:text-white">
+          ×
+        </button>
+        <p className="text-5xl" aria-hidden>
+          ☕
+        </p>
+        <h2 id="break-title" className="mt-4 font-display text-2xl font-bold">
+          Time for a short break
+        </h2>
+        <p className="mt-2 text-sm text-mute">
+          You&apos;ve had {hours(callMs)} of free calls. Video and voice calls unlock again in
+        </p>
+        <p className="mt-3 font-display text-4xl font-bold text-lime">
+          <Countdown until={until} />
+        </p>
+        <p className="mt-1 text-xs text-dim">Then you get another {hours(callMs)} free. Breaks last {hours(breakMs)}.</p>
+        <Link href="/plus" className="mt-6 block w-full rounded-2xl bg-lime py-3.5 text-base font-bold text-night hover:bg-lime-hover">
+          Skip the break with Plus 👑
+        </Link>
+        <button onClick={call.textMeanwhile} className="mt-2 w-full rounded-2xl border border-line-2 bg-card-2 py-3 text-sm font-semibold hover:bg-[#262c3b]">
+          💬 Text chat meanwhile
+        </button>
+      </div>
+    </div>
+  );
+}
 
 /** "No matches left today": upgrade to Plus, or watch a video for more. */
 export function LimitModal({ call }: { call: RandomCall }) {
   const { limit, rewardAd } = call;
   if (rewardAd) return <RewardVideo endsAt={rewardAd.endsAt} totalMs={limit?.adMs ?? 15_000} />;
   if (!call.limitReached || !limit) return null;
+  if (limit.breakUntil && limit.breakUntil > Date.now() && limit.remaining > 0) {
+    return <BreakModal call={call} until={limit.breakUntil} callMs={limit.callMs} breakMs={limit.breakMs} />;
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="limit-title">

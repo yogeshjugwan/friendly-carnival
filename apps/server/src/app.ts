@@ -461,13 +461,46 @@ export function createApp(opts: AppOptions = {}): App {
   /** Account, else browser; guests without a browser id fall back to their (hashed) IP. */
   const limitKey = (d: SocketData) =>
     d.userId ? `u:${d.userId}` : d.deviceId.startsWith('anon:') && d.ipHash ? `ip:${d.ipHash}` : `d:${d.deviceId}`;
-  /** False (and tells the client) when a free user has no matches left today. */
-  const mayMatch = (socket: { data: SocketData; emit: IO['emit'] }) => {
-    if (!limits || limits.canMatch(limitKey(socket.data), socket.data.plus)) return true;
+  /** False (and tells the client) when a free user has no matches left today, or is on a call-time break. */
+  const mayMatch = (socket: { id: string; data: SocketData; emit: IO['emit'] }, mode = matchmaker.get(socket.id)?.mode ?? 'video') => {
+    if (!limits || limits.canMatch(limitKey(socket.data), socket.data.plus, mode)) return true;
     socket.emit('limit:reached', limits.status(limitKey(socket.data), false));
     analytics.count('limitHits');
     return false;
   };
+
+  // Free call time (video/voice): count each finished call, and end calls that run past it.
+  let callTimer: NodeJS.Timeout | null = null;
+  if (limits) {
+    const chargeCall = (id: string, mode: string, ms: number) => {
+      const s = io.sockets.sockets.get(id);
+      if (!s || s.data.plus || mode === 'text') return;
+      limits.addCallTime(limitKey(s.data), ms);
+      s.emit('limit:status', limits.status(limitKey(s.data), false));
+    };
+    matchmaker.onMatchEnd = (a, b, matchId) => {
+      const started = matchStarted.get(matchId);
+      matchStarted.delete(matchId);
+      if (!started) return;
+      const ms = Date.now() - started;
+      chargeCall(a.id, a.mode, ms);
+      chargeCall(b.id, b.mode, ms);
+    };
+    callTimer = setInterval(() => {
+      for (const [, s] of io.sockets.sockets) {
+        if (s.data.plus) continue;
+        const session = matchmaker.get(s.id);
+        if (!session?.partnerId || !session.matchId || session.mode === 'text') continue;
+        const started = matchStarted.get(session.matchId);
+        if (!started || Date.now() - started < limits.callMsLeft(limitKey(s.data))) continue;
+        // Out of free call time: end the call; the break starts now.
+        notifyLeft(matchmaker.endMatch(s.id)?.id, 'stop');
+        matchmaker.leaveQueue(s.id);
+        s.emit('limit:reached', limits.status(limitKey(s.data), false));
+      }
+    }, 15_000);
+    callTimer.unref?.();
+  }
 
   const rooms = new Rooms();
   const lastSeenWrite = new Map<string, number>();
@@ -858,7 +891,7 @@ export function createApp(opts: AppOptions = {}): App {
       if (!join) return void socket.emit('error:message', 'Invalid join request');
       if (matchmaker.get(socket.id)?.partnerId) return;
       if (pausedForSkipping()) return;
-      if (!mayMatch(socket)) return;
+      if (!mayMatch(socket, join.mode)) return;
       if (hasFilters(join.filters) && !socket.data.plus) socket.emit('plus:required');
       // Plus members browse the Online list; any logged-in user can wait for friends.
       const browsing = !!join.browse && (socket.data.plus || !!socket.data.userId);
@@ -1755,6 +1788,7 @@ export function createApp(opts: AppOptions = {}): App {
     close: async () => {
       clearInterval(statsTimer);
       clearInterval(sweepTimer);
+      if (callTimer) clearInterval(callTimer);
       turn.stop();
       for (const r of callRequests.values()) clearTimeout(r.timer);
       for (const t of priorityTimers.values()) clearTimeout(t);

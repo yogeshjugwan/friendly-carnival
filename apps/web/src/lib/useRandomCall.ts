@@ -575,6 +575,8 @@ export function useRandomCall() {
     };
     const onLimitStatus = (st: MatchLimitStatus) => setLimit(st);
     const onLimitReached = (st: MatchLimitStatus) => {
+      // Free call time can run out mid-call: the server ends it.
+      closePeer();
       setLimit(st);
       setLimitReached(true);
       window.clearTimeout(timers.current.ad);
@@ -1307,6 +1309,19 @@ export function useRandomCall() {
     [],
   );
 
+  /** Call-time break over: back in the queue with the same settings. */
+  const resumeAfterBreak = useCallback(() => {
+    setLimitReached(false);
+    requeue();
+  }, [requeue]);
+
+  /** Text chat while video/voice is on a break. */
+  const textMeanwhile = useCallback(() => {
+    const j = joinRef.current;
+    setLimitReached(false);
+    if (j) void start({ gender: j.gender, interests: j.interests, topic: j.topic }, 'text');
+  }, [start]);
+
   return {
     status,
     mode,
@@ -1353,6 +1368,8 @@ export function useRandomCall() {
     dismissPlusRequired: () => setPlusRequired(false),
     limit,
     limitReached,
+    resumeAfterBreak,
+    textMeanwhile,
     rewardAd,
     watchRewardAd,
     reactions,

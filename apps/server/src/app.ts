@@ -667,7 +667,7 @@ export function createApp(opts: AppOptions = {}): App {
 
   const profileOf = (socketId: string) => {
     const p = io.sockets.sockets.get(socketId)?.data.profile;
-    return p ? { name: p.name || undefined, avatar: p.avatar, bio: p.bio } : {};
+    return p ? { name: p.name || undefined, avatar: p.avatar, bio: p.bio, age: p.age } : {};
   };
 
   const announce = (pairing: Pairing) => {

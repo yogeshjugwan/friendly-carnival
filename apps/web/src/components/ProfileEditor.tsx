@@ -1,25 +1,26 @@
 'use client';
 
-import { AVATARS, MAX_BIO, MAX_NAME, type UserSettings } from '@rc/shared';
+import { AGE_RANGES, ageLabel, MAX_NAME, type AgeRange, type UserSettings } from '@rc/shared';
 
 const input =
   'h-[46px] w-full rounded-xl border border-line-2 bg-card-2 px-3.5 text-base text-[#f4f5f7] outline-none placeholder:text-faint focus:border-lime';
 
-/** Profile card: an emoji avatar and one line about you, shown to partners (live preview on top). */
+/** Profile card: just a name and an age range, shown to partners (live preview on top). */
 export function ProfileEditor({ settings, onChange }: { settings: UserSettings; onChange: (patch: Partial<UserSettings>) => void }) {
-  const avatar = settings.avatar ?? null;
-  const bio = settings.bio ?? '';
   const name = settings.name ?? '';
+  const age = settings.age ?? null;
   return (
     <div className="flex flex-col gap-3.5">
       <div className="flex items-center gap-3.5 rounded-[14px] border border-line bg-[#0b0d10] p-3.5">
-        <span className="flex h-12 w-12 flex-none items-center justify-center rounded-[14px] bg-card-2 text-[28px]" aria-hidden>
-          {avatar ?? '🙂'}
+        <span className="flex h-12 w-12 flex-none items-center justify-center rounded-[14px] bg-gold font-display text-xl font-bold text-gold-bg" aria-hidden>
+          {(name.trim()[0] ?? 'S').toUpperCase()}
         </span>
         <span className="min-w-0">
           <span className="block text-xs text-dim">Partners see</span>
-          <span className="block truncate font-semibold text-[#f4f5f7]">{name || 'Stranger'}</span>
-          <span className="block truncate text-[13px] text-dim">{bio || 'No bio yet'}</span>
+          <span className="block truncate font-semibold text-[#f4f5f7]">
+            {name || 'Stranger'}
+            {age && <span className="font-normal text-dim"> · {ageLabel(age)}</span>}
+          </span>
         </span>
       </div>
 
@@ -39,41 +40,26 @@ export function ProfileEditor({ settings, onChange }: { settings: UserSettings; 
       </label>
 
       <div className="flex flex-col gap-1.5 text-[13px] text-mute">
-        <span id="avatar-label">Avatar</span>
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(44px,1fr))] gap-2" role="radiogroup" aria-labelledby="avatar-label">
-          {AVATARS.map((a) => (
+        <span id="age-label">
+          Age <span className="text-faint">· a range, never your exact age</span>
+        </span>
+        <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-labelledby="age-label">
+          {AGE_RANGES.map((a: AgeRange) => (
             <button
               key={a}
               type="button"
               role="radio"
-              aria-checked={avatar === a}
-              onClick={() => onChange({ avatar: avatar === a ? null : a })}
-              className={`flex aspect-square min-h-11 items-center justify-center rounded-xl text-2xl transition ${
-                avatar === a ? 'bg-[#232731] outline-2 outline-offset-2 outline-lime' : 'bg-card-2 hover:bg-[#232731]'
+              aria-checked={age === a}
+              onClick={() => onChange({ age: age === a ? null : a })}
+              className={`h-11 rounded-xl text-[15px] font-semibold transition ${
+                age === a ? 'bg-lime text-night' : 'bg-card-2 text-[#e6e8ec] hover:bg-[#232731]'
               }`}
             >
-              {a}
+              {ageLabel(a)}
             </button>
           ))}
         </div>
       </div>
-
-      <label htmlFor="bio" className="flex flex-col gap-1.5 text-[13px] text-mute">
-        <span>
-          About you <span className="text-faint">· one line, no links or handles</span>
-        </span>
-        <input
-          id="bio"
-          value={bio}
-          maxLength={MAX_BIO}
-          onChange={(e) => onChange({ bio: e.target.value })}
-          placeholder="e.g. Chai lover, learning guitar, ask me about cricket"
-          className={input}
-        />
-        <span className="self-end text-[11px] text-faint">
-          {bio.length}/{MAX_BIO}
-        </span>
-      </label>
     </div>
   );
 }

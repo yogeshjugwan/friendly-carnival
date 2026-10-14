@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { NO_FILTERS, PRIORITY_MATCH, TOPICS } from '@rc/shared';
+import { ageLabel, NO_FILTERS, PRIORITY_MATCH, TOPICS } from '@rc/shared';
 import { useAuth } from '@/lib/auth';
 import { countryName, flagEmoji, GENDER_ICON, GENDER_LABEL } from '@/lib/format';
 import { loadSettings } from '@/lib/settings';
@@ -41,6 +41,7 @@ function PartnerBadge({ call }: { call: RandomCall }) {
       <div className="flex max-w-[70vw] items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-xs text-white sm:max-w-none sm:gap-2 sm:px-3 sm:text-sm">
         {partner.avatar && <span className="text-base sm:text-lg">{partner.avatar}</span>}
         {partner.name && <span className="max-w-[8rem] truncate font-semibold">{partner.name}</span>}
+        {partner.age && <span className="text-white/75">{ageLabel(partner.age)}</span>}
         <span title={GENDER_LABEL[partner.gender]}>{GENDER_ICON[partner.gender]}</span>
         <span>{partner.locationHidden ? '📍' : flagEmoji(partner.country)}</span>
         <span className="truncate">{partner.locationHidden ? 'Hidden' : countryName(partner.country)}</span>
@@ -103,7 +104,17 @@ function Searching({ call }: { call: RandomCall }) {
 function PriorityButton({ call }: { call: RandomCall }) {
   const { user } = useAuth();
   const [error, setError] = useState<string | null>(null);
-  if (!user) return null;
+  if (!user)
+    return (
+      <Link
+        href="/login?next=/"
+        target="_blank"
+        className="pointer-events-auto mt-1 flex h-11 items-center gap-2.5 rounded-xl border border-[#4a3f17] bg-gold-bg px-4 text-[13px] font-semibold text-gold transition hover:border-gold/60 sm:text-sm"
+      >
+        <span className="max-sm:hidden">Meet a verified person next</span>
+        <span className="sm:hidden">Verified person next</span> · {PRIORITY_MATCH.coins} coins
+      </Link>
+    );
   if (call.priorityOn) return <p className="text-sm text-gold">Looking for a ✓ Verified person for you…</p>;
   return (
     <div className="pointer-events-auto mt-1 flex flex-col items-center">
@@ -275,6 +286,7 @@ function PartnerPills({ call }: { call: RandomCall }) {
               {GENDER_ICON[p.gender]} Stranger
             </span>
           )}
+          {p.age && <span className="font-normal text-white/75"> · {ageLabel(p.age)}</span>}
           {where && <span className="font-normal text-white/75"> · {where}</span>}
         </span>
         {p.verified && <VerifiedBadge />}
@@ -618,8 +630,14 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                       )}
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
+                      {/* While searching: just who to match with, as in the design. */}
+                      {!matched && (
+                        <div className="rounded-xl bg-black/45 backdrop-blur max-sm:hidden">
+                          <FilterBar />
+                        </div>
+                      )}
                       {matched && <ReportButton />}
-                      <SafetyMenu call={call} />
+                      {matched && <SafetyMenu call={call} />}
                       <button
                         onClick={toggleFriends}
                         aria-pressed={showFriends}
@@ -641,7 +659,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                         <i className="h-2 w-2 rounded-full bg-lime" aria-hidden />
                         {isPlus && call.online !== null ? `${Math.max(0, call.online - 1).toLocaleString()} online` : 'Online 👑'}
                       </button>
-                      {!isPlus && (
+                      {!isPlus && matched && (
                         <Link href="/plus" target="_blank" className="flex h-9 items-center rounded-full bg-gold px-3 text-[13px] font-semibold text-[#1a1608] hover:brightness-105 max-lg:hidden">
                           Get Plus
                         </Link>
@@ -649,7 +667,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                       {user ? (
                         <AccountMenu />
                       ) : (
-                        <Link href="/login" target="_blank" className="flex h-9 items-center rounded-full bg-black/45 px-3 text-[13px] text-white backdrop-blur hover:bg-black/65 max-sm:hidden">
+                        matched && <Link href="/login" target="_blank" className="flex h-9 items-center rounded-full bg-black/45 px-3 text-[13px] text-white backdrop-blur hover:bg-black/65 max-sm:hidden">
                           Log in
                         </Link>
                       )}
@@ -657,7 +675,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                   </div>
                   {/* While searching: who to match with. */}
                   {!matched && (
-                    <div className="flex justify-center sm:justify-start">
+                    <div className="flex justify-center sm:hidden">
                       <FilterBar />
                     </div>
                   )}

@@ -1,4 +1,6 @@
 import {
+  AGE_RANGES,
+  type AgeRange,
   AVATARS,
   MAX_BIO,
   MAX_NAME,
@@ -137,7 +139,8 @@ export function parseProfile(input: unknown): UserProfile {
           .slice(0, MAX_NAME)
       : '';
   if (looksLikeLink(name) || /\d{5,}/.test(name)) name = '';
-  return { name, avatar, bio };
+  const age = typeof p.age === 'string' && (AGE_RANGES as readonly string[]).includes(p.age) ? (p.age as AgeRange) : null;
+  return { name, avatar, bio, age };
 }
 
 /** Match filters, or null when malformed. Country is an ISO alpha-2 code. */

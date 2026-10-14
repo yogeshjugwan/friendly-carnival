@@ -1,13 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { MIN_AGE, MIN_PASSWORD_LENGTH } from '@rc/shared';
-import { AuthCard } from '@/components/SiteHeader';
-import { errorText, Field, FormError, Submit } from '@/components/forms/fields';
-import { Agreement, GoogleSignIn, googleError } from '@/components/forms/social';
-import { api, useAuth } from '@/lib/auth';
+import { AuthSplit } from '@/components/AuthSplit';
+import { errorText, FormError } from '@/components/forms/fields';
+import { GoogleLogo, googleError, useGoogleEnabled } from '@/components/forms/social';
+import { API_URL, useAuth } from '@/lib/auth';
+import { markGoogleStart } from '@/lib/googleReturn';
 import { pendingInviteCode } from '@/lib/referral';
 
 /** Only same-site paths, so ?next= can't send people to another website. */
@@ -16,23 +17,28 @@ const safeNext = () => {
   return next && next.startsWith('/') && !next.startsWith('//') ? next : null;
 };
 
+const input =
+  'h-12 w-full rounded-xl border border-line-2 bg-card px-3.5 text-[15px] text-[#f4f5f7] [color-scheme:dark] placeholder:text-faint focus:outline-2 focus:outline-offset-1 focus:outline-lime lg:bg-card-2';
+const lbl = 'flex flex-col gap-1.5 text-[13px] text-mute';
+
 /**
- * One box for logging in and signing up (also served at /signup): enter your
- * email; if it has an account you get the password box, otherwise the
- * new-account fields (password, date of birth, the 18+ / terms boxes).
+ * Log in / Sign up (also served at /signup), as in the "Instant entry" design:
+ * tabs, Continue with Google, email + password, one 18+ / terms box, then the guest way out.
  */
 export default function LoginPage() {
   const { login, signup } = useAuth();
   const router = useRouter();
-  const [step, setStep] = useState<'email' | 'login' | 'signup'>('email');
+  const path = usePathname();
+  const google = useGoogleEnabled();
+  const [tab, setTab] = useState<'login' | 'signup'>(path === '/signup' ? 'signup' : 'login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [birthDate, setBirthDate] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [adult, setAdult] = useState(false);
-  const [terms, setTerms] = useState(false);
+  const [agreed, setAgreed] = useState(false);
   const [highlight, setHighlight] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [going, setGoing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [next, setNext] = useState<string | null>(null);
   const [invited, setInvited] = useState(false);
 
@@ -40,140 +46,181 @@ export default function LoginPage() {
     setNext(safeNext());
     setInvited(!!pendingInviteCode());
     setError(googleError(new URLSearchParams(window.location.search).get('error')));
+    // Coming back with the browser's Back button: reset the Google button.
+    const reset = () => setGoing(false);
+    window.addEventListener('pageshow', reset);
+    return () => window.removeEventListener('pageshow', reset);
   }, []);
 
-  const run = async (work: () => Promise<void>) => {
+  const needAgreement = () => {
+    setHighlight(true);
+    setError('Please tick the 18+ box first.');
+    document.getElementById('agree')?.focus();
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (tab === 'signup' && !agreed) return needAgreement();
     setBusy(true);
     setError(null);
     try {
-      await work();
+      if (tab === 'login') {
+        await login(email.trim(), password);
+        router.push(safeNext() ?? '/');
+      } else {
+        await signup(email.trim(), password, birthDate);
+        router.push(safeNext() ?? '/settings?welcome=1');
+      }
     } catch (err) {
-      setError(errorText(err));
+      const msg = errorText(err);
+      // Typed into the wrong tab: point them to the other one.
+      setError(tab === 'signup' && /already exists/i.test(msg) ? 'You already have an account — log in instead.' : msg);
     } finally {
       setBusy(false);
     }
   };
 
-  const changeEmail = () => {
-    setStep('email');
-    setPassword('');
+  const switchTab = (t: 'login' | 'signup') => {
+    setTab(t);
     setError(null);
+    setHighlight(false);
   };
 
-  const title = step === 'login' ? 'Welcome back' : step === 'signup' ? 'Create your account' : 'Log in or sign up';
-  const hint =
-    step === 'email'
-      ? 'Optional — keep your settings, friends and coins on every device.'
-      : step === 'login'
-        ? 'Enter your password to log in.'
-        : 'No account with this email yet — set one up in a few seconds.';
+  const tabCls = (on: boolean) =>
+    `h-10 flex-1 rounded-[10px] text-sm font-semibold transition ${on ? 'bg-[#1f232b] text-[#f4f5f7]' : 'text-mute hover:text-[#f4f5f7]'}`;
 
   return (
-    <AuthCard title={title}>
-      <p className="mt-1 text-sm text-dim">{hint}</p>
-      {invited && step !== 'login' && (
-        <p className="mt-3 rounded-xl bg-gold-bg p-3 text-sm text-gold">
-          🎁 A friend invited you! Sign up, confirm your email and have your first chat — you both get a free day of 👑 Plus.
-        </p>
-      )}
+    <AuthSplit title={tab === 'login' ? 'Welcome' : 'Create your'} accent={tab === 'login' ? 'back.' : 'account.'}>
+      <div className="mt-3 flex flex-1 flex-col gap-4">
+        {invited && (
+          <p className="m-0 rounded-xl bg-gold-bg p-3 text-sm text-gold">
+            A friend invited you! Sign up, confirm your email and have your first chat — you both get a free day of Plus.
+          </p>
+        )}
 
-      {step === 'email' && <GoogleSignIn agreed={adult && terms} next={next} onNeedAgreement={() => setHighlight(true)} />}
+        <div role="tablist" aria-label="Log in or sign up" className="flex rounded-[14px] border border-line bg-card p-1">
+          <button type="button" role="tab" aria-selected={tab === 'login'} onClick={() => switchTab('login')} className={tabCls(tab === 'login')}>
+            Log in
+          </button>
+          <button type="button" role="tab" aria-selected={tab === 'signup'} onClick={() => switchTab('signup')} className={tabCls(tab === 'signup')}>
+            Sign up
+          </button>
+        </div>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (step === 'email') {
-            void run(async () => {
-              const { exists } = await api<{ exists: boolean }>('/auth/check', { email: email.trim() });
-              setStep(exists ? 'login' : 'signup');
-            });
-          } else if (step === 'login') {
-            void run(async () => {
-              await login(email.trim(), password);
-              router.push(safeNext() ?? '/');
-            });
-          } else {
-            if (!adult || !terms) {
-              setHighlight(true);
-              setError('Please tick both boxes to create your account.');
+        {/* Google can create an account, so it needs the 18+ box too. */}
+        <a
+          href={`${API_URL}/auth/google/start?next=${encodeURIComponent(next ?? '/')}`}
+          aria-disabled={going}
+          onClick={(e) => {
+            if (!google) {
+              e.preventDefault();
+              setError('Google sign-in is not available right now — use your email below.');
               return;
             }
-            void run(async () => {
-              await signup(email.trim(), password, birthDate);
-              router.push(safeNext() ?? '/settings?welcome=1');
-            });
-          }
-        }}
-      >
-        {step === 'email' ? (
-          <Field id="email" label="Email" type="email" autoComplete="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} />
-        ) : (
-          <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-card-2 px-3.5 py-3 text-sm">
-            <span className="min-w-0 truncate text-[#f4f5f7]">{email}</span>
-            <button type="button" onClick={changeEmail} className="shrink-0 font-medium text-lime hover:underline">
-              Change
-            </button>
-          </div>
-        )}
+            if (!agreed) {
+              e.preventDefault();
+              return needAgreement();
+            }
+            setGoing(true);
+            markGoogleStart();
+          }}
+          className={`flex h-[50px] items-center justify-center gap-2.5 rounded-xl bg-white text-[15px] font-semibold text-[#1a1a1a] transition hover:bg-[#f1f1f1] ${going ? 'pointer-events-none opacity-70' : ''}`}
+        >
+          {going ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700" aria-hidden /> : <GoogleLogo />}
+          {going ? 'Connecting to Google…' : 'Continue with Google'}
+        </a>
 
-        {step === 'login' && (
-          <Field
-            id="password"
-            label="Password"
-            type="password"
-            autoComplete="current-password"
-            required
-            autoFocus
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        )}
+        <div className="flex items-center gap-3 text-xs text-faint" aria-hidden>
+          <span className="h-px flex-1 bg-line" />
+          or
+          <span className="h-px flex-1 bg-line" />
+        </div>
 
-        {step === 'signup' && (
-          <>
-            <Field
+        <form onSubmit={submit} className="flex flex-1 flex-col gap-4">
+          <label className={lbl} htmlFor="email">
+            Email
+            <input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={input} />
+          </label>
+          <div className={lbl}>
+            <span className="flex justify-between">
+              <label htmlFor="password">{tab === 'signup' ? `Password (at least ${MIN_PASSWORD_LENGTH} characters)` : 'Password'}</label>
+              {tab === 'login' && (
+                <Link href="/forgot" className="text-xs text-lime hover:text-lime-hover">
+                  Forgot?
+                </Link>
+              )}
+            </span>
+            <input
               id="password"
-              label={`Choose a password (at least ${MIN_PASSWORD_LENGTH} characters)`}
               type="password"
-              autoComplete="new-password"
+              autoComplete={tab === 'login' ? 'current-password' : 'new-password'}
               required
-              autoFocus
-              minLength={MIN_PASSWORD_LENGTH}
+              minLength={tab === 'signup' ? MIN_PASSWORD_LENGTH : undefined}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              className={input}
             />
-            <Field
-              id="birthDate"
-              label={`Date of birth (you must be ${MIN_AGE}+)`}
-              type="date"
-              autoComplete="bday"
-              required
-              max={new Date().toISOString().slice(0, 10)}
-              value={birthDate}
-              onChange={(e) => setBirthDate(e.target.value)}
+          </div>
+          {tab === 'signup' && (
+            <label className={lbl} htmlFor="birthDate">
+              Date of birth (you must be {MIN_AGE}+)
+              <input
+                id="birthDate"
+                type="date"
+                autoComplete="bday"
+                required
+                max={new Date().toISOString().slice(0, 10)}
+                value={birthDate}
+                onChange={(e) => setBirthDate(e.target.value)}
+                className={input}
+              />
+            </label>
+          )}
+
+          <label
+            className={`flex items-start gap-2.5 rounded-xl text-[13px] leading-[1.4] text-mute transition ${highlight && !agreed ? 'bg-stop p-3 ring-2 ring-stop-text' : ''}`}
+          >
+            <input
+              id="agree"
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => {
+                setAgreed(e.target.checked);
+                if (e.target.checked) setError(null);
+              }}
+              className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-lime"
             />
-          </>
-        )}
+            <span>
+              I&apos;m 18+ and agree to the{' '}
+              <Link href="/terms" className="text-lime hover:text-lime-hover">
+                Terms
+              </Link>{' '}
+              &amp;{' '}
+              <Link href="/privacy" className="text-lime hover:text-lime-hover">
+                Privacy Policy
+              </Link>
+            </span>
+          </label>
 
-        {/* Google can create an account, so it needs the boxes too; email log-ins agreed when they signed up. */}
-        {step !== 'login' && <Agreement adult={adult} terms={terms} onAdult={setAdult} onTerms={setTerms} highlight={highlight} />}
-        <FormError error={error} />
-        <Submit busy={busy}>{step === 'email' ? 'Continue' : step === 'login' ? 'Log in' : 'Create account'}</Submit>
-      </form>
+          <FormError error={error} />
 
-      {step === 'login' && (
-        <p className="mt-4 text-center text-sm">
-          <Link href="/forgot" className="text-lime hover:underline">
-            Forgot password?
-          </Link>
-        </p>
-      )}
-      <p className="mt-5 border-t border-line pt-4 text-center text-sm">
-        <Link href="/" className="font-medium text-mute hover:text-white">
-          Continue as guest →
-        </Link>
-        <span className="block text-xs text-dim">No account needed to chat.</span>
-      </p>
-    </AuthCard>
+          <div className="mt-auto flex flex-col gap-3 lg:mt-0">
+            <button
+              type="submit"
+              disabled={busy}
+              className="h-[54px] rounded-[14px] bg-lime font-display text-[17px] font-bold text-night transition hover:bg-lime-hover disabled:opacity-50"
+            >
+              {busy ? 'Please wait…' : tab === 'login' ? 'Log in' : 'Sign up'}
+            </button>
+            <Link
+              href="/"
+              className="flex h-12 items-center justify-center rounded-[14px] border border-line-2 text-sm font-medium text-[#e6e8ec] transition hover:border-[#3a3f4a]"
+            >
+              Continue as guest →
+            </Link>
+          </div>
+        </form>
+      </div>
+    </AuthSplit>
   );
 }

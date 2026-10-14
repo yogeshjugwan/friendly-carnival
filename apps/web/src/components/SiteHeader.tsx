@@ -7,7 +7,6 @@ import { useAuth } from '@/lib/auth';
 import { LanguagePicker, useI18n } from '@/lib/i18n';
 import { loadSettings } from '@/lib/settings';
 import { getSocket } from '@/lib/socket';
-import { InstallButton } from './Pwa';
 import { BubbleIcon, CameraIcon, ClockIcon, CoinIcon, GiftIcon, UserIcon } from './UiIcons';
 
 export function Brand({ compact = false, wordmark = false }: { compact?: boolean; wordmark?: boolean }) {
@@ -170,7 +169,11 @@ export function SiteHeader({ online, home = false }: { online?: number | null; h
               </>
             ) : (
               <>
-                <Link href="/plus" className="flex h-10 items-center px-2 text-sm font-semibold text-gold hover:text-[#ffe48c] max-sm:hidden">
+                {/* Home already has Get Plus under the Start button (as in the design). */}
+                <Link
+                  href="/plus"
+                  className={`flex h-10 items-center rounded-xl border border-[#4a3f17] bg-[rgba(20,22,28,.7)] px-3.5 text-sm font-semibold text-gold backdrop-blur-md hover:text-[#ffe48c] max-sm:hidden ${home ? 'hidden' : ''}`}
+                >
                   {t('header.getPlus')}
                 </Link>
                 <Link href="/login" className="flex h-10 items-center rounded-xl bg-lime px-4 text-sm font-semibold text-night hover:bg-lime-hover">
@@ -240,7 +243,6 @@ export function SiteFooter() {
           ))}
           <div className="flex-1" />
           <LanguagePicker className="sm:hidden" />
-          <InstallButton />
         </div>
       </footer>
       <MobileTabs />

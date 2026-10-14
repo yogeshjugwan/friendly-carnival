@@ -38,9 +38,9 @@ export function RandomCall() {
 
   if (call.status === 'requesting-media') {
     return (
-      <main className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-        <p className="text-2xl font-semibold">{t('perm.title')}</p>
-        <p className="text-slate-400">{t('perm.body')}</p>
+      <main className="flex h-full flex-col items-center justify-center gap-3 bg-night p-6 text-center">
+        <p className="font-display text-[28px] font-bold">{t('perm.title')}</p>
+        <p className="text-mute">{t('perm.body')}</p>
       </main>
     );
   }
@@ -50,7 +50,7 @@ export function RandomCall() {
     const problem = call.cameraProblem;
     return (
       <main className="flex h-full flex-col items-center justify-center gap-4 bg-night p-6 text-center">
-        <div className={`relative w-full max-w-sm overflow-hidden rounded-2xl ring-4 transition-colors ${missing ? 'ring-amber-400' : 'ring-sky-400/60'}`}>
+        <div className={`relative w-full max-w-sm overflow-hidden rounded-2xl ring-4 transition-colors ${missing ? 'ring-amber-400' : 'ring-lime/60'}`}>
           <VideoTile stream={call.localStream} muted mirrored className="aspect-[4/3] w-full rounded-none" />
           {/* Face guide */}
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -59,28 +59,28 @@ export function RandomCall() {
         </div>
         {missing ? (
           <>
-            <p className="text-2xl font-semibold">{problem ? CAMERA_PROBLEM[problem].title : t('face.title')}</p>
-            <p className="max-w-md text-slate-400">
+            <p className="font-display text-[28px] font-bold">{problem ? CAMERA_PROBLEM[problem].title : t('face.title')}</p>
+            <p className="max-w-md text-mute">
               {problem
                 ? CAMERA_PROBLEM[problem].help
                 : 'Look at the camera with your face inside the oval and good light. Video chats need a visible face — this keeps randomCall safe for everyone.'}{' '}
               Nothing leaves your device for this check.
             </p>
             <div className="flex flex-wrap justify-center gap-3">
-              <button onClick={call.retryFaceCheck} className="rounded-lg bg-brand px-5 py-2 font-semibold">
+              <button onClick={call.retryFaceCheck} className="h-12 rounded-[14px] bg-lime px-6 font-display font-bold text-night hover:bg-lime-hover">
                 Try again
               </button>
-              <button onClick={() => void call.start(lastJoin.current, 'text')} className="rounded-lg bg-slate-600 px-5 py-2 font-semibold">
+              <button onClick={() => void call.start(lastJoin.current, 'text')} className="h-12 rounded-[14px] border border-line-2 px-6 font-medium text-[#e6e8ec] hover:border-[#3a3f4a]">
                 Text chat instead
               </button>
-              <button onClick={call.stop} className="rounded-lg px-5 py-2 font-semibold text-slate-300 hover:text-white">
+              <button onClick={call.stop} className="h-12 rounded-[14px] px-5 font-medium text-mute hover:text-white">
                 Back
               </button>
             </div>
           </>
         ) : (
-          <p className="flex items-center gap-2 text-lg text-slate-200">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-600 border-t-sky-300" aria-hidden />
+          <p className="flex items-center gap-2 text-lg text-[#e6e8ec]">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-line-2 border-t-lime" aria-hidden />
             Checking your camera…
           </p>
         )}
@@ -90,17 +90,17 @@ export function RandomCall() {
 
   if (call.status === 'media-denied') {
     return (
-      <main className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
-        <p className="text-2xl font-semibold">{t('perm.blocked')}</p>
-        <p className="max-w-md text-slate-400">
+      <main className="flex h-full flex-col items-center justify-center gap-4 bg-night p-6 text-center">
+        <p className="font-display text-[28px] font-bold">{t('perm.blocked')}</p>
+        <p className="max-w-md text-mute">
           Allow camera and microphone access for this site in your browser settings (the icon next to the address bar), then try
           again — or chat by text instead.
         </p>
         <div className="flex gap-3">
-          <button onClick={() => void call.start(lastJoin.current, 'text')} className="rounded-lg bg-brand px-5 py-2 font-semibold">
+          <button onClick={() => void call.start(lastJoin.current, 'text')} className="h-12 rounded-[14px] bg-lime px-6 font-display font-bold text-night hover:bg-lime-hover">
             Start Text Chat
           </button>
-          <button onClick={call.stop} className="rounded-lg bg-slate-600 px-5 py-2 font-semibold">
+          <button onClick={call.stop} className="h-12 rounded-[14px] border border-line-2 px-6 font-medium text-[#e6e8ec] hover:border-[#3a3f4a]">
             Back
           </button>
         </div>

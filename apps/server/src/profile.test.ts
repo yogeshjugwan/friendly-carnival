@@ -12,15 +12,19 @@ const once = <E extends keyof ServerToClientEvents>(s: Client, e: E) =>
   new Promise<Parameters<ServerToClientEvents[E]>[0]>((r) => s.once(e, ((x: never) => r(x)) as never));
 
 test('profile cards are cleaned: listed avatars only, short bios, no links or handles', () => {
-  assert.deepEqual(parseProfile({ avatar: '🦊', bio: '  Chai lover \n learning guitar ' }), { name: '', avatar: '🦊', bio: 'Chai lover learning guitar' });
-  assert.deepEqual(parseProfile({ avatar: '💩', bio: 'x'.repeat(200) }), { name: '', avatar: null, bio: 'x'.repeat(80) });
+  assert.deepEqual(parseProfile({ avatar: '🦊', bio: '  Chai lover \n learning guitar ' }), { name: '', avatar: '🦊', bio: 'Chai lover learning guitar', age: null });
+  assert.deepEqual(parseProfile({ avatar: '💩', bio: 'x'.repeat(200) }), { name: '', avatar: null, bio: 'x'.repeat(80), age: null });
   assert.equal(parseProfile({ name: '  Priya <script> ✨ ' }).name, 'Priya script');
   assert.equal(parseProfile({ name: 'राहुल' }).name, 'राहुल', 'any script');
   assert.equal(parseProfile({ name: 'call 9876543210' }).name, '', 'no phone numbers');
   assert.equal(parseProfile({ name: 'insta: @hot' }).name.includes('@'), false);
   assert.equal(parseProfile({ name: 'x'.repeat(40) }).name.length, 24);
   assert.equal(parseProfile({ bio: 'follow me insta: @cutie' }).bio, '');
-  assert.deepEqual(parseProfile(null), { name: '', avatar: null, bio: '' });
+  assert.deepEqual(parseProfile(null), { name: '', avatar: null, bio: '', age: null });
+  // Age is a range only; anything else (an exact number, junk) is dropped.
+  assert.equal(parseProfile({ age: '25-34' }).age, '25-34');
+  assert.equal(parseProfile({ age: '27' }).age, null);
+  assert.equal(parseProfile({ age: 27 }).age, null);
   const s = parseSettings({ gender: 'male', interests: [], allowReconnect: true, hideCountry: false, avatar: '🐼', bio: 'hello' });
   assert.equal(s?.avatar, '🐼');
   assert.equal(s?.bio, 'hello');

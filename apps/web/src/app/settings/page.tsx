@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useId, useState } from 'react';
-import { MAX_INTERESTS, MIN_PASSWORD_LENGTH, type Gender, type PublicUser, type UserSettings } from '@rc/shared';
+import { ageLabel, MIN_PASSWORD_LENGTH, type PublicUser, type UserSettings } from '@rc/shared';
 import { SiteFooter, SiteHeader } from '@/components/SiteHeader';
 import { errorText } from '@/components/forms/fields';
 import { api, useAuth } from '@/lib/auth';
@@ -123,7 +123,6 @@ export default function SettingsPage() {
   const { user, token, loading, saveSettings, logout, forget, refresh } = useAuth();
   const router = useRouter();
   const [settings, setSettings] = useState<UserSettings | null>(null);
-  const [interestText, setInterestText] = useState('');
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -138,7 +137,6 @@ export default function SettingsPage() {
     if (loading || settings) return;
     const s = user?.settings ?? loadSettings();
     setSettings(s);
-    setInterestText(s.interests.join(', '));
     setWelcome(new URLSearchParams(window.location.search).has('welcome'));
   }, [loading, user, settings]);
 
@@ -179,7 +177,7 @@ export default function SettingsPage() {
   };
 
   const onPhone = (v: View) => (view === v ? '' : 'max-lg:hidden');
-  const avatar = settings.avatar ?? '🙂';
+  const initial = (settings.name?.trim()[0] ?? 'S').toUpperCase();
 
   const sideItems: [string, string][] = [
     ['profile', 'Profile'],
@@ -220,8 +218,8 @@ export default function SettingsPage() {
             <h1 className="font-display text-[26px] font-bold">Settings</h1>
             {welcome && user && <Note>Welcome! We sent a confirmation link to {user.email}.</Note>}
             <div className={`${card} flex items-center gap-3 p-3.5`}>
-              <span className="flex h-[52px] w-[52px] flex-none items-center justify-center rounded-[14px] bg-card-2 text-[30px]" aria-hidden>
-                {avatar}
+              <span className="flex h-[52px] w-[52px] flex-none items-center justify-center rounded-[14px] bg-gold font-display text-2xl font-bold text-gold-bg" aria-hidden>
+                {initial}
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 font-semibold">
@@ -229,7 +227,8 @@ export default function SettingsPage() {
                   {user?.plus.active && <span className="flex-none text-[11px] font-bold text-gold">PLUS</span>}
                 </div>
                 <div className="truncate text-xs text-dim">
-                  Partners see: {settings.name || 'Stranger'} · {settings.bio || 'No bio yet'}
+                  Partners see: {settings.name || 'Stranger'}
+                  {settings.age ? ` · ${ageLabel(settings.age)}` : ''}
                 </div>
               </div>
               <button type="button" onClick={() => go('profile')} className="h-11 flex-none rounded-[10px] border border-line-2 px-3.5 text-[13px] font-medium text-[#e6e8ec]">
@@ -251,15 +250,8 @@ export default function SettingsPage() {
                 e.preventDefault();
                 setSaving(true);
                 setError(null);
-                const interests = interestText
-                  .split(',')
-                  .map((i) => i.trim().toLowerCase())
-                  .filter(Boolean)
-                  .slice(0, MAX_INTERESTS);
                 try {
-                  await saveSettings({ ...settings, interests });
-                  setSettings({ ...settings, interests });
-                  setInterestText(interests.join(', '));
+                  await saveSettings(settings);
                   setSaved(true);
                 } catch (err) {
                   setError(errorText(err));
@@ -275,32 +267,6 @@ export default function SettingsPage() {
                 <p className="text-[13px] text-dim">What strangers see next to your country.</p>
               </div>
               <ProfileEditor settings={settings} onChange={update} />
-              <label htmlFor="interests" className={label}>
-                <span>
-                  Interests <span className="text-faint">· comma separated, up to {MAX_INTERESTS}</span>
-                </span>
-                <input
-                  id="interests"
-                  value={interestText}
-                  onChange={(e) => (setInterestText(e.target.value), setSaved(false))}
-                  placeholder="music, travel, cricket"
-                  className={input}
-                />
-              </label>
-              <label htmlFor="gender" className={label}>
-                I am
-                <select
-                  id="gender"
-                  value={settings.gender ?? ''}
-                  onChange={(e) => update({ gender: (e.target.value || null) as Gender | null })}
-                  className={`${input} [color-scheme:dark]`}
-                >
-                  <option value="">Choose each time</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                  <option value="couple">We are a couple</option>
-                </select>
-              </label>
               {error && <Alert>{error}</Alert>}
               {saved && <Note>Saved{user ? ' to your account' : ' in this browser'}.</Note>}
               <button type="submit" disabled={saving} className={`${primary} mt-1`}>

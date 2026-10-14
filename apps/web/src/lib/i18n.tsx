@@ -777,7 +777,7 @@ export function LanguagePicker({ className = '' }: { className?: string }) {
   const { lang, setLang, t } = useI18n();
   return (
     <label
-      className={`inline-flex h-10 items-center gap-1.5 rounded-[10px] border border-[#1e2330] px-3 text-sm text-[#b7becc] hover:text-white ${className}`}
+      className={`inline-flex h-10 items-center gap-1.5 rounded-xl border border-line-2 bg-[rgba(20,22,28,.7)] px-3 text-sm font-medium text-[#e6e8ec] backdrop-blur-md hover:text-white ${className}`}
     >
       <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
         <circle cx="12" cy="12" r="9" />

@@ -142,6 +142,7 @@ describe('auth HTTP API and sockets', () => {
       name: '',
       avatar: null,
       bio: '',
+      age: null,
     });
     assert.equal((await post('/auth/settings', { settings: { gender: 'robot' } }, session2)).status, 400);
 

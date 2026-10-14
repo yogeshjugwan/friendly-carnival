@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { TOPICS, MAX_INTERESTS, MAX_NAME, type ChatMode, type Gender, type JoinPayload } from '@rc/shared';
+import { AGE_RANGES, ageLabel, MAX_NAME, type AgeRange, type ChatMode, type Gender, type JoinPayload } from '@rc/shared';
 import { useAuth } from '@/lib/auth';
 import { loadSettings, onSettingsChange } from '@/lib/settings';
 import { SiteFooter, SiteHeader } from './SiteHeader';
@@ -19,7 +19,7 @@ interface Props {
 const AGREED_KEY = 'rc.agreed18';
 
 /** Colours for the drifting "live" tiles behind the hero: [tile gradient, silhouette]. */
-const TILE_COLORS = [
+export const TILE_COLORS = [
   ['linear-gradient(160deg,#ff8a9a,#c2416b)', '#5a1730'],
   ['linear-gradient(160deg,#7fd6c2,#2b8a78)', '#0f3d35'],
   ['linear-gradient(160deg,#ffc37a,#d9733a)', '#5c2a10'],
@@ -28,14 +28,14 @@ const TILE_COLORS = [
   ['linear-gradient(160deg,#f7e07a,#c9a12e)', '#4f3e0c'],
 ] as const;
 const PLACES = ['India', 'Brazil', 'Japan', 'Spain', 'Kenya', 'Canada', 'Turkey', 'Mexico'];
-const SKINS = ['#f1c7a5', '#c68b5e', '#8d5a3b', '#e8b48a', '#5e3a26'];
+export const SKINS = ['#f1c7a5', '#c68b5e', '#8d5a3b', '#e8b48a', '#5e3a26'];
 const HAIRS = ['#1b1210', '#4a2c18', '#2a1a12', '#7a4a20', '#111111'];
 
 /**
  * Photos for the tile wall: list them in public/faces/index.json (["face-1.webp", ...]).
  * Without it the wall shows animated cartoon people.
  */
-function useFaces() {
+export function useFaces() {
   const [faces, setFaces] = useState<string[]>([]);
   useEffect(() => {
     fetch('/faces/index.json')
@@ -114,20 +114,16 @@ function PreferencesSheet({
   setGender,
   name,
   setName,
-  interestText,
-  setInterestText,
-  topic,
-  pickTopic,
+  age,
+  setAge,
 }: {
   onClose: () => void;
   gender: Gender;
   setGender: (g: Gender) => void;
   name: string;
   setName: (v: string) => void;
-  interestText: string;
-  setInterestText: (v: string) => void;
-  topic: string | null;
-  pickTopic: (id: string | null) => void;
+  age: AgeRange | null;
+  setAge: (a: AgeRange | null) => void;
 }) {
   const { t } = useI18n();
   const genders: [Gender, string][] = [
@@ -180,34 +176,23 @@ function PreferencesSheet({
           </span>
           <input id="name" value={name} maxLength={MAX_NAME} onChange={(e) => setName(e.target.value)} placeholder={t('landing.namePlaceholder')} autoComplete="nickname" className={field} />
         </label>
-        <label className={label} htmlFor="interests">
-          <span>
-            {t('landing.interests')} <span className="font-normal text-[#6b7385]">· {t('landing.optional').replace(/[()]/g, '')}</span>
-          </span>
-          <input id="interests" value={interestText} onChange={(e) => setInterestText(e.target.value)} placeholder={t('landing.interestsPlaceholder')} className={field} />
-        </label>
         <div className="flex flex-col gap-2.5">
-          <span className="text-[13px] font-medium text-mute" id="topic-label">
-            {t('landing.topic')} <span className="font-normal text-[#6b7385]">{t('landing.topicHint2')}</span>
+          <span className="text-[13px] font-medium text-mute" id="age-label">
+            Age <span className="font-normal text-[#6b7385]">· a range, never your exact age</span>
           </span>
-          <div role="radiogroup" aria-labelledby="topic-label" className="flex flex-wrap gap-2">
-            {TOPICS.map((tp) => {
-              const on = topic === tp.id;
-              return (
-                <button
-                  key={tp.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={on}
-                  onClick={() => pickTopic(on ? null : tp.id)}
-                  className={`h-9 whitespace-nowrap rounded-full border px-3.5 text-sm font-medium transition ${
-                    on ? 'border-lime bg-lime text-night' : 'border-line-2 text-[#d6dae3] hover:border-[#3a4257]'
-                  }`}
-                >
-                  {t(`topic.${tp.id}`)}
-                </button>
-              );
-            })}
+          <div role="radiogroup" aria-labelledby="age-label" className="grid grid-cols-3 gap-1 rounded-xl border border-line bg-night p-1">
+            {AGE_RANGES.map((a) => (
+              <button
+                key={a}
+                type="button"
+                role="radio"
+                aria-checked={age === a}
+                onClick={() => setAge(age === a ? null : a)}
+                className={`h-11 rounded-[10px] text-[15px] font-semibold transition ${age === a ? 'bg-lime text-night' : 'text-mute hover:text-[#e8ebf2]'}`}
+              >
+                {ageLabel(a)}
+              </button>
+            ))}
           </div>
         </div>
         <button onClick={onClose} className="h-12 rounded-2xl bg-lime font-display text-base font-bold text-night hover:bg-lime-hover">
@@ -223,17 +208,16 @@ export function Landing({ online, onStart }: Props) {
   const { saveSettings, user } = useAuth();
   const isPlus = !!user?.plus.active;
   const [gender, setGender] = useState<Gender>('male');
-  const [interestText, setInterestText] = useState('');
   const [name, setName] = useState('');
+  const [age, setAge] = useState<AgeRange | null>(null);
   const [prefsOpen, setPrefsOpen] = useState(false);
-  // Topic room (optional), remembered in this browser.
-  const [topic, setTopic] = useState<string | null>(null);
   // The 18+ box is remembered, so coming back is one click.
   const [agreed, setAgreedState] = useState(false);
   const [nudge, setNudge] = useState(false);
   useEffect(() => {
     try {
-      setTopic(window.localStorage.getItem('rc.topic'));
+      // Topics and interests were removed from the profile; forget any old choice.
+      window.localStorage.removeItem('rc.topic');
       setAgreedState(window.localStorage.getItem(AGREED_KEY) === '1');
     } catch {
       /* ignore */
@@ -249,15 +233,6 @@ export function Landing({ online, onStart }: Props) {
       /* ignore */
     }
   };
-  const pickTopic = (id: string | null) => {
-    setTopic(id);
-    try {
-      if (id) window.localStorage.setItem('rc.topic', id);
-      else window.localStorage.removeItem('rc.topic');
-    } catch {
-      /* ignore */
-    }
-  };
   // Opened from a "your friend is online" notification.
   const [friendOnline, setFriendOnline] = useState(false);
   useEffect(() => setFriendOnline(new URLSearchParams(window.location.search).has('friends')), []);
@@ -267,18 +242,12 @@ export function Landing({ online, onStart }: Props) {
     const apply = () => {
       const s = loadSettings();
       if (s.gender) setGender(s.gender);
-      setInterestText(s.interests.join(', '));
       setName(s.name ?? '');
+      setAge(s.age ?? null);
     };
     apply();
     return onSettingsChange(apply);
   }, []);
-
-  const interests = interestText
-    .split(',')
-    .map((i) => i.trim())
-    .filter(Boolean)
-    .slice(0, MAX_INTERESTS);
 
   const begin = (mode: ChatMode, browse: false | 'online' | 'friends' = false) => {
     if (!agreed) {
@@ -287,13 +256,12 @@ export function Landing({ online, onStart }: Props) {
       return;
     }
     // Remember the choices for next time; don't block the chat on the network.
-    void saveSettings({ ...loadSettings(), gender, interests, name: name.trim() }).catch(() => undefined);
-    onStart({ gender, interests, topic }, mode, browse);
+    void saveSettings({ ...loadSettings(), gender, interests: [], name: name.trim(), age }).catch(() => undefined);
+    onStart({ gender, interests: [], topic: null }, mode, browse);
   };
 
   const alt =
     'flex h-11 items-center justify-center gap-2 rounded-xl border border-line-2 bg-card-2/80 px-4 text-sm font-medium text-[#e6e8ec] backdrop-blur transition hover:border-[#3a3f4a] max-sm:flex-1 max-sm:px-2 max-sm:text-[13px]';
-  const topicName = topic ? TOPICS.find((x) => x.id === topic) : null;
 
   return (
     <main className="flex min-h-dvh flex-col">
@@ -380,8 +348,7 @@ export function Landing({ online, onStart }: Props) {
           <button type="button" onClick={() => setPrefsOpen(true)} className="self-center text-[13px] text-mute underline-offset-4 hover:text-white hover:underline">
             ⚙ {t('hero.prefs')}: {t(gender === 'couple' ? 'gender.coupleShort' : `gender.${gender}`)}
             {name.trim() ? ` · ${name.trim()}` : ''}
-            {topicName ? ` · ${t(`topic.${topicName.id}`)}` : ''}
-            {interests.length ? ` · ${interests.length} ${t('landing.interests').toLowerCase()}` : ''}
+            {age ? ` · ${ageLabel(age)}` : ''}
           </button>
 
           <p className="m-0 mt-auto flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-[#5e636d] max-sm:hidden">
@@ -409,10 +376,8 @@ export function Landing({ online, onStart }: Props) {
           setGender={setGender}
           name={name}
           setName={setName}
-          interestText={interestText}
-          setInterestText={setInterestText}
-          topic={topic}
-          pickTopic={pickTopic}
+          age={age}
+          setAge={setAge}
         />
       )}
     </main>

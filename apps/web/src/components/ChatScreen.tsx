@@ -144,14 +144,15 @@ function PriorityButton({ call }: { call: RandomCall }) {
   );
 }
 
-/** Shown when filtered searching takes a while. */
+/** Shown when filtered searching takes a while ("No one found yet"). */
 function WidenSearch() {
   const { saveSettings } = useAuth();
   return (
-    <div className="pointer-events-auto text-sm text-mute">
-      It may take longer to find someone with your filters.{' '}
+    <div className="pointer-events-auto mt-2 flex w-full max-w-[360px] flex-col gap-2 rounded-[18px] border border-divider bg-[rgba(23,18,31,.94)] p-4 text-center">
+      <p className="m-0 font-display text-lg font-bold text-[#f4f5f7]">No one found yet</p>
+      <p className="m-0 text-sm leading-normal text-mute">Fewer people match your filters right now. Widen them or keep searching.</p>
       <button
-        className="font-medium text-white underline"
+        className="flex h-11 w-full items-center justify-center rounded-[14px] border-[1.5px] border-[#4a3f5c] text-sm font-semibold text-[#e6e8ec] hover:border-[#5a4f6c]"
         onClick={() => void saveSettings({ ...loadSettings(), filters: { ...NO_FILTERS } })}
       >
         Connect to anyone instead
@@ -159,7 +160,6 @@ function WidenSearch() {
     </div>
   );
 }
-
 
 /** "Finding someone for you…" on the video stage: pulse rings, what you're matching on, Priority. */
 function SearchingStage({ call }: { call: RandomCall }) {
@@ -664,7 +664,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
         {/* Text chat has no side column, so the list floats on the right there. */}
         {showOnline && isText && <OnlineUsersPanel call={call} onClose={closeOnline} className="fixed inset-y-2 right-2 z-40 w-[min(24rem,95vw)] shadow-2xl" />}
         {showFriends && isText && <FriendsPanel call={call} onClose={closeFriends} className="fixed inset-y-2 right-2 z-40 w-[min(24rem,95vw)] shadow-2xl" />}
-        {onlineUpsell && <PlusUpsell onClose={() => setOnlineUpsell(false)} reason="See who is online and call them with Plus" />}
+        {onlineUpsell && <PlusUpsell onClose={() => setOnlineUpsell(false)} reason="See who’s online right now" body="With Plus, see who is online and call them directly." />}
         {!isPlus && call.limit && !call.limit.unlimited && call.limit.remaining <= 5 && call.status !== 'limited' && (
           <p className="-mt-1 text-xs text-amber-300">
             {call.limit.remaining === 0 ? 'No free matches left today.' : `${call.limit.remaining} free match${call.limit.remaining === 1 ? '' : 'es'} left today.`}{' '}
@@ -673,7 +673,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
             </Link>
           </p>
         )}
-        {call.plusRequired && <PlusUpsell onClose={call.dismissPlusRequired} reason="Filters are a Plus feature" />}
+        {call.plusRequired && <PlusUpsell onClose={call.dismissPlusRequired} reason="Want to choose who you meet?" body="With Plus, pick gender and country so every match fits." />}
         {call.notice && (
           <p role="status" className="rounded-xl bg-gold-bg px-3 py-2 text-sm text-gold">
             {call.notice}
@@ -746,13 +746,40 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                 </div>
               )}
               {matched && !reportOpen && (call.partnerHidden || call.aiHidden) && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
-                  <p className="font-medium">
-                    {call.aiHidden ? 'Video hidden: it may contain nudity' : call.partner?.isNew ? 'New user — video hidden for your safety' : 'Partner video hidden'}
-                  </p>
-                  <button onClick={call.togglePartnerHidden} className="rounded-full bg-black/60 px-4 py-1.5 text-sm hover:bg-black/80">
-                    Show anyway
-                  </button>
+                <div className="absolute inset-0 z-[15] flex items-center justify-center overflow-y-auto p-4">
+                  <section className="flex w-full max-w-[400px] flex-col gap-3 rounded-[22px] border border-divider bg-[rgba(23,18,31,.94)] p-5 text-center shadow-[0_30px_80px_rgba(0,0,0,.55)] sm:gap-4 sm:p-7">
+                    <span aria-hidden className="flex h-14 w-14 items-center justify-center self-center rounded-full bg-[#FF6FAE1F] text-lime sm:h-[72px] sm:w-[72px]">
+                      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
+                        <path d="M9 12l2 2 4-4" />
+                      </svg>
+                    </span>
+                    <h2 className="m-0 font-display text-[22px] font-bold leading-[1.15] sm:text-[26px]">
+                      {call.aiHidden ? 'Blurred for safety' : call.partner?.isNew ? 'New user, video hidden' : 'Partner video hidden'}
+                    </h2>
+                    <p className="m-0 text-sm leading-normal text-mute sm:text-base">
+                      {call.aiHidden
+                        ? 'Our system flagged possible nudity. You won’t see it unless you choose to.'
+                        : 'Hidden for your safety. You won’t see it unless you choose to.'}
+                    </p>
+                    <div className="mt-1 flex flex-col gap-2.5">
+                      <button
+                        onClick={() => setReportOpen(true)}
+                        className="flex h-12 w-full items-center justify-center rounded-[14px] bg-[#FF5A5A] font-display text-base font-bold text-white sm:h-[52px]"
+                      >
+                        Report &amp; next
+                      </button>
+                      <button
+                        onClick={call.next}
+                        className="flex h-12 w-full items-center justify-center rounded-[14px] bg-lime font-display text-base font-bold text-night sm:h-[52px]"
+                      >
+                        Next
+                      </button>
+                      <button onClick={call.togglePartnerHidden} className="flex h-11 w-full items-center justify-center text-sm font-semibold text-mute underline hover:text-white">
+                        Tap to reveal (18+)
+                      </button>
+                    </div>
+                  </section>
                 </div>
               )}
 

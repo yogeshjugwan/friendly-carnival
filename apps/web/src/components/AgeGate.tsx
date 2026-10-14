@@ -63,16 +63,36 @@ export function AgeGate() {
 export function AgeHoldNotice() {
   const { user } = useAuth();
   if (!user?.ageHold) return null;
-  return user.ageHold === 'under-18' ? (
-    <p className="rounded-xl bg-red-500/15 p-4 text-center text-sm text-red-100">
-      randomCall is only for people aged {MIN_AGE} and over, so chatting is turned off for this account.
-    </p>
-  ) : (
-    <p className="rounded-xl bg-amber-500/15 p-4 text-center text-sm text-amber-100">
-      Someone reported that you may be under {MIN_AGE}. To keep chatting, confirm it&apos;s you with a quick selfie.{' '}
-      <Link href="/get-verified" className="font-semibold underline">
-        Get verified
-      </Link>
-    </p>
+  const under = user.ageHold === 'under-18';
+  return (
+    <section className="flex flex-col gap-3 rounded-[22px] border border-divider bg-[rgba(23,18,31,.94)] p-5 text-center sm:p-6">
+      <span aria-hidden className={`flex h-14 w-14 items-center justify-center self-center rounded-full ${under ? 'bg-[#FF8A801F] text-stop-text' : 'bg-[#A36BFF1F] text-[#A36BFF]'}`}>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="9" />
+          {under ? <path d="M5.6 5.6l12.8 12.8" /> : <path d="M9 10h.01M15 10h.01M9 15c1.5 1.5 4.5 1.5 6 0" />}
+        </svg>
+      </span>
+      <h2 className="m-0 font-display text-[22px] font-bold leading-[1.15] text-[#f4f5f7]">{under ? `randomCall is ${MIN_AGE}+ only` : 'Quick age check'}</h2>
+      {under ? (
+        <p className="m-0 text-sm leading-normal text-mute">
+          randomCall is only for people aged {MIN_AGE} and over, so chatting is turned off for this account.
+        </p>
+      ) : (
+        <>
+          <p className="m-0 text-sm leading-normal text-mute">
+            Keep randomCall {MIN_AGE}+. Take a quick selfie: we estimate your age and delete the photo straight away.
+          </p>
+          <p className="m-0 rounded-xl bg-card-2 px-3.5 py-3 text-left text-[13px] leading-normal text-[#c9cdd4]">
+            <b className="text-[#f4f5f7]">Why now?</b> Someone reported this account as under {MIN_AGE}. Chats are paused until it&apos;s done.
+          </p>
+          <Link
+            href="/get-verified"
+            className="mt-1 flex h-[52px] w-full items-center justify-center rounded-[14px] bg-lime font-display text-base font-bold text-night"
+          >
+            Take selfie
+          </Link>
+        </>
+      )}
+    </section>
   );
 }

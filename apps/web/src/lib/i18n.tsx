@@ -92,7 +92,7 @@ const EN = {
   'chat.icebreaker': 'Icebreaker question',
   'perm.title': 'Click “Allow” to turn on your camera',
   'perm.body': 'randomCall needs your camera and microphone to connect you with someone.',
-  'perm.blocked': 'Camera or microphone blocked',
+  'perm.blocked': 'Camera & mic are blocked',
   'face.title': "We can't see your face",
   'lang.label': 'Language',
   'header.onlineNow': 'online now',

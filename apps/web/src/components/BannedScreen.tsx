@@ -2,60 +2,73 @@
 
 import { useState } from 'react';
 import { MAX_APPEAL_LENGTH } from '@rc/shared';
+import { useAuth } from '@/lib/auth';
 import type { RandomCall } from '@/lib/useRandomCall';
+import { StateActions, StateCard } from './StateCard';
 
 function until(expiresAt: number | null): string {
-  if (expiresAt === null) return 'This ban is permanent.';
-  return `You can chat again ${new Date(expiresAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}.`;
+  if (expiresAt === null) return 'Permanent';
+  return new Date(expiresAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 }
 
 export function BannedScreen({ call }: { call: RandomCall }) {
+  const { user, logout } = useAuth();
   const [message, setMessage] = useState('');
+  const [appealing, setAppealing] = useState(false);
   const ban = call.ban;
   if (!ban) return null;
 
   return (
-    <main className="flex h-full items-center justify-center p-6">
-      <div className="w-full max-w-lg rounded-2xl bg-card p-6 text-[#f4f5f7] shadow-xl">
-        <h1 className="text-2xl font-semibold">You can&apos;t use randomCall right now</h1>
-        <p className="mt-3 text-[#e6e8ec]">
-          <span className="font-medium">Reason:</span> {ban.reason}
-        </p>
-        <p className="mt-1 text-[#e6e8ec]">{until(ban.expiresAt)}</p>
+    <main className="h-full">
+      <StateCard
+        icon="ban"
+        tone="danger"
+        title="Your account is suspended"
+        body="You broke our Community Guidelines. Repeat breaks lead to a permanent ban."
+      >
+        <div className="rounded-[14px] border border-[#4A2424] bg-[#2A1616] px-4 py-3.5 text-left text-sm leading-[1.7] text-[#FFD3CE]">
+          <div>
+            <span className="text-mute">Reason</span> · {ban.reason}
+          </div>
+          <div>
+            <span className="text-mute">Until</span> · {until(ban.expiresAt)}
+          </div>
+        </div>
 
         {ban.appealPending ? (
-          <p className="mt-5 rounded-lg bg-lime/10 px-4 py-3 text-sm text-lime">
+          <p className="m-0 rounded-xl bg-pick px-4 py-3 text-sm text-lime">
             Your appeal was received. A moderator will review it, usually within 24 hours.
           </p>
         ) : (
-          <form
-            className="mt-5"
-            onSubmit={(e) => {
-              e.preventDefault();
-              call.appeal(message);
-            }}
-          >
-            <label htmlFor="appeal" className="text-sm font-medium text-mute">
-              Think this is a mistake? Tell us what happened.
-            </label>
-            <textarea
-              id="appeal"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              maxLength={MAX_APPEAL_LENGTH}
-              className="mt-1 h-28 w-full rounded-lg border border-line-2 px-3 py-2"
-            />
-            <button
-              type="submit"
-              disabled={!message.trim()}
-              className="mt-3 rounded-lg bg-lime px-5 py-2 font-semibold text-night disabled:opacity-40"
-            >
-              Send appeal
-            </button>
-          </form>
+          appealing && (
+            <div>
+              <label htmlFor="appeal" className="text-sm font-medium text-mute">
+                Think this is a mistake? Tell us what happened.
+              </label>
+              <textarea
+                id="appeal"
+                autoFocus
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                maxLength={MAX_APPEAL_LENGTH}
+                className="mt-1 h-28 w-full rounded-xl border border-line-2 bg-card-2 px-3 py-2"
+              />
+            </div>
+          )
         )}
-        <p className="mt-5 text-xs text-dim">Please follow the community guidelines: be respectful, no nudity, 18+ only.</p>
-      </div>
+
+        <StateActions
+          actions={[
+            ...(ban.appealPending
+              ? []
+              : appealing
+                ? [{ label: 'Send appeal', kind: 'primary' as const, disabled: !message.trim(), onClick: () => call.appeal(message) }]
+                : [{ label: 'Appeal', kind: 'primary' as const, onClick: () => setAppealing(true) }]),
+            { label: 'Read the Guidelines', kind: 'outline', href: '/guidelines' },
+            ...(user ? [{ label: 'Log out', kind: 'link' as const, onClick: () => void logout() }] : []),
+          ]}
+        />
+      </StateCard>
     </main>
   );
 }

@@ -6,8 +6,9 @@ import type { RandomCall } from '@/lib/useRandomCall';
 import { MATCHES_FOR_COINS } from '@rc/shared';
 import { AdSlot } from './AdSlot';
 import { spendError, useWallet } from './Coins';
+import { PlusModal } from './PlusModal';
+import { StateActions, StateCard } from './StateCard';
 
-const hoursUntil = (t: number) => Math.max(1, Math.ceil((t - Date.now()) / 3_600_000));
 const hours = (ms: number) => `${Math.round(ms / 3_600_000)} ${Math.round(ms / 3_600_000) === 1 ? 'hour' : 'hours'}`;
 
 /** mm:ss (or h:mm:ss) until `t`, ticking. */
@@ -25,98 +26,128 @@ function Countdown({ until }: { until: number }) {
 }
 
 /** Free call time used up: a short break, then more free time (or Plus / text chat now). */
-function BreakModal({ call, until, callMs, breakMs }: { call: RandomCall; until: number; callMs: number; breakMs: number }) {
+function BreakModal({ call, onPlus, until, callMs, breakMs }: { call: RandomCall; onPlus: () => void; until: number; callMs: number; breakMs: number }) {
   useEffect(() => {
     // Break over: back to matching.
     const t = window.setTimeout(() => call.resumeAfterBreak(), Math.max(0, until - Date.now()) + 1500);
     return () => window.clearTimeout(t);
   }, [until, call]);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="break-title">
-      <div className="relative w-full max-w-sm rounded-3xl border border-line bg-card p-6 text-center text-[#e8ebf2] shadow-2xl">
-        <button onClick={call.stop} aria-label="Close" className="absolute right-4 top-4 rounded-full p-1 text-2xl leading-none text-dim hover:text-white">
-          ×
-        </button>
-        <p className="text-5xl" aria-hidden>
-          ☕
-        </p>
-        <h2 id="break-title" className="mt-4 font-display text-2xl font-bold">
-          Time for a short break
-        </h2>
-        <p className="mt-2 text-sm text-mute">
-          You&apos;ve had {hours(callMs)} of free calls. Video and voice calls unlock again in
-        </p>
-        <p className="mt-3 font-display text-4xl font-bold text-lime">
-          <Countdown until={until} />
-        </p>
-        <p className="mt-1 text-xs text-dim">Then you get another {hours(callMs)} free. Breaks last {hours(breakMs)}.</p>
-        <Link href="/plus" className="mt-6 block w-full rounded-2xl bg-lime py-3.5 text-base font-bold text-night hover:bg-lime-hover">
-          Skip the break with Plus 👑
-        </Link>
-        <button onClick={call.textMeanwhile} className="mt-2 w-full rounded-2xl border border-line-2 bg-card-2 py-3 text-sm font-semibold hover:bg-[#262c3b]">
-          💬 Text chat meanwhile
-        </button>
+    <StateCard
+      overlay
+      icon="timer"
+      tone="gold"
+      titleId="break-title"
+      title="Time for a short break"
+      body={
+        <>
+          You&apos;ve had {hours(callMs)} of free calls. Video and voice unlock again in{' '}
+          <b className="tabular-nums text-[#f4f5f7]">
+            <Countdown until={until} />
+          </b>
+          . Then you get another {hours(callMs)} free (breaks last {hours(breakMs)}).
+        </>
+      }
+    >
+      <div className="flex flex-col gap-2 text-left">
+        <OptionRow tone="gold" title="Skip the break with Plus" sub="Unlimited calls + filters" onClick={onPlus} />
+        <OptionRow tone="grey" title="Text chat meanwhile" sub="Text chats have no break" onClick={call.textMeanwhile} />
       </div>
-    </div>
+      <StateActions actions={[{ label: 'Maybe later', kind: 'link', onClick: call.stop }]} />
+    </StateCard>
+  );
+}
+
+const ROW = {
+  gold: 'bg-gold-bg border-[#4A3F17] [&_b]:text-gold [&_.chev]:text-gold',
+  pink: 'bg-pick border-[#5A2550] [&_b]:text-lime [&_.chev]:text-lime',
+  grey: 'bg-card-2 border-line-2 [&_b]:text-[#E6E8EC] [&_.chev]:text-[#E6E8EC]',
+} as const;
+
+/** One of the "keep going" choices: title, sub-line and a chevron. */
+function OptionRow({
+  tone,
+  title,
+  sub,
+  onClick,
+  href,
+  disabled,
+}: {
+  tone: keyof typeof ROW;
+  title: React.ReactNode;
+  sub: React.ReactNode;
+  onClick?: () => void;
+  href?: string;
+  disabled?: boolean;
+}) {
+  const cls = `flex min-h-[60px] w-full items-center gap-3 rounded-[14px] border px-4 text-left text-[#f4f5f7] hover:brightness-110 disabled:opacity-50 ${ROW[tone]}`;
+  const inner = (
+    <>
+      <span className="min-w-0 flex-1">
+        <b className="block font-display text-[15px] font-bold">{title}</b>
+        <span className="text-[13px] text-mute">{sub}</span>
+      </span>
+      <span className="chev text-lg" aria-hidden>
+        ›
+      </span>
+    </>
+  );
+  return href ? (
+    <Link href={href} className={cls}>
+      {inner}
+    </Link>
+  ) : (
+    <button type="button" onClick={onClick} disabled={disabled} className={cls}>
+      {inner}
+    </button>
   );
 }
 
 /** "No matches left today": upgrade to Plus, or watch a video for more. */
 export function LimitModal({ call }: { call: RandomCall }) {
   const { limit, rewardAd } = call;
+  const [plusOpen, setPlusOpen] = useState(false);
   if (rewardAd) return <RewardVideo endsAt={rewardAd.endsAt} totalMs={limit?.adMs ?? 15_000} />;
   if (!call.limitReached || !limit) return null;
   if (limit.breakUntil && limit.breakUntil > Date.now() && limit.remaining > 0) {
-    return <BreakModal call={call} until={limit.breakUntil} callMs={limit.callMs} breakMs={limit.breakMs} />;
+    return (
+      <>
+        <BreakModal call={call} onPlus={() => setPlusOpen(true)} until={limit.breakUntil} callMs={limit.callMs} breakMs={limit.breakMs} />
+        {plusOpen && <PlusModal onClose={() => setPlusOpen(false)} />}
+      </>
+    );
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="limit-title">
-      <div className="relative w-full max-w-sm rounded-3xl bg-card p-6 text-center text-[#f4f5f7] shadow-2xl">
-        <button onClick={call.stop} aria-label="Close" className="absolute right-4 top-4 rounded-full p-1 text-2xl leading-none text-dim hover:text-[#f4f5f7]">
-          ×
-        </button>
-        <p className="text-5xl" aria-hidden>
-          🙈📞🙈
-        </p>
-        <h2 id="limit-title" className="mt-4 text-xl font-bold">
-          Oops! No matches left
-        </h2>
-        <p className="mt-2 text-mute">
-          You&apos;ve used today&apos;s {limit.limit} free {limit.limit === 1 ? 'match' : 'matches'}. Get more matches:
-        </p>
-
-        <Link
-          href="/plus"
-          className="relative mt-6 block w-full rounded-full bg-lime py-3.5 text-lg font-semibold text-night shadow hover:bg-lime-hover"
-        >
-          <span className="absolute -top-3 right-4 rounded-full bg-amber-300 px-2.5 py-0.5 text-xs font-semibold text-[#f4f5f7]">Unlimited Matches</span>
-          Get randomCall Plus 👑
-        </Link>
-
-        <CoinsForMatches call={call} />
-
-        <div className="my-4 flex items-center gap-3 text-xs font-medium text-dim">
-          <span className="h-px flex-1 bg-line" />
-          OR
-          <span className="h-px flex-1 bg-line" />
+    <>
+      <StateCard
+        overlay
+        icon="timer"
+        tone="gold"
+        titleId="limit-title"
+        title="You’ve used today’s free matches"
+        body={
+          <>
+            Free matches reset in{' '}
+            <b className="text-[#f4f5f7]">
+              <Countdown until={limit.resetsAt} />
+            </b>
+            . Want to keep going?
+          </>
+        }
+      >
+        <div className="flex flex-col gap-2 text-left">
+          <OptionRow tone="gold" title="Get Plus" sub="Unlimited matches + filters" onClick={() => setPlusOpen(true)} />
+          <CoinsForMatches call={call} />
+          {limit.adsLeft > 0 && (
+            <OptionRow tone="grey" title={`Watch a video · +${limit.adBonus} matches`} sub="A short ad, then keep matching" onClick={call.watchRewardAd} />
+          )}
+          <OptionRow tone="grey" title="Invite a friend" sub="You both get 1 day of Plus" href="/invite" />
         </div>
-
-        {limit.adsLeft > 0 ? (
-          <button
-            onClick={call.watchRewardAd}
-            className="flex w-full items-center justify-center gap-2 rounded-full border-2 border-lime py-3 text-lg font-semibold text-lime hover:bg-lime/5"
-          >
-            <span className="rounded-full bg-lime px-1.5 py-0.5 text-[10px] font-bold text-night">AD</span>
-            Watch video · +{limit.adBonus} matches
-          </button>
-        ) : (
-          <p className="rounded-full bg-card-2 py-3 text-sm text-dim">
-            No more videos today. Free matches come back in about {hoursUntil(limit.resetsAt)} h.
-          </p>
-        )}
-      </div>
-    </div>
+        <StateActions actions={[{ label: 'Maybe later', kind: 'link', onClick: call.stop }]} />
+      </StateCard>
+      {plusOpen && <PlusModal onClose={() => setPlusOpen(false)} />}
+    </>
   );
 }
 
@@ -152,9 +183,12 @@ function CoinsForMatches({ call }: { call: RandomCall }) {
   if (!wallet) return null;
   const enough = wallet.coins >= MATCHES_FOR_COINS.coins;
   return (
-    <div className="mt-3">
+    <>
       {enough ? (
-        <button
+        <OptionRow
+          tone="pink"
+          title={`${MATCHES_FOR_COINS.matches} more matches`}
+          sub={`${MATCHES_FOR_COINS.coins} coins · you have ${wallet.coins}`}
           disabled={busy}
           onClick={async () => {
             setBusy(true);
@@ -162,17 +196,11 @@ function CoinsForMatches({ call }: { call: RandomCall }) {
             setBusy(false);
             setError(spendError(r));
           }}
-          className="w-full rounded-full border-2 border-gold py-2.5 font-semibold text-gold hover:bg-gold-bg disabled:opacity-50"
-        >
-          🪙 Use {MATCHES_FOR_COINS.coins} coins · +{MATCHES_FOR_COINS.matches} matches
-        </button>
+        />
       ) : (
-        <Link href="/coins" target="_blank" className="block w-full rounded-full border-2 border-gold py-2.5 font-semibold text-gold hover:bg-gold-bg">
-          🪙 Get coins for more matches
-        </Link>
+        <OptionRow tone="pink" title={`${MATCHES_FOR_COINS.matches} more matches`} sub={`${MATCHES_FOR_COINS.coins} coins · get coins`} href="/coins" />
       )}
-      <p className="mt-1 text-xs text-dim">You have {wallet.coins} coins</p>
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
-    </div>
+      {error && <p className="m-0 text-xs text-stop-text">{error}</p>}
+    </>
   );
 }

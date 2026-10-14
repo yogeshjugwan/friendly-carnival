@@ -7,6 +7,7 @@ import { useRandomCall } from '@/lib/useRandomCall';
 import { BannedScreen } from './BannedScreen';
 import { ChatScreen } from './ChatScreen';
 import { Landing } from './Landing';
+import { StateActions, StateCard } from './StateCard';
 import { VideoTile } from './VideoTile';
 import { useI18n } from '@/lib/i18n';
 import { CAMERA_PROBLEM } from '@/lib/cameraCheck';
@@ -90,20 +91,23 @@ export function RandomCall() {
 
   if (call.status === 'media-denied') {
     return (
-      <main className="flex h-full flex-col items-center justify-center gap-4 bg-night p-6 text-center">
-        <p className="font-display text-[28px] font-bold">{t('perm.blocked')}</p>
-        <p className="max-w-md text-mute">
-          Allow camera and microphone access for this site in your browser settings (the icon next to the address bar), then try
-          again — or chat by text instead.
-        </p>
-        <div className="flex gap-3">
-          <button onClick={() => void call.start(lastJoin.current, 'text')} className="h-12 rounded-[14px] bg-lime px-6 font-display font-bold text-night hover:bg-lime-hover">
-            Start Text Chat
-          </button>
-          <button onClick={call.stop} className="h-12 rounded-[14px] border border-line-2 px-6 font-medium text-[#e6e8ec] hover:border-[#3a3f4a]">
-            Back
-          </button>
-        </div>
+      <main className="h-full">
+        <StateCard icon="camOff" tone="danger" title={t('perm.blocked')} body="randomCall needs your camera and microphone for video chat.">
+          <ol className="m-0 pl-5 text-left text-sm leading-[1.8] text-[#c9cdd4]">
+            <li>Click the lock icon in the address bar</li>
+            <li>
+              Set <b>Camera</b> and <b>Microphone</b> to Allow
+            </li>
+            <li>Press Try again</li>
+          </ol>
+          <StateActions
+            actions={[
+              { label: 'Try again', kind: 'primary', onClick: () => void call.start(lastJoin.current, call.mode) },
+              { label: 'Use text chat instead', kind: 'outline', onClick: () => void call.start(lastJoin.current, 'text') },
+              { label: 'Back', kind: 'link', onClick: call.stop },
+            ]}
+          />
+        </StateCard>
       </main>
     );
   }

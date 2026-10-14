@@ -191,7 +191,7 @@ export function StopNext({ call, wide = false, compact = false }: { call: Random
   const { t } = useI18n();
   const h = compact ? 'h-12' : 'h-14 max-sm:h-[58px]';
   return (
-    <div className={`flex items-center gap-2.5 ${wide ? 'w-full sm:w-auto' : ''}`}>
+    <div className={`flex items-center gap-2.5 sm:w-auto sm:flex-none ${wide ? 'w-full' : ''}`}>
       <button
         onClick={call.stop}
         aria-label={t('call.end')}
@@ -206,7 +206,7 @@ export function StopNext({ call, wide = false, compact = false }: { call: Random
         aria-label={t('call.nextStranger')}
         title={`${t('call.nextStranger')} (→)`}
         aria-keyshortcuts="ArrowRight Space"
-        className={`${h} rounded-2xl bg-lime px-10 font-display text-lg font-bold text-night transition ${wide ? 'max-sm:flex-1 max-sm:px-0 max-sm:text-[19px]' : ''}`}
+        className={`${h} rounded-2xl bg-lime px-10 font-display sm:w-auto sm:flex-none text-lg font-bold text-night transition ${wide ? 'max-sm:flex-1 max-sm:px-0 max-sm:text-[19px]' : ''}`}
       >
         {t('call.next')} →
       </button>

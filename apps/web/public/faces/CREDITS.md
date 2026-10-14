@@ -1,0 +1,1 @@
+Portraits in this folder are free photos from Unsplash (https://unsplash.com), used under the Unsplash License (https://unsplash.com/license). They are shown on the home page as "Sample profiles · illustration", not as real users.

@@ -67,7 +67,9 @@ export function SampleWall({ cols, tileH, compact = false }: { cols: number; til
       label: `${NAMES[i % NAMES.length]}, ${19 + ((i * 7) % 11)} · ${PLACES[(i * 5) % PLACES.length]}`,
     };
   };
-  const columns = Array.from({ length: cols }, (_, c) => Array.from({ length: 14 }, (_, k) => make(c * 14 + k)));
+  // Enough tiles per column that every photo appears once.
+  const perCol = Math.max(14, Math.ceil(faces.length / cols));
+  const columns = Array.from({ length: cols }, (_, c) => Array.from({ length: perCol }, (_, k) => make(c * perCol + k)));
   return (
     <div aria-hidden className={`absolute inset-0 grid ${compact ? 'gap-2 px-2' : 'gap-3'}`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
       {columns.map((tiles, c) => (

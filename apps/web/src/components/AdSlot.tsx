@@ -11,20 +11,20 @@ declare global {
 }
 
 const HOUSE_ADS = [
-  { title: 'Keep your settings everywhere', body: 'Create a free account to save your interests and preferences.', cta: 'Sign up free', href: '/signup' },
+  { title: 'Keep your settings everywhere', body: 'Create a free account to keep your name, coins and friends on every device.', cta: 'Sign up free', href: '/signup' },
   { title: 'Want to stay more private?', body: 'Hide your country from the people you meet.', cta: 'Hide your location', href: '/settings' },
   { title: 'Be kind, stay safe', body: 'Read the community guidelines. Use 🛡 Safety to report or block anyone.', cta: 'Read guidelines', href: '/guidelines' },
-  { title: 'Camera shy?', body: 'Switch to text-only chat any time from the start screen.', cta: 'Learn more', href: '/settings' },
+  { title: 'Out of things to say?', body: 'Tap Play in any chat for tic-tac-toe, Truth or Dare and more.', cta: 'See what else', href: '/help' },
 ];
 
 /** Our own promo, used until an ad network is configured (or when an ad fails to fill). */
 function HouseAd({ seed }: { seed: number }) {
   const ad = HOUSE_ADS[seed % HOUSE_ADS.length]!;
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-1.5 bg-gradient-to-br from-[#1f3b73] to-[#2f7de1] px-4 pb-3 pt-5 text-center text-white sm:gap-2">
-      <p className="text-base font-semibold sm:text-lg">{ad.title}</p>
-      <p className="max-w-xs text-xs text-blue-100 sm:text-sm">{ad.body}</p>
-      <Link href={ad.href} className="mt-1 rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-[#1f3b73] hover:bg-blue-50">
+    <div className="flex h-full flex-col items-center justify-center gap-1.5 bg-[radial-gradient(circle_at_50%_40%,#1a2410_0%,#0e1015_60%)] px-4 pb-3 pt-5 text-center text-[#f4f5f7] sm:gap-2">
+      <p className="font-display text-base font-bold sm:text-xl">{ad.title}</p>
+      <p className="max-w-xs text-xs text-mute sm:text-sm">{ad.body}</p>
+      <Link href={ad.href} className="mt-1 rounded-full bg-lime px-4 py-1.5 text-sm font-semibold text-night hover:bg-lime-hover">
         {ad.cta}
       </Link>
     </div>

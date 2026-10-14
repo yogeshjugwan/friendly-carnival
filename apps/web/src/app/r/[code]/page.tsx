@@ -16,5 +16,5 @@ export default function InviteLink() {
     if (!user || !token) return router.replace('/signup?invited=1');
     void claimInvite(user, (c) => api('/auth/referral', { code: c }, token)).finally(() => router.replace('/'));
   }, [code, loading, user, token, router]);
-  return <main className="flex h-full items-center justify-center text-slate-400">Opening randomCall…</main>;
+  return <main className="flex h-full items-center justify-center text-dim">Opening randomCall…</main>;
 }

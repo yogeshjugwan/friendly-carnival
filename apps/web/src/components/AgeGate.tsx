@@ -19,7 +19,7 @@ export function AgeGate() {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="age-title">
       <form
-        className="w-full max-w-sm rounded-2xl bg-white p-6 text-ink shadow-2xl"
+        className="w-full max-w-sm rounded-2xl bg-card p-6 text-[#f4f5f7] shadow-2xl"
         onSubmit={async (e) => {
           e.preventDefault();
           setBusy(true);
@@ -37,7 +37,7 @@ export function AgeGate() {
         <h2 id="age-title" className="text-xl font-semibold">
           One quick thing
         </h2>
-        <p className="mt-1 text-sm text-slate-600">randomCall is for adults ({MIN_AGE}+). Please enter your date of birth — you only do this once.</p>
+        <p className="mt-1 text-sm text-mute">randomCall is for adults ({MIN_AGE}+). Please enter your date of birth — you only do this once.</p>
         <label htmlFor="age-dob" className="mt-4 block text-sm font-medium">
           Date of birth
         </label>
@@ -48,10 +48,10 @@ export function AgeGate() {
           max={new Date().toISOString().slice(0, 10)}
           value={birthDate}
           onChange={(e) => setBirthDate(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"
+          className="mt-1 w-full rounded-lg border border-line-2 px-3 py-2"
         />
         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-        <button disabled={busy || !birthDate} className="mt-4 w-full rounded-lg bg-brand py-2.5 font-semibold text-white disabled:opacity-50">
+        <button disabled={busy || !birthDate} className="mt-4 w-full rounded-lg bg-lime py-2.5 font-semibold text-night disabled:opacity-50">
           {busy ? 'Saving…' : 'Continue'}
         </button>
       </form>

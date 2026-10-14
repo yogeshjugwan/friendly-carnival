@@ -68,22 +68,22 @@ export function OnlineUsersPanel({ call, onClose, className = '' }: { call: Rand
           {u.avatar ?? GENDER_ICON[u.gender]}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1.5 text-sm font-medium text-slate-100">
+          <p className="flex items-center gap-1.5 text-sm font-medium text-[#f4f5f7]">
             {u.name && <span className="max-w-[7rem] truncate font-semibold">{u.name}</span>}
             <span>{u.locationHidden ? '📍' : flagEmoji(u.country)}</span>
             <span className="truncate">{u.locationHidden ? 'Location hidden' : countryName(u.country)}</span>
             {u.verified && <VerifiedBadge />}
             {u.plus && <span title="Plus member">👑</span>}
-            {u.mode === 'text' && <span className="rounded bg-white/10 px-1.5 text-[10px] font-semibold uppercase text-slate-300">text</span>}
-            {u.mode === 'voice' && <span className="rounded bg-white/10 px-1.5 text-[10px] font-semibold uppercase text-slate-300">voice</span>}
+            {u.mode === 'text' && <span className="rounded bg-white/10 px-1.5 text-[10px] font-semibold uppercase text-mute">text</span>}
+            {u.mode === 'voice' && <span className="rounded bg-white/10 px-1.5 text-[10px] font-semibold uppercase text-mute">voice</span>}
           </p>
-          {u.bio && <p className="truncate text-xs italic text-slate-300">“{u.bio}”</p>}
-          {u.interests.length > 0 && <p className="truncate text-xs text-slate-400">likes {u.interests.join(', ')}</p>}
+          {u.bio && <p className="truncate text-xs italic text-mute">“{u.bio}”</p>}
+          {u.interests.length > 0 && <p className="truncate text-xs text-dim">likes {u.interests.join(', ')}</p>}
         </div>
         {u.state === 'in-call' ? (
-          <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs text-slate-300">In a chat</span>
+          <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs text-mute">In a chat</span>
         ) : calling ? (
-          <button onClick={cancelCall} className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-sky-300">
+          <button onClick={cancelCall} className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-semibold text-lime">
             Calling… {left}s · Cancel
           </button>
         ) : (
@@ -98,7 +98,7 @@ export function OnlineUsersPanel({ call, onClose, className = '' }: { call: Rand
                 void refresh();
               }
             }}
-            className="rounded-full bg-brand px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-40"
+            className="rounded-full bg-lime px-4 py-1.5 text-sm font-semibold text-night disabled:opacity-40"
           >
             Call
           </button>
@@ -108,17 +108,17 @@ export function OnlineUsersPanel({ call, onClose, className = '' }: { call: Rand
   };
 
   return (
-    <section className={`flex min-h-0 flex-col rounded-[20px] border border-line bg-card text-slate-100 ${className}`} aria-labelledby="online-title">
+    <section className={`flex min-h-0 flex-col rounded-[20px] border border-line bg-card text-[#f4f5f7] ${className}`} aria-labelledby="online-title">
       <header className="flex items-center justify-between px-5 pb-2 pt-4">
         <div>
           <h2 id="online-title" className="text-lg">
             Online now <span className="text-xs text-amber-300">👑 Plus</span>
           </h2>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-dim">
             {users === null ? 'Loading…' : `${waiting.length} looking for a chat · ${busy.length} chatting`}
           </p>
         </div>
-        <button onClick={onClose} aria-label="Close" className="rounded-full p-2 text-slate-300 hover:bg-white/10 hover:text-white">
+        <button onClick={onClose} aria-label="Close" className="rounded-full p-2 text-mute hover:bg-white/10 hover:text-white">
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
             <path d="M18 6 6 18M6 6l12 12" />
           </svg>
@@ -126,21 +126,21 @@ export function OnlineUsersPanel({ call, onClose, className = '' }: { call: Rand
       </header>
       {error && <p className="mx-4 mb-1 rounded-lg bg-amber-500/15 px-3 py-2 text-sm text-amber-200">{error}</p>}
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-2">
-        {users !== null && users.length === 0 && <p className="py-10 text-center text-sm text-slate-400">Nobody else is online right now.</p>}
+        {users !== null && users.length === 0 && <p className="py-10 text-center text-sm text-dim">Nobody else is online right now.</p>}
         {waiting.length > 0 && (
           <>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Looking for a chat</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-dim">Looking for a chat</p>
             <ul className="space-y-2">{waiting.map(row)}</ul>
           </>
         )}
         {busy.length > 0 && (
           <>
-            <p className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-slate-400">In a chat</p>
+            <p className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-dim">In a chat</p>
             <ul className="space-y-2">{busy.map(row)}</ul>
           </>
         )}
       </div>
-      <p className="px-5 py-3 text-center text-xs text-slate-500">They decide whether to accept. Names and exact locations are never shown.</p>
+      <p className="px-5 py-3 text-center text-xs text-dim">They decide whether to accept. Names and exact locations are never shown.</p>
     </section>
   );
 }
@@ -153,7 +153,7 @@ export function IncomingCallModal({ call }: { call: RandomCall }) {
   const { from } = incomingCall;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="alertdialog" aria-modal="true" aria-labelledby="incoming-title">
-      <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-center text-ink shadow-2xl">
+      <div className="w-full max-w-sm rounded-3xl bg-card p-6 text-center text-[#f4f5f7] shadow-2xl">
         <p className="text-5xl" aria-hidden>
           📞
         </p>
@@ -162,22 +162,22 @@ export function IncomingCallModal({ call }: { call: RandomCall }) {
             ? `❤️ ${incomingCall.friend || 'Your friend'} wants to chat`
             : `${from.name || (from.plus ? '👑 A Plus member' : 'Someone')} wants to chat`}
         </h2>
-        <p className="mt-2 flex items-center justify-center gap-1.5 text-slate-600">
+        <p className="mt-2 flex items-center justify-center gap-1.5 text-mute">
           <span title={GENDER_LABEL[from.gender]}>{GENDER_ICON[from.gender]}</span>
           <span>{from.locationHidden ? '📍 Location hidden' : `${flagEmoji(from.country)} ${countryName(from.country)}`}</span>
           {from.verified && <VerifiedBadge />}
         </p>
-        {from.bio && <p className="mt-1 text-sm italic text-slate-600">{from.avatar ? `${from.avatar} ` : ''}“{from.bio}”</p>}
-        {from.sharedInterests.length > 0 && <p className="mt-1 text-sm text-slate-500">You both like {from.sharedInterests.join(', ')}</p>}
+        {from.bio && <p className="mt-1 text-sm italic text-mute">{from.avatar ? `${from.avatar} ` : ''}“{from.bio}”</p>}
+        {from.sharedInterests.length > 0 && <p className="mt-1 text-sm text-dim">You both like {from.sharedInterests.join(', ')}</p>}
         <div className="mt-6 flex gap-3">
-          <button onClick={() => answerCall(false)} className="flex-1 rounded-full bg-slate-200 py-3 font-semibold text-slate-700 hover:bg-slate-300">
+          <button onClick={() => answerCall(false)} className="flex-1 rounded-full bg-line py-3 font-semibold text-[#e6e8ec] hover:bg-line-2">
             Decline
           </button>
           <button onClick={() => answerCall(true)} className="flex-1 rounded-full bg-emerald-500 py-3 font-semibold text-white hover:bg-emerald-600">
             Accept
           </button>
         </div>
-        <p className="mt-3 text-xs text-slate-400">Closes in {left}s</p>
+        <p className="mt-3 text-xs text-dim">Closes in {left}s</p>
       </div>
     </div>
   );

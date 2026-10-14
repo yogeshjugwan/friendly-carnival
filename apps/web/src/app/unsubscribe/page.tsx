@@ -18,16 +18,16 @@ export default function UnsubscribePage() {
   return (
     <main className="mx-auto flex min-h-full max-w-2xl flex-col gap-6 px-4 py-6 sm:px-6">
       <SiteHeader />
-      <section className="mt-10 rounded-2xl bg-white p-6 text-center text-ink">
+      <section className="mt-10 rounded-2xl bg-card p-6 text-center text-[#f4f5f7]">
         {state === 'working' ? (
           <p>Unsubscribing…</p>
         ) : state === 'done' ? (
           <>
             <p className="text-lg font-semibold">You&apos;re unsubscribed.</p>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-dim">
               We won&apos;t send you activity emails any more. Account emails (like password resets) still arrive. You can turn them back on
               in{' '}
-              <Link href="/settings" className="text-brand underline">
+              <Link href="/settings" className="text-lime underline">
                 Settings
               </Link>
               .

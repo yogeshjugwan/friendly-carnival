@@ -30,6 +30,10 @@ html,
 body {
   height: 100%;
 }
+/* Full-bleed header/footer use 100vw, which includes the scrollbar. */
+body {
+  overflow-x: clip;
+}
 
 body {
   background: #07080b;
@@ -73,7 +77,8 @@ body {
 .rc-drift { animation: rc-drift 40s linear infinite; }
 .rc-drift-up { animation: rc-drift-up 46s linear infinite; }
 /* Ring pulsing out of the Start button. */
-@keyframes rc-ring { 0% { transform: scale(0.96); opacity: 0.7; } 100% { transform: scale(1.12, 1.35); opacity: 0; } }
+/* Kept tight so the ring never reaches the 18+ line under the button. */
+@keyframes rc-ring { 0% { transform: scale(1); opacity: 0.7; } 100% { transform: scale(1.05, 1.18); opacity: 0; } }
 .rc-ring::before {
   content: '';
   position: absolute;
@@ -108,4 +113,14 @@ body {
   .rc-drift, .rc-drift-up, .rc-blink, .rc-sway, .rc-talk, .rc-eyes, .rc-wave, .rc-orbit, .rc-counter, .rc-dot { animation: none; }
   .rc-ripple { animation: none; opacity: 0.2; }
   .rc-ring::before { animation: none; opacity: 0; }
+}
+
+/* Browser autofill paints inputs light blue; keep them on the dark card. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px var(--color-card-2) inset;
+  -webkit-text-fill-color: #f4f5f7;
+  caret-color: #f4f5f7;
+  transition: background-color 9999s;
 }

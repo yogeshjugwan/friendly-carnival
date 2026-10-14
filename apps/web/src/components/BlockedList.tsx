@@ -37,9 +37,9 @@ export function BlockedList({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
       });
   };
 
-  if (items === null) return <p className={`text-sm ${dark ? 'text-slate-400' : 'text-dim'}`}>Loading…</p>;
+  if (items === null) return <p className={`text-sm ${dark ? 'text-dim' : 'text-dim'}`}>Loading…</p>;
   if (items.length === 0) {
-    return <p className={`text-sm ${dark ? 'text-slate-400' : 'text-dim'}`}>You haven&apos;t blocked anyone.</p>;
+    return <p className={`text-sm ${dark ? 'text-dim' : 'text-dim'}`}>You haven&apos;t blocked anyone.</p>;
   }
 
   return (
@@ -56,17 +56,17 @@ export function BlockedList({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
               {b.gender ? GENDER_ICON[b.gender] : '👤'}
             </span>
             <div className="min-w-0 flex-1">
-              <p className={`truncate text-sm font-medium ${dark ? 'text-slate-100' : 'text-[#f4f5f7]'}`}>
+              <p className={`truncate text-sm font-medium ${dark ? 'text-[#f4f5f7]' : 'text-[#f4f5f7]'}`}>
                 {b.gender ? GENDER_LABEL[b.gender] : 'Stranger'} · {b.country ? `${flagEmoji(b.country)} ${countryName(b.country)}` : '🌐 Location not shown'}
               </p>
-              <p className={`text-xs ${dark ? 'text-slate-400' : 'text-dim'}`}>Blocked {fmtDate(b.createdAt)}</p>
+              <p className={`text-xs ${dark ? 'text-dim' : 'text-dim'}`}>Blocked {fmtDate(b.createdAt)}</p>
             </div>
             <button
               onClick={() => unblock(b.id)}
               disabled={busy === b.id}
               className={`text-sm font-semibold disabled:opacity-50 ${
                 dark
-                  ? 'rounded-full bg-white/10 px-3 py-1.5 text-sky-300 hover:bg-white/20'
+                  ? 'rounded-full bg-white/10 px-3 py-1.5 text-lime hover:bg-white/20'
                   : 'h-11 flex-none rounded-xl border border-line-2 bg-card-2 px-3.5 text-[#e6e8ec] hover:border-[#384056]'
               }`}
             >
@@ -75,7 +75,7 @@ export function BlockedList({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
           </li>
         ))}
       </ul>
-      <p className={`mt-2 text-xs ${dark ? 'text-slate-400' : 'text-faint'}`}>Unblocked people can be matched with you again.</p>
+      <p className={`mt-2 text-xs ${dark ? 'text-dim' : 'text-faint'}`}>Unblocked people can be matched with you again.</p>
     </div>
   );
 }

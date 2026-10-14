@@ -129,32 +129,19 @@ export function ChatPanel({
     }
   };
 
-  const t = meet
-    ? {
-        // WhatsApp dark
-        section: 'bg-[#0b141a] text-[#e9edef]',
-        system: 'text-[#8696a0]',
-        mine: 'bg-[#005c4b] text-[#e9edef] rounded-tr-none',
-        theirs: 'bg-[#202c33] text-[#e9edef] rounded-tl-none',
-        footer: 'p-3',
-        emojiBox: 'border-slate-700 bg-[#2a2b2e]',
-        emojiBtn: 'hover:bg-white/10',
-        input:
-          'min-w-0 flex-1 rounded-lg bg-[#2a3942] py-2.5 pl-4 pr-2 text-base text-[#e9edef] placeholder:text-[#8696a0] focus:outline-none disabled:opacity-50',
-        icon: 'text-slate-300 hover:bg-white/10',
-      }
-    : {
-        // WhatsApp light
-        section: 'bg-[#efeae2] text-[#111b21]',
-        system: 'text-[#667781]',
-        mine: 'bg-[#d9fdd3] text-[#111b21] shadow-sm rounded-tr-none',
-        theirs: 'bg-white text-[#111b21] shadow-sm rounded-tl-none',
-        footer: 'border-t border-slate-200 p-2',
-        emojiBox: 'border-slate-200 bg-white',
-        emojiBtn: 'hover:bg-slate-100',
-        input: 'min-w-0 flex-1 rounded-lg bg-white px-3 py-2.5 text-base shadow-sm focus:outline-none disabled:bg-slate-50',
-        icon: 'hover:bg-slate-100',
-      };
+  // Instant-entry look: dark card, grey bubbles for them, lime for you.
+  const t = {
+    section: meet ? 'bg-card text-[#f4f5f7]' : 'bg-[#0e1015] text-[#f4f5f7]',
+    system: 'text-dim',
+    mine: 'bg-lime text-night rounded-tr-none',
+    theirs: 'bg-card-2 text-[#f4f5f7] rounded-tl-none',
+    footer: meet ? 'p-3' : 'border-t border-line p-2',
+    emojiBox: 'border-line bg-card-2',
+    emojiBtn: 'hover:bg-white/10',
+    input:
+      'min-w-0 flex-1 rounded-full border border-line-2 bg-night px-4 py-2.5 text-base text-[#f4f5f7] placeholder:text-faint focus:border-lime focus:outline-none disabled:opacity-50',
+    icon: 'text-mute hover:bg-white/10',
+  };
 
   return (
     <section className={`flex min-h-0 flex-col ${meet ? 'rounded-2xl' : 'rounded-xl'} ${t.section} ${className}`} aria-label="Text chat">
@@ -167,7 +154,7 @@ export function ChatPanel({
                 onClick={toggleAuto}
                 title={canAutoTranslate ? 'Auto-translate messages' : 'Auto-translate is a Plus feature'}
                 aria-pressed={auto}
-                className={`rounded-full px-2 py-1 text-xs font-medium ${auto ? 'bg-sky-200 text-slate-900' : 'text-slate-300 hover:bg-white/10'}`}
+                className={`rounded-full px-2 py-1 text-xs font-medium ${auto ? 'bg-lime text-night' : 'text-mute hover:bg-white/10'}`}
               >
                 🌐 Auto{!canAutoTranslate && ' 👑'}
               </button>
@@ -178,7 +165,7 @@ export function ChatPanel({
               </button>
             )}
             {onClose && (
-              <button onClick={onClose} aria-label="Close chat" className="rounded-full p-2 text-slate-300 hover:bg-white/10 hover:text-white">
+              <button onClick={onClose} aria-label="Close chat" className="rounded-full p-2 text-mute hover:bg-white/10 hover:text-white">
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
                   <path d="M18 6 6 18M6 6l12 12" />
                 </svg>
@@ -190,7 +177,7 @@ export function ChatPanel({
               Auto-translate is a Plus feature. You can still tap Translate under any message.
             </p>
           )}
-          <p className="mx-4 mb-1 rounded-lg bg-[#2a2b2e] px-3 py-2 text-center text-xs text-slate-400">
+          <p className="mx-4 mb-1 rounded-lg bg-[#2a2b2e] px-3 py-2 text-center text-xs text-dim">
             💬 Messages are only between you and this stranger and are not saved when the chat ends.
           </p>
         </>
@@ -199,7 +186,7 @@ export function ChatPanel({
         {messages.map((m) =>
           m.from === 'system' ? (
             <p key={m.id} className="text-center">
-              <span className={`inline-block rounded-lg px-3 py-1 text-xs shadow-sm ${meet ? 'bg-[#182229] text-[#ffd279]' : 'bg-[#ffeecd] text-[#54656f]'}`}>
+              <span className={`inline-block rounded-lg px-3 py-1 text-xs shadow-sm bg-gold-bg text-gold`}>
                 {m.text}
               </span>
             </p>
@@ -209,7 +196,7 @@ export function ChatPanel({
                 <p className={`max-w-[80%] whitespace-pre-wrap break-words rounded-lg px-2.5 py-1.5 text-sm ${t.mine}`}>
                   <span className="sr-only">{tr('chat.you')}: </span>
                   {m.text}
-                  <span className={`float-right ml-2 mt-1 translate-y-0.5 text-[10px] ${t.system}`}>
+                  <span className="float-right ml-2 mt-1 translate-y-0.5 text-[10px] text-night/60">
                     {clock(m.at)} <span aria-hidden>✓</span>
                   </span>
                 </p>
@@ -276,7 +263,7 @@ export function ChatPanel({
               type="submit"
               disabled={!enabled || !draft.trim()}
               aria-label={tr('chat.send')}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-white transition disabled:opacity-40"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-lime text-night transition hover:bg-lime-hover disabled:opacity-40"
             >
               <SendIcon />
             </button>
@@ -285,7 +272,7 @@ export function ChatPanel({
               type="submit"
               disabled={!enabled || !draft.trim()}
               aria-label={tr('chat.send')}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-white transition disabled:opacity-40"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-lime text-night transition hover:bg-lime-hover disabled:opacity-40"
             >
               <SendIcon />
             </button>

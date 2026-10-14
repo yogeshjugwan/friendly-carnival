@@ -61,7 +61,7 @@ export function FilterBar() {
         className={`min-w-0 cursor-pointer appearance-none truncate bg-transparent text-sm [field-sizing:content] focus:outline-none ${isPlus ? 'pr-5' : 'pr-10'} ${wide ? 'max-w-[8.5rem] sm:max-w-[11rem]' : ''}`}
       >
         {options.map((o) => (
-          <option key={o.value} value={o.value} className="text-ink">
+          <option key={o.value} value={o.value} className="text-[#f4f5f7]">
             {o.label}
           </option>
         ))}

@@ -61,7 +61,7 @@ function Person({ label, emoji, level, muted }: { label: string; emoji: string; 
           {emoji}
         </span>
       </div>
-      <span className="text-sm font-medium text-slate-200">
+      <span className="text-sm font-medium text-[#e6e8ec]">
         {label}
         {muted && <span className="ml-1 text-red-300">· muted</span>}
       </span>
@@ -85,8 +85,8 @@ export function VoiceStage({ call, matched, partnerEmoji }: { call: RandomCall; 
       {matched ? (
         <Person label={call.partner?.name || 'Stranger'} emoji={partnerEmoji} level={theirs} />
       ) : (
-        <div className="flex flex-col items-center gap-2 text-slate-500">
-          <span className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-dashed border-slate-600 text-4xl sm:h-32 sm:w-32">?</span>
+        <div className="flex flex-col items-center gap-2 text-dim">
+          <span className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-dashed border-line-2 text-4xl sm:h-32 sm:w-32">?</span>
           <span className="text-sm">Waiting…</span>
         </div>
       )}

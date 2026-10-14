@@ -21,7 +21,7 @@ export function GamesButton({ call, up }: { call: RandomCall; up?: boolean }) {
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
           <div className={`${POP} ${popPos(up)} w-64 p-2`}>
-            <p className="px-2 pb-1 pt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Play together</p>
+            <p className="px-2 pb-1 pt-1 text-xs font-semibold uppercase tracking-wide text-dim">Play together</p>
             {GAMES.map((g) => (
               <button
                 key={g.id}
@@ -34,7 +34,7 @@ export function GamesButton({ call, up }: { call: RandomCall; up?: boolean }) {
                 <span className="text-2xl">{g.emoji}</span>
                 <span>
                   <span className="block text-sm font-semibold">{g.name}</span>
-                  <span className="block text-xs text-slate-400">{g.blurb}</span>
+                  <span className="block text-xs text-dim">{g.blurb}</span>
                 </span>
               </button>
             ))}
@@ -71,12 +71,12 @@ function TicTacToe({ view, call }: { view: Extract<GameView, { game: 'ttt' }>; c
               view.line?.includes(i) ? 'bg-emerald-500/40' : 'bg-white/10'
             } ${view.myTurn && !cell ? 'hover:bg-white/20' : ''}`}
           >
-            {cell === 'me' ? <span className="text-sky-300">✕</span> : cell === 'them' ? <span className="text-pink-300">◯</span> : ''}
+            {cell === 'me' ? <span className="text-lime">✕</span> : cell === 'them' ? <span className="text-pink-300">◯</span> : ''}
           </button>
         ))}
       </div>
       {view.winner && (
-        <button onClick={() => call.gameMove({ next: true })} className={`${btn} bg-brand text-white`}>
+        <button onClick={() => call.gameMove({ next: true })} className={`${btn} bg-lime text-white`}>
           Play again
         </button>
       )}
@@ -89,7 +89,7 @@ function TruthOrDare({ view, call }: { view: Extract<GameView, { game: 'tod' }>;
     <div className="flex flex-col items-center gap-3 text-center">
       {view.card && (
         <div className={`w-full rounded-xl p-3 ${view.card.kind === 'truth' ? 'bg-sky-500/20' : 'bg-pink-500/20'}`}>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">
+          <p className="text-xs font-semibold uppercase tracking-wide text-mute">
             {view.card.kind === 'truth' ? 'Truth' : 'Dare'} for {view.card.for === 'me' ? 'you' : 'them'}
           </p>
           <p className="mt-1 font-medium">{view.card.text}</p>
@@ -97,7 +97,7 @@ function TruthOrDare({ view, call }: { view: Extract<GameView, { game: 'tod' }>;
       )}
       {view.myTurn ? (
         <div className="flex gap-2">
-          <button onClick={() => call.gameMove({ pick: 'truth' })} className={`${btn} bg-sky-500 text-white`}>
+          <button onClick={() => call.gameMove({ pick: 'truth' })} className={`${btn} bg-lime text-white`}>
             Truth
           </button>
           <button onClick={() => call.gameMove({ pick: 'dare' })} className={`${btn} bg-pink-500 text-white`}>
@@ -105,9 +105,9 @@ function TruthOrDare({ view, call }: { view: Extract<GameView, { game: 'tod' }>;
           </button>
         </div>
       ) : (
-        <p className="text-sm text-slate-300">Waiting for them to pick truth or dare…</p>
+        <p className="text-sm text-mute">Waiting for them to pick truth or dare…</p>
       )}
-      <p className="text-[11px] text-slate-500">Keep it friendly — you can always skip a card.</p>
+      <p className="text-[11px] text-dim">Keep it friendly — you can always skip a card.</p>
     </div>
   );
 }
@@ -121,10 +121,10 @@ function WouldYouRather({ view, call }: { view: Extract<GameView, { game: 'wyr' 
       <button
         disabled={!!view.myVote}
         onClick={() => call.gameMove({ vote: key })}
-        className={`relative flex-1 rounded-xl p-3 text-sm font-medium transition ${mine ? 'bg-brand text-white' : 'bg-white/10 hover:bg-white/20'} disabled:cursor-default`}
+        className={`relative flex-1 rounded-xl p-3 text-sm font-medium transition ${mine ? 'bg-lime text-night' : 'bg-white/10 hover:bg-white/20'} disabled:cursor-default`}
       >
         {text}
-        <span className="mt-1 block text-[11px] font-normal text-slate-200">
+        <span className="mt-1 block text-[11px] font-normal text-[#e6e8ec]">
           {mine && 'You'}
           {mine && theirs && ' · '}
           {theirs && 'Them'}
@@ -139,7 +139,7 @@ function WouldYouRather({ view, call }: { view: Extract<GameView, { game: 'wyr' 
         {option('a', view.question.a)}
         {option('b', view.question.b)}
       </div>
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-dim">
         {!view.myVote
           ? view.theirVote === 'hidden'
             ? 'They picked — your turn!'
@@ -151,7 +151,7 @@ function WouldYouRather({ view, call }: { view: Extract<GameView, { game: 'wyr' 
               : 'You picked differently — talk about it!'}
       </p>
       {both && (
-        <button onClick={() => call.gameMove({ next: true })} className={`${btn} bg-brand text-white`}>
+        <button onClick={() => call.gameMove({ next: true })} className={`${btn} bg-lime text-white`}>
           Next question
         </button>
       )}
@@ -165,13 +165,13 @@ export function GameCard({ call, className = '' }: { call: RandomCall; className
   if (!view) return null;
   const meta = GAMES.find((g) => g.id === view.game)!;
   return (
-    <section className={`w-[min(20rem,92vw)] rounded-[20px] border border-line bg-card/95 p-3 text-slate-100 shadow-2xl backdrop-blur ${className}`} aria-label={meta.name}>
+    <section className={`w-[min(20rem,92vw)] rounded-[20px] border border-line bg-card/95 p-3 text-[#f4f5f7] shadow-2xl backdrop-blur ${className}`} aria-label={meta.name}>
       <div className="mb-2 flex items-center justify-between">
         <p className="text-sm font-semibold">
           {meta.emoji} {meta.name}
-          {view.startedBy === 'them' && <span className="ml-1 text-xs font-normal text-slate-400">· they started</span>}
+          {view.startedBy === 'them' && <span className="ml-1 text-xs font-normal text-dim">· they started</span>}
         </p>
-        <button onClick={call.endGame} aria-label="Close game" className="rounded-full px-2 text-lg leading-none text-slate-400 hover:text-white">
+        <button onClick={call.endGame} aria-label="Close game" className="rounded-full px-2 text-lg leading-none text-dim hover:text-white">
           ×
         </button>
       </div>

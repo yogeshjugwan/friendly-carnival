@@ -78,7 +78,7 @@ export function GiftButton({ call, up, iconClass, menuPos }: { call: RandomCall;
               {wallet ? (
                 <span className="text-amber-200">🪙 {wallet.coins.toLocaleString()}</span>
               ) : (
-                <Link href="/login" target="_blank" className="text-xs text-sky-300 underline">
+                <Link href="/login" target="_blank" className="text-xs text-lime underline">
                   Log in
                 </Link>
               )}
@@ -109,9 +109,9 @@ export function GiftButton({ call, up, iconClass, menuPos }: { call: RandomCall;
               ))}
             </div>
             {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
-            <p className="mt-2 text-[11px] text-slate-400">
+            <p className="mt-2 text-[11px] text-dim">
               They get half as coins.{' '}
-              <Link href="/coins" target="_blank" className="text-sky-300 underline">
+              <Link href="/coins" target="_blank" className="text-lime underline">
                 Get coins
               </Link>
             </p>
@@ -174,12 +174,12 @@ export function BoostCard({ call, buy }: { call?: RandomCall; buy: () => Promise
             setBusy(false);
             setError(spendError(r));
           }}
-          className="mt-3 rounded-full bg-white px-4 py-2 text-sm font-semibold text-indigo-700 disabled:opacity-50"
+          className="mt-3 rounded-full bg-card px-4 py-2 text-sm font-semibold text-indigo-700 disabled:opacity-50"
         >
           {busy ? 'Boosting…' : `${active ? 'Add' : 'Boost'} ${BOOST.minutes} min · 🪙 ${BOOST.coins}`}
         </button>
       ) : (
-        <Link href="/login?next=/coins" className="mt-3 inline-block rounded-full bg-white px-4 py-2 text-sm font-semibold text-indigo-700">
+        <Link href="/login?next=/coins" className="mt-3 inline-block rounded-full bg-card px-4 py-2 text-sm font-semibold text-indigo-700">
           Log in to Boost
         </Link>
       )}

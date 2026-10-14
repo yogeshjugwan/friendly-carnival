@@ -32,7 +32,7 @@ export function EffectsGrid({ call }: { call: RandomCall }) {
           );
         })}
       </div>
-      <p className="mt-3 text-xs text-slate-400">Runs on your device. The first time takes a few seconds to load.</p>
+      <p className="mt-3 text-xs text-dim">Runs on your device. The first time takes a few seconds to load.</p>
     </>
   );
 }
@@ -55,14 +55,14 @@ export function EffectsButton({ call, className }: { call: RandomCall; className
         aria-label="Backgrounds and effects"
         aria-expanded={open}
         title="Backgrounds and effects"
-        className={`${className} ${on ? '!bg-sky-200 !text-slate-900' : ''}`}
+        className={`${className} ${on ? '!bg-lime !text-night' : ''}`}
       >
         <SparkleIcon />
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
-          <div className="absolute bottom-full left-1/2 z-40 mb-3 w-80 max-w-[90vw] -translate-x-1/2 rounded-xl bg-[#2a2b2e] p-4 text-slate-100 shadow-2xl">
+          <div className="absolute bottom-full left-1/2 z-40 mb-3 w-80 max-w-[90vw] -translate-x-1/2 rounded-xl bg-[#2a2b2e] p-4 text-[#f4f5f7] shadow-2xl">
             <div className="mb-3 flex items-center gap-2">
               <p className="font-semibold">Backgrounds and effects</p>
               {call.backgroundBusy && <span className="ml-auto h-4 w-4 animate-spin rounded-full border-2 border-slate-500 border-t-sky-300" aria-label="Loading" />}

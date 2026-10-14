@@ -45,10 +45,10 @@ function Tile({ stream, label, emoji, muted, showVideo, member, room }: {
             🚩
           </button>
           {menu && (
-            <div className="absolute right-0 top-full z-20 mt-1 w-44 rounded-xl bg-white p-1 text-sm text-ink shadow-xl">
-              <p className="px-2 py-1 text-xs text-slate-500">Report and leave the room</p>
+            <div className="absolute right-0 top-full z-20 mt-1 w-44 rounded-xl bg-card p-1 text-sm text-[#f4f5f7] shadow-xl">
+              <p className="px-2 py-1 text-xs text-dim">Report and leave the room</p>
               {REPORT_REASONS.map((r) => (
-                <button key={r} onClick={() => room.report(member.id, r)} className="block w-full rounded-lg px-2 py-1.5 text-left hover:bg-slate-100">
+                <button key={r} onClick={() => room.report(member.id, r)} className="block w-full rounded-lg px-2 py-1.5 text-left hover:bg-card-2">
                   {REASON_TEXT[r]}
                 </button>
               ))}
@@ -74,10 +74,10 @@ function RoomChatPanel({ room }: { room: RoomCall }) {
   return (
     <aside className="flex min-h-0 flex-col rounded-2xl bg-[#202124]">
       <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-3 text-sm">
-        {room.chat.length === 0 && <p className="py-6 text-center text-slate-400">Say hi to the room 👋</p>}
+        {room.chat.length === 0 && <p className="py-6 text-center text-dim">Say hi to the room 👋</p>}
         {room.chat.map((c, i) => (
           <p key={i} className={c.mine ? 'text-right' : ''}>
-            <span className={`inline-block max-w-[85%] break-words rounded-2xl px-3 py-1.5 ${c.mine ? 'bg-brand text-white' : 'bg-white/10'}`}>
+            <span className={`inline-block max-w-[85%] break-words rounded-2xl px-3 py-1.5 ${c.mine ? 'bg-lime text-night' : 'bg-white/10'}`}>
               {!c.mine && <span className="mr-1">{name(c.from)}</span>}
               {c.text}
             </span>
@@ -98,9 +98,9 @@ function RoomChatPanel({ room }: { room: RoomCall }) {
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Message the room…"
           aria-label="Message the room"
-          className="min-w-0 flex-1 rounded-full bg-white/10 px-4 py-2 text-sm text-white placeholder:text-slate-400 focus:outline-none"
+          className="min-w-0 flex-1 rounded-full bg-white/10 px-4 py-2 text-sm text-white placeholder:text-dim focus:outline-none"
         />
-        <button className="rounded-full bg-brand px-4 text-sm font-semibold text-white">Send</button>
+        <button className="rounded-full bg-lime px-4 text-sm font-semibold text-night">Send</button>
       </form>
     </aside>
   );
@@ -116,7 +116,7 @@ function InRoom({ room }: { room: RoomCall }) {
         <p className="text-lg font-semibold">
           {t?.emoji} {t?.label} room
         </p>
-        <span className="text-sm text-slate-400">
+        <span className="text-sm text-dim">
           {tiles}/{ROOM_SIZE} people · {video ? 'video' : 'voice'}
         </span>
       </header>
@@ -137,7 +137,7 @@ function InRoom({ room }: { room: RoomCall }) {
         </div>
         <RoomChatPanel room={room} />
       </div>
-      {tiles === 1 && <p className="text-center text-sm text-slate-400">Waiting for others to join this room…</p>}
+      {tiles === 1 && <p className="text-center text-sm text-dim">Waiting for others to join this room…</p>}
       <footer className="flex justify-center gap-3">
         <button onClick={room.toggleMic} className={`rounded-full px-5 py-2.5 font-semibold ${room.micOn ? 'bg-[#3c4043]' : 'bg-red-500'}`}>
           {room.micOn ? '🎙️ Mute' : '🔇 Unmute'}
@@ -182,7 +182,7 @@ export default function RoomsPage() {
       <SiteHeader />
       <section className="mt-2 text-center">
         <h1 className="text-3xl font-bold">👥 Group rooms</h1>
-        <p className="mt-2 text-slate-300">Hang out with up to {ROOM_SIZE} people who like the same thing.</p>
+        <p className="mt-2 text-mute">Hang out with up to {ROOM_SIZE} people who like the same thing.</p>
       </section>
 
       {room.error && <p className="rounded-xl bg-amber-500/15 p-3 text-center text-sm text-amber-200">{room.error}</p>}
@@ -191,8 +191,8 @@ export default function RoomsPage() {
       )}
 
       {loading ? null : !user ? (
-        <p className="rounded-xl bg-white/5 p-4 text-center text-slate-300">
-          <Link href="/login?next=/rooms" className="font-semibold text-sky-300 underline">
+        <p className="rounded-xl bg-white/5 p-4 text-center text-mute">
+          <Link href="/login?next=/rooms" className="font-semibold text-lime underline">
             Log in
           </Link>{' '}
           to join group rooms — it keeps them friendly.
@@ -202,12 +202,12 @@ export default function RoomsPage() {
           <div className="flex flex-wrap items-center justify-center gap-3 text-sm">
             <div className="flex rounded-full bg-white/10 p-1">
               {(['video', 'voice'] as const).map((m) => (
-                <button key={m} onClick={() => setMode(m)} className={`rounded-full px-4 py-1.5 font-semibold ${mode === m ? 'bg-white text-ink' : 'text-slate-200'}`}>
+                <button key={m} onClick={() => setMode(m)} className={`rounded-full px-4 py-1.5 font-semibold ${mode === m ? 'bg-card text-[#f4f5f7]' : 'text-[#e6e8ec]'}`}>
                   {m === 'video' ? '📹 Video' : '🎙️ Voice'}
                 </button>
               ))}
             </div>
-            <label className="flex items-center gap-2 text-slate-300">
+            <label className="flex items-center gap-2 text-mute">
               I am
               <select value={gender} onChange={(e) => setGender(e.target.value as Gender)} className="rounded-full bg-white/10 px-3 py-1.5 text-white">
                 <option value="male">Male</option>
@@ -222,15 +222,15 @@ export default function RoomsPage() {
                 key={t.id}
                 disabled={room.phase === 'joining'}
                 onClick={() => void room.join(t.id, mode, gender)}
-                className="rounded-2xl bg-white p-4 text-left text-ink transition hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-50"
+                className="rounded-2xl bg-card p-4 text-left text-[#f4f5f7] transition hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-50"
               >
                 <span className="text-3xl">{t.emoji}</span>
                 <span className="mt-2 block font-semibold">{t.label}</span>
-                <span className="text-xs text-slate-500">{counts[t.id] ? `${counts[t.id]} here now` : 'Start a room'}</span>
+                <span className="text-xs text-dim">{counts[t.id] ? `${counts[t.id]} here now` : 'Start a room'}</span>
               </button>
             ))}
           </section>
-          {room.phase === 'joining' && <p className="text-center text-slate-400">Joining…</p>}
+          {room.phase === 'joining' && <p className="text-center text-dim">Joining…</p>}
         </>
       )}
       <SiteFooter />

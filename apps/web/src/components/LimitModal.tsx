@@ -72,8 +72,8 @@ export function LimitModal({ call }: { call: RandomCall }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="limit-title">
-      <div className="relative w-full max-w-sm rounded-3xl bg-white p-6 text-center text-ink shadow-2xl">
-        <button onClick={call.stop} aria-label="Close" className="absolute right-4 top-4 rounded-full p-1 text-2xl leading-none text-slate-500 hover:text-ink">
+      <div className="relative w-full max-w-sm rounded-3xl bg-card p-6 text-center text-[#f4f5f7] shadow-2xl">
+        <button onClick={call.stop} aria-label="Close" className="absolute right-4 top-4 rounded-full p-1 text-2xl leading-none text-dim hover:text-[#f4f5f7]">
           ×
         </button>
         <p className="text-5xl" aria-hidden>
@@ -82,36 +82,36 @@ export function LimitModal({ call }: { call: RandomCall }) {
         <h2 id="limit-title" className="mt-4 text-xl font-bold">
           Oops! No matches left
         </h2>
-        <p className="mt-2 text-slate-600">
+        <p className="mt-2 text-mute">
           You&apos;ve used today&apos;s {limit.limit} free {limit.limit === 1 ? 'match' : 'matches'}. Get more matches:
         </p>
 
         <Link
           href="/plus"
-          className="relative mt-6 block w-full rounded-full bg-brand py-3.5 text-lg font-semibold text-white shadow hover:bg-brand-dark"
+          className="relative mt-6 block w-full rounded-full bg-lime py-3.5 text-lg font-semibold text-night shadow hover:bg-lime-hover"
         >
-          <span className="absolute -top-3 right-4 rounded-full bg-amber-300 px-2.5 py-0.5 text-xs font-semibold text-ink">Unlimited Matches</span>
+          <span className="absolute -top-3 right-4 rounded-full bg-amber-300 px-2.5 py-0.5 text-xs font-semibold text-[#f4f5f7]">Unlimited Matches</span>
           Get randomCall Plus 👑
         </Link>
 
         <CoinsForMatches call={call} />
 
-        <div className="my-4 flex items-center gap-3 text-xs font-medium text-slate-400">
-          <span className="h-px flex-1 bg-slate-200" />
+        <div className="my-4 flex items-center gap-3 text-xs font-medium text-dim">
+          <span className="h-px flex-1 bg-line" />
           OR
-          <span className="h-px flex-1 bg-slate-200" />
+          <span className="h-px flex-1 bg-line" />
         </div>
 
         {limit.adsLeft > 0 ? (
           <button
             onClick={call.watchRewardAd}
-            className="flex w-full items-center justify-center gap-2 rounded-full border-2 border-brand py-3 text-lg font-semibold text-brand hover:bg-brand/5"
+            className="flex w-full items-center justify-center gap-2 rounded-full border-2 border-lime py-3 text-lg font-semibold text-lime hover:bg-lime/5"
           >
-            <span className="rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-bold text-white">AD</span>
+            <span className="rounded-full bg-lime px-1.5 py-0.5 text-[10px] font-bold text-night">AD</span>
             Watch video · +{limit.adBonus} matches
           </button>
         ) : (
-          <p className="rounded-full bg-slate-100 py-3 text-sm text-slate-500">
+          <p className="rounded-full bg-card-2 py-3 text-sm text-dim">
             No more videos today. Free matches come back in about {hoursUntil(limit.resetsAt)} h.
           </p>
         )}
@@ -162,16 +162,16 @@ function CoinsForMatches({ call }: { call: RandomCall }) {
             setBusy(false);
             setError(spendError(r));
           }}
-          className="w-full rounded-full border-2 border-amber-400 py-2.5 font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+          className="w-full rounded-full border-2 border-gold py-2.5 font-semibold text-gold hover:bg-gold-bg disabled:opacity-50"
         >
           🪙 Use {MATCHES_FOR_COINS.coins} coins · +{MATCHES_FOR_COINS.matches} matches
         </button>
       ) : (
-        <Link href="/coins" target="_blank" className="block w-full rounded-full border-2 border-amber-400 py-2.5 font-semibold text-amber-700 hover:bg-amber-50">
+        <Link href="/coins" target="_blank" className="block w-full rounded-full border-2 border-gold py-2.5 font-semibold text-gold hover:bg-gold-bg">
           🪙 Get coins for more matches
         </Link>
       )}
-      <p className="mt-1 text-xs text-slate-500">You have {wallet.coins} coins</p>
+      <p className="mt-1 text-xs text-dim">You have {wallet.coins} coins</p>
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );

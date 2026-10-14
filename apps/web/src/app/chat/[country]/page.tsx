@@ -47,11 +47,11 @@ export default async function CountryChatPage({ params }: { params: Promise<{ co
           {flagEmoji(c.code)}
         </p>
         <h1 className="mt-4 text-4xl font-bold sm:text-5xl">Random video chat in {short}</h1>
-        <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-300">
+        <p className="mx-auto mt-4 max-w-2xl text-lg text-mute">
           {c.greeting}! Meet new people from {c.name} and around the world in seconds — free video, voice and text chat right in your
           browser. No download, no sign-up.
         </p>
-        <Link href="/" className="mt-6 inline-block rounded-xl bg-brand px-8 py-3.5 text-lg font-semibold text-white hover:bg-brand-dark">
+        <Link href="/" className="mt-6 inline-block rounded-xl bg-lime px-8 py-3.5 text-lg font-semibold text-night hover:bg-lime-hover">
           Start chatting now
         </Link>
       </section>
@@ -67,14 +67,14 @@ export default async function CountryChatPage({ params }: { params: Promise<{ co
               {icon}
             </p>
             <h2 className="mt-2 font-semibold">{title}</h2>
-            <p className="mt-1 text-sm text-slate-300">{text}</p>
+            <p className="mt-1 text-sm text-mute">{text}</p>
           </div>
         ))}
       </section>
 
       <section>
         <h2 className="text-2xl font-semibold">Talk to strangers in {short}</h2>
-        <p className="mt-2 text-slate-300">
+        <p className="mt-2 text-mute">
           randomCall pairs you with someone new every time you press Next. Add interests like {c.topics} to meet people who share them,
           join a topic room, play a quick game together, or add someone as a friend to call them again later.
         </p>
@@ -86,14 +86,14 @@ export default async function CountryChatPage({ params }: { params: Promise<{ co
           {faq.map((f) => (
             <div key={f.q}>
               <dt className="font-semibold">{f.q}</dt>
-              <dd className="mt-1 text-slate-300">{f.a}</dd>
+              <dd className="mt-1 text-mute">{f.a}</dd>
             </div>
           ))}
         </dl>
       </section>
 
-      <nav aria-label="Other countries" className="text-sm text-slate-400">
-        <p className="mb-2 font-semibold text-slate-300">Random chat in other countries</p>
+      <nav aria-label="Other countries" className="text-sm text-dim">
+        <p className="mb-2 font-semibold text-mute">Random chat in other countries</p>
         <p className="flex flex-wrap gap-x-4 gap-y-1">
           {COUNTRY_PAGES.filter((x) => x.slug !== c.slug).map((x) => (
             <Link key={x.slug} href={`/chat/${x.slug}`} className="hover:text-white">

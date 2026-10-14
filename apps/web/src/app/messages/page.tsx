@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import type { DmThread } from '@rc/shared';
-import { Brand } from '@/components/SiteHeader';
+import { SiteHeader } from '@/components/SiteHeader';
 import { ThreadRow, WaThread, type WaContact } from '@/components/WaThread';
 import { useAuth } from '@/lib/auth';
 import { getSocket } from '@/lib/socket';
@@ -67,23 +67,32 @@ export default function MessagesPage() {
     if (!id || open) return;
     const known = threads?.find((t) => t.id === id);
     const name = new URLSearchParams(window.location.search).get('name');
-    if (known) setOpen({ id, name: known.name, avatar: known.avatar, online: known.online });
+    if (known)
+      setOpen({
+        id,
+        name: known.name,
+        avatar: known.avatar,
+        online: known.online,
+      });
     else if (threads) setOpen({ id, name: name || 'New chat', avatar: null });
   }, [threads, open]);
 
   if (!loading && !user) {
     return (
-      <main className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-night p-6 text-center text-[#F4F5F7]">
-        <span className="grid h-14 w-14 place-items-center rounded-2xl bg-card-2 text-lime">
-          <ChatIcon />
-        </span>
-        <p className="text-lg">Log in to see your messages.</p>
-        <Link
-          href="/login?next=/messages"
-          className="flex h-11 items-center rounded-full bg-lime px-6 font-semibold text-night transition-colors hover:bg-lime-hover"
-        >
-          Log in
-        </Link>
+      <main className="flex min-h-dvh flex-col bg-night px-4 text-[#F4F5F7] sm:px-6">
+        <SiteHeader />
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
+          <span className="grid h-14 w-14 place-items-center rounded-2xl bg-card-2 text-lime">
+            <ChatIcon />
+          </span>
+          <p className="text-lg">Log in to see your messages.</p>
+          <Link
+            href="/login?next=/messages"
+            className="flex h-11 items-center rounded-full bg-lime px-6 font-semibold text-night transition-colors hover:bg-lime-hover"
+          >
+            Log in
+          </Link>
+        </div>
       </main>
     );
   }
@@ -93,19 +102,10 @@ export default function MessagesPage() {
 
   return (
     <main className="flex h-dvh flex-col bg-night text-[#F4F5F7]">
-      <header className={`border-b border-line ${open ? 'max-md:hidden' : ''}`}>
-        <div className="mx-auto flex max-w-[1200px] items-center gap-3 px-4 py-3 sm:px-6">
-          <Brand wordmark />
-          <div className="flex-1" />
-          <Link
-            href="/history"
-            className="flex h-11 items-center rounded-xl border border-line bg-card px-3.5 text-[13px] font-medium text-[#C9CDD4] transition-colors hover:text-[#F4F5F7]"
-            title="People you chatted with"
-          >
-            History
-          </Link>
-        </div>
-      </header>
+      {/* The same header as every other page (phones use the tab bar instead). */}
+      <div className={`px-4 sm:px-6 ${open ? 'max-md:hidden' : ''}`}>
+        <SiteHeader />
+      </div>
 
       <div className="mx-auto flex min-h-0 w-full max-w-[1200px] flex-1 md:p-6">
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden md:rounded-[20px] md:border md:border-line">
@@ -141,7 +141,18 @@ export default function MessagesPage() {
                 )}
                 {shown.map((t) => (
                   <li key={t.id}>
-                    <ThreadRow t={t} active={open?.id === t.id} onClick={() => setOpen({ id: t.id, name: t.name, avatar: t.avatar, online: t.online })} />
+                    <ThreadRow
+                      t={t}
+                      active={open?.id === t.id}
+                      onClick={() =>
+                        setOpen({
+                          id: t.id,
+                          name: t.name,
+                          avatar: t.avatar,
+                          online: t.online,
+                        })
+                      }
+                    />
                   </li>
                 ))}
               </ul>

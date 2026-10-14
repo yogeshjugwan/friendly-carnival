@@ -38,7 +38,7 @@ export function VideoTile({ stream, muted, mirrored, className = '', videoClassN
   }, [videoRef]);
 
   return (
-    <div className={`relative overflow-hidden rounded-xl bg-ink ${className}`}>
+    <div className={`relative overflow-hidden rounded-xl bg-night ${className}`}>
       <video
         ref={ref}
         autoPlay
@@ -50,7 +50,7 @@ export function VideoTile({ stream, muted, mirrored, className = '', videoClassN
       {needsTap && (
         <button
           onClick={() => void ref.current?.play().then(() => setNeedsTap(false), () => undefined)}
-          className="absolute left-1/2 top-1/2 z-30 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white px-5 py-2.5 font-semibold text-ink shadow-xl"
+          className="absolute left-1/2 top-1/2 z-30 -translate-x-1/2 -translate-y-1/2 rounded-full bg-card px-5 py-2.5 font-semibold text-[#f4f5f7] shadow-xl"
         >
           🔊 Tap to turn on sound
         </button>

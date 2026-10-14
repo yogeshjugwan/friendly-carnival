@@ -123,7 +123,7 @@ export default function CoinsPage() {
                 <span className="max-sm:hidden">Your balance</span>
               </p>
               <p className="m-0 font-display text-[40px] font-bold leading-[1.1] sm:text-[64px]">
-                {user ? user.wallet.coins.toLocaleString() : '—'}{' '}
+                {(user?.wallet.coins ?? 0).toLocaleString()}{' '}
                 <span className="text-2xl text-gold max-sm:hidden">coins</span>
               </p>
               <p className="m-0 text-sm text-dim max-sm:hidden">Gifts, Boost and extra matches</p>

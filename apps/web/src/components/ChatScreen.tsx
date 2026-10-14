@@ -57,16 +57,16 @@ function PartnerBadge({ call }: { call: RandomCall }) {
           </span>
         )}
         {partner.topic && (
-          <span className="rounded-full bg-brand/80 px-2 py-0.5 text-[11px] font-semibold text-white">
+          <span className="rounded-full bg-lime/80 px-2 py-0.5 text-[11px] font-semibold text-white">
             {TOPICS.find((t) => t.id === partner.topic)?.emoji} #{TOPICS.find((t) => t.id === partner.topic)?.label}
           </span>
         )}
         {partner.sharedInterests.length > 0 && (
-          <span className="hidden truncate text-slate-300 md:inline">· likes {partner.sharedInterests.join(', ')}</span>
+          <span className="hidden truncate text-mute md:inline">· likes {partner.sharedInterests.join(', ')}</span>
         )}
       </div>
       {partner.bio && (
-        <p className="max-w-[70vw] truncate rounded-full bg-black/45 px-2.5 py-0.5 text-xs italic text-slate-200 sm:max-w-sm">“{partner.bio}”</p>
+        <p className="max-w-[70vw] truncate rounded-full bg-black/45 px-2.5 py-0.5 text-xs italic text-[#e6e8ec] sm:max-w-sm">“{partner.bio}”</p>
       )}
     </div>
   );
@@ -76,7 +76,7 @@ function Searching({ call }: { call: RandomCall }) {
   const { t } = useI18n();
   if (call.status === 'browsing') {
     return (
-      <p className="max-w-xs text-center text-sm text-slate-300 sm:text-base">
+      <p className="max-w-xs text-center text-sm text-mute sm:text-base">
         Pick someone from <span className="font-semibold text-white">👥 Online</span> to call, or press{' '}
         <span className="font-semibold text-white">Next</span> for a random stranger.
       </p>
@@ -87,12 +87,12 @@ function Searching({ call }: { call: RandomCall }) {
   if (!overlay) return null;
   return (
     <div className="flex flex-col items-center gap-1 text-center">
-      <p className="flex items-center gap-2 text-sm text-slate-300 sm:text-base">
-        <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-slate-600 border-t-brand" />
+      <p className="flex items-center gap-2 text-sm text-mute sm:text-base">
+        <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-line-2 border-t-lime" />
         {overlay}
       </p>
       {call.status === 'searching' && call.lastLeftReason && (
-        <p className="text-xs text-slate-500 sm:text-sm">{t('status.partnerLeft')}</p>
+        <p className="text-xs text-dim sm:text-sm">{t('status.partnerLeft')}</p>
       )}
       {call.searchingLong && <WidenSearch />}
       {call.status === 'searching' && <PriorityButton call={call} />}
@@ -145,7 +145,7 @@ function PriorityButton({ call }: { call: RandomCall }) {
 function WidenSearch() {
   const { saveSettings } = useAuth();
   return (
-    <div className="pointer-events-auto text-sm text-slate-300">
+    <div className="pointer-events-auto text-sm text-mute">
       It may take longer to find someone with your filters.{' '}
       <button
         className="font-medium text-white underline"
@@ -517,7 +517,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
         )}
         {call.plusRequired && <PlusUpsell onClose={call.dismissPlusRequired} reason="Filters are a Plus feature" />}
         {call.notice && (
-          <p role="status" className="rounded-xl bg-amber-100 px-3 py-2 text-sm text-amber-900">
+          <p role="status" className="rounded-xl bg-gold-bg px-3 py-2 text-sm text-gold">
             {call.notice}
           </p>
         )}
@@ -541,7 +541,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                 </div>
               )}
               {(!matched || showAd) && (
-                <div className="absolute inset-0 overflow-hidden rounded-xl bg-ink/90">
+                <div className="absolute inset-0 overflow-hidden rounded-xl bg-night/90">
                   {showAd ? (
                     <AdSlot placement="break" refreshKey={call.adKey} className="h-full rounded-none" />
                   ) : (

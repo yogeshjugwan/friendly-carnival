@@ -110,11 +110,11 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
         onClick();
         close();
       }}
-      className="flex w-full items-center gap-4 px-4 py-3 text-left text-[15px] text-slate-100 hover:bg-white/10"
+      className="flex w-full items-center gap-4 px-4 py-3 text-left text-[15px] text-[#f4f5f7] hover:bg-white/10"
     >
-      <Icon className="h-5 w-5 shrink-0 text-slate-300" />
+      <Icon className="h-5 w-5 shrink-0 text-mute" />
       <span className="flex-1">{label}</span>
-      {extra && <span className="text-xs text-slate-400">{extra}</span>}
+      {extra && <span className="text-xs text-dim">{extra}</span>}
     </button>
   );
 
@@ -148,7 +148,7 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
                 <button
                   role="menuitem"
                   onClick={() => setView('games')}
-                  className="flex w-full items-center gap-4 px-4 py-3 text-left text-[15px] text-slate-100 hover:bg-white/10"
+                  className="flex w-full items-center gap-4 px-4 py-3 text-left text-[15px] text-[#f4f5f7] hover:bg-white/10"
                 >
                   <span className="w-5 text-center" aria-hidden>
                     🎮
@@ -160,24 +160,24 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
                 <button
                   role="menuitem"
                   onClick={() => setView('effects')}
-                  className="flex w-full items-center gap-4 px-4 py-3 text-left text-[15px] text-slate-100 hover:bg-white/10"
+                  className="flex w-full items-center gap-4 px-4 py-3 text-left text-[15px] text-[#f4f5f7] hover:bg-white/10"
                 >
-                  <EffectsIcon className="h-5 w-5 shrink-0 text-slate-300" />
+                  <EffectsIcon className="h-5 w-5 shrink-0 text-mute" />
                   <span className="flex-1">Backgrounds and effects</span>
-                  {call.background !== 'none' && <span className="text-xs text-sky-300">On</span>}
+                  {call.background !== 'none' && <span className="text-xs text-lime">On</span>}
                 </button>
               )}
               {call.canGoBack && <div className="sm:hidden">{item(BackIcon, 'Back to previous stranger', call.back)}</div>}
               <button
                 role="menuitem"
                 onClick={() => setView('boost')}
-                className="flex w-full items-center gap-4 px-4 py-3 text-left text-[15px] text-slate-100 hover:bg-white/10"
+                className="flex w-full items-center gap-4 px-4 py-3 text-left text-[15px] text-[#f4f5f7] hover:bg-white/10"
               >
                 <span className="w-5 text-center" aria-hidden>
                   🚀
                 </span>
                 <span className="flex-1">Boost</span>
-                {call.wallet?.boostUntil && call.wallet.boostUntil > Date.now() && <span className="text-xs text-sky-300">On</span>}
+                {call.wallet?.boostUntil && call.wallet.boostUntil > Date.now() && <span className="text-xs text-lime">On</span>}
               </button>
               <div className="my-1.5 border-t border-white/10" />
               {item(ProblemIcon, 'Report a problem', () => {
@@ -187,25 +187,25 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
               <button
                 role="menuitem"
                 onClick={() => setView('blocked')}
-                className="flex w-full items-center gap-4 px-4 py-3 text-left text-[15px] text-slate-100 hover:bg-white/10"
+                className="flex w-full items-center gap-4 px-4 py-3 text-left text-[15px] text-[#f4f5f7] hover:bg-white/10"
               >
-                <BlockIcon className="h-5 w-5 shrink-0 text-slate-300" />
+                <BlockIcon className="h-5 w-5 shrink-0 text-mute" />
                 <span>Blocked people</span>
               </button>
               {item(HelpIcon, 'Troubleshooting & help', () => window.open('/help', '_blank', 'noopener'))}
               <button
                 role="menuitem"
                 onClick={() => setView('settings')}
-                className="flex w-full items-center gap-4 px-4 py-3 text-left text-[15px] text-slate-100 hover:bg-white/10"
+                className="flex w-full items-center gap-4 px-4 py-3 text-left text-[15px] text-[#f4f5f7] hover:bg-white/10"
               >
-                <GearIcon className="h-5 w-5 shrink-0 text-slate-300" />
+                <GearIcon className="h-5 w-5 shrink-0 text-mute" />
                 <span>Settings</span>
               </button>
             </div>
           ) : view === 'games' ? (
-            <div className={`${pos} z-40 w-72 max-w-[88vw] rounded-xl border border-line-2 bg-card-2 p-2 text-slate-100 shadow-2xl`}>
+            <div className={`${pos} z-40 w-72 max-w-[88vw] rounded-xl border border-line-2 bg-card-2 p-2 text-[#f4f5f7] shadow-2xl`}>
               <div className="mb-1 flex items-center gap-2 px-1">
-                <button onClick={() => setView('menu')} aria-label="Back to menu" className="rounded-full p-1 text-slate-300 hover:bg-white/10">
+                <button onClick={() => setView('menu')} aria-label="Back to menu" className="rounded-full p-1 text-mute hover:bg-white/10">
                   <BackIcon className="h-4 w-4" />
                 </button>
                 <p className="font-semibold">Play together</p>
@@ -222,14 +222,14 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
                   <span className="text-2xl">{g.emoji}</span>
                   <span>
                     <span className="block text-sm font-semibold">{g.name}</span>
-                    <span className="block text-xs text-slate-400">{g.blurb}</span>
+                    <span className="block text-xs text-dim">{g.blurb}</span>
                   </span>
                 </button>
               ))}
             </div>
           ) : view === 'boost' ? (
             <div className={`${pos} z-40 w-80 max-w-[90vw] rounded-xl border border-line-2 bg-card-2 p-3 shadow-2xl`}>
-              <button onClick={() => setView('menu')} aria-label="Back to menu" className="mb-2 rounded-full p-1 text-slate-300 hover:bg-white/10">
+              <button onClick={() => setView('menu')} aria-label="Back to menu" className="mb-2 rounded-full p-1 text-mute hover:bg-white/10">
                 <BackIcon className="h-4 w-4" />
               </button>
               <BoostCard call={call} buy={call.buyBoost} />
@@ -237,17 +237,17 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
           ) : view === 'blocked' ? (
             <div className={`${pos} z-40 max-h-[70dvh] w-80 max-w-[90vw] overflow-y-auto rounded-xl border border-line-2 bg-card-2 p-4 shadow-2xl`}>
               <div className="mb-2 flex items-center gap-2">
-                <button onClick={() => setView('menu')} aria-label="Back to menu" className="rounded-full p-1 text-slate-300 hover:bg-white/10">
+                <button onClick={() => setView('menu')} aria-label="Back to menu" className="rounded-full p-1 text-mute hover:bg-white/10">
                   <BackIcon className="h-4 w-4" />
                 </button>
-                <p className="font-semibold text-slate-100">Blocked people</p>
+                <p className="font-semibold text-[#f4f5f7]">Blocked people</p>
               </div>
               <BlockedList tone="dark" />
             </div>
           ) : view === 'effects' ? (
-            <div className={`${pos} z-40 w-80 max-w-[90vw] rounded-xl border border-line-2 bg-card-2 p-4 text-slate-100 shadow-2xl`}>
+            <div className={`${pos} z-40 w-80 max-w-[90vw] rounded-xl border border-line-2 bg-card-2 p-4 text-[#f4f5f7] shadow-2xl`}>
               <div className="mb-3 flex items-center gap-2">
-                <button onClick={() => setView('menu')} aria-label="Back to menu" className="rounded-full p-1 text-slate-300 hover:bg-white/10">
+                <button onClick={() => setView('menu')} aria-label="Back to menu" className="rounded-full p-1 text-mute hover:bg-white/10">
                   <BackIcon className="h-4 w-4" />
                 </button>
                 <p className="font-semibold">Backgrounds and effects</p>
@@ -256,9 +256,9 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
               <EffectsGrid call={call} />
             </div>
           ) : (
-            <div className={`${pos} z-40 w-72 max-w-[88vw] rounded-xl bg-white p-4 text-ink shadow-2xl`}>
+            <div className={`${pos} z-40 w-72 max-w-[88vw] rounded-xl bg-card p-4 text-[#f4f5f7] shadow-2xl`}>
               <div className="mb-3 flex items-center gap-2">
-                <button onClick={() => setView('menu')} aria-label="Back to menu" className="rounded-full p-1 text-slate-500 hover:bg-slate-100">
+                <button onClick={() => setView('menu')} aria-label="Back to menu" className="rounded-full p-1 text-dim hover:bg-card-2">
                   <BackIcon className="h-4 w-4" />
                 </button>
                 <p className="font-semibold">Settings</p>

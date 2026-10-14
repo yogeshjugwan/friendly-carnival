@@ -112,8 +112,9 @@ export function SiteHeader({ online, home = false }: { online?: number | null; h
   const unread = useUnread(!!user);
   return (
     // Phones: inner pages start with their own title (the tab bar does the navigating), so only the home page shows this bar.
-    <header className={`-mx-4 sm:-mx-6 ${home ? '' : 'max-sm:hidden'}`}>
-      <div className={`mx-auto flex flex-wrap items-center gap-3 px-4 py-4 sm:gap-4 sm:px-12 sm:py-6 ${home ? 'max-w-none' : 'max-w-[1440px]'}`}>
+    // Full-bleed, so the bar sits in the same place on every page whatever the page's own width.
+    <header className={`mx-[calc(50%-50vw)] ${home ? '' : 'max-sm:hidden'}`}>
+      <div className={`mx-auto flex flex-wrap items-center gap-3 px-4 py-4 sm:gap-4 sm:py-6 ${home ? 'max-w-none sm:px-12' : 'max-w-[1248px] sm:px-6'}`}>
         {home ? (
           <>
             <span className="sm:hidden">
@@ -225,8 +226,8 @@ export function SiteFooter() {
   const { t } = useI18n();
   return (
     <>
-      <footer className="-mx-4 mt-auto border-t border-line sm:-mx-6">
-        <div className="mx-auto flex max-w-[1200px] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-5 text-[13px] text-dim sm:px-6">
+      <footer className="mx-[calc(50%-50vw)] mt-auto border-t border-line">
+        <div className="mx-auto flex max-w-[1248px] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-5 text-[13px] text-dim sm:px-6">
           <span>© {new Date().getFullYear()} randomCall</span>
           {(
             [

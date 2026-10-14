@@ -69,22 +69,22 @@ export default function HelpPage() {
   return (
     <main className="mx-auto flex min-h-full max-w-3xl flex-col gap-4 px-4 py-6 sm:px-6">
       <SiteHeader />
-      <article className="mt-4 rounded-2xl bg-white p-6 text-ink shadow-sm [&_li]:mt-1 [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:pl-5">
+      <article className="mt-4 rounded-2xl bg-card p-6 text-[#f4f5f7] shadow-sm [&_li]:mt-1 [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:pl-5">
         <h1 className="text-3xl font-bold">Troubleshooting &amp; help</h1>
-        <div className="mt-4 divide-y divide-slate-200">
+        <div className="mt-4 divide-y divide-line">
           {FAQ.map((f) => (
             <details key={f.q} className="group py-3">
               <summary className="cursor-pointer list-none font-semibold marker:hidden">
                 <span className="mr-2 inline-block transition group-open:rotate-90">›</span>
                 {f.q}
               </summary>
-              <div className="pl-5 text-slate-700">{f.a}</div>
+              <div className="pl-5 text-[#e6e8ec]">{f.a}</div>
             </details>
           ))}
         </div>
-        <p className="mt-6 rounded-lg bg-slate-50 px-4 py-3 text-sm">
+        <p className="mt-6 rounded-lg bg-card-2 px-4 py-3 text-sm">
           Still stuck? Email{' '}
-          <a href={`mailto:${CONTACT_EMAIL}`} className="font-medium text-brand underline">
+          <a href={`mailto:${CONTACT_EMAIL}`} className="font-medium text-lime underline">
             {CONTACT_EMAIL}
           </a>{' '}
           with your browser, device and what you see.

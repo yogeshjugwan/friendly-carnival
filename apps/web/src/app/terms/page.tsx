@@ -19,7 +19,7 @@ export default function TermsPage() {
       <h2>3. Your conduct</h2>
       <p>
         You are responsible for what you say and show. You must follow the{' '}
-        <Link href="/guidelines" className="text-brand underline">
+        <Link href="/guidelines" className="text-lime underline">
           Community Guidelines
         </Link>
         . You must not use randomCall for anything illegal, to harm minors, or to harass, record or exploit other people.

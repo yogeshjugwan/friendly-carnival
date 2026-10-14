@@ -92,7 +92,7 @@ function TileWall() {
                   </svg>
                 )}
                 <span className="absolute inset-0 bg-[linear-gradient(180deg,transparent_60%,rgba(0,0,0,.35))]" />
-                <span className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-black/50 px-2 py-1 text-[11px] font-semibold text-white max-sm:hidden">
+                <span className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-black/50 px-2 py-1 text-[11px] font-semibold text-night max-sm:hidden">
                   <i className="rc-blink h-1.5 w-1.5 rounded-full bg-lime" />
                   {t.place}
                 </span>
@@ -147,7 +147,7 @@ function PreferencesSheet({
           <h2 id="prefs-title" className="m-0 font-display text-xl font-bold">
             {t('hero.prefs')}
           </h2>
-          <button onClick={onClose} aria-label="Close" className="rounded-full p-1 text-2xl leading-none text-dim hover:text-white">
+          <button onClick={onClose} aria-label="Close" className="rounded-full p-1 text-2xl leading-none text-dim hover:text-night">
             ×
           </button>
         </div>
@@ -351,7 +351,7 @@ export function Landing({ online, onStart }: Props) {
             {age ? ` · ${ageLabel(age)}` : ''}
           </button>
 
-          <p className="m-0 mt-auto flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-[#5e636d] max-sm:hidden">
+          <p className="m-0 mt-auto flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-mute [text-shadow:0_1px_3px_rgba(0,0,0,.9)] max-sm:hidden">
             <span>{t('hero.trust1')}</span>
             <span aria-hidden>·</span>
             <span>{t('hero.trust2')}</span>

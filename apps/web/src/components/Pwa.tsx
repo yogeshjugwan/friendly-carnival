@@ -66,7 +66,7 @@ export function InstallButton({ className = '' }: { className?: string }) {
         Install the app
       </button>
       {iosHelp && (
-        <p className="mt-2 text-sm text-slate-300">
+        <p className="mt-2 text-sm text-mute">
           In Safari, tap <strong>Share</strong> <span aria-hidden>⬆️</span> then <strong>Add to Home Screen</strong>.
         </p>
       )}
@@ -90,13 +90,13 @@ export function NotificationsToggle({ compact = false }: { compact?: boolean }) 
   if (!token || state === 'loading') return null;
   if (state === 'unsupported') {
     return compact ? null : (
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-dim">
         This browser can&apos;t show notifications{isIos() ? ' — add randomCall to your Home Screen first (Share → Add to Home Screen).' : '.'}
       </p>
     );
   }
   if (state === 'blocked') {
-    return <p className="text-sm text-slate-500">Notifications are blocked for this site. Allow them in your browser&apos;s site settings.</p>;
+    return <p className="text-sm text-dim">Notifications are blocked for this site. Allow them in your browser&apos;s site settings.</p>;
   }
 
   const toggle = async () => {
@@ -124,8 +124,8 @@ export function NotificationsToggle({ compact = false }: { compact?: boolean }) 
         disabled={busy}
         className={
           compact
-            ? 'w-full rounded-lg bg-white/10 px-3 py-2 text-left text-sm text-slate-100 hover:bg-white/15 disabled:opacity-50'
-            : `rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50 ${state === 'on' ? 'bg-slate-200 hover:bg-slate-300' : 'bg-brand text-white hover:bg-brand-dark'}`
+            ? 'w-full rounded-lg bg-white/10 px-3 py-2 text-left text-sm text-[#f4f5f7] hover:bg-white/15 disabled:opacity-50'
+            : `rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50 ${state === 'on' ? 'bg-line hover:bg-line-2' : 'bg-lime text-night hover:bg-lime-hover'}`
         }
       >
         {busy ? 'Working…' : state === 'on' ? '🔕 Turn off notifications' : '🔔 Notify me when friends come online'}

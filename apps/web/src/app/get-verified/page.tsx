@@ -105,10 +105,10 @@ export default function GetVerifiedPage() {
       <SiteHeader />
       <section className="mt-2 text-center">
         <p className="text-5xl" aria-hidden>
-          <span className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-sky-500 text-4xl font-bold text-white">✓</span>
+          <span className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-lime text-4xl font-bold text-night">✓</span>
         </p>
         <h1 className="mt-3 text-3xl font-bold">Get the Verified badge</h1>
-        <p className="mt-2 text-slate-300">
+        <p className="mt-2 text-mute">
           Show strangers you&apos;re a real person. Verified people get more matches, and Plus members can choose to meet only verified people.
         </p>
       </section>
@@ -116,53 +116,53 @@ export default function GetVerifiedPage() {
       <FormError error={error} />
 
       {loading ? null : !user ? (
-        <p className="rounded-xl bg-white/5 p-4 text-center text-slate-300">
-          <Link href="/login?next=/get-verified" className="font-semibold text-sky-300 underline">
+        <p className="rounded-xl bg-white/5 p-4 text-center text-mute">
+          <Link href="/login?next=/get-verified" className="font-semibold text-lime underline">
             Log in
           </Link>{' '}
           or{' '}
-          <Link href="/signup?next=/get-verified" className="font-semibold text-sky-300 underline">
+          <Link href="/signup?next=/get-verified" className="font-semibold text-lime underline">
             create a free account
           </Link>{' '}
           to get verified.
         </p>
       ) : status === 'verified' ? (
-        <p className="rounded-2xl bg-white p-6 text-center text-ink">
+        <p className="rounded-2xl bg-card p-6 text-center text-[#f4f5f7]">
           <span className="text-lg font-semibold">✓ You&apos;re verified.</span>
-          <span className="mt-1 block text-sm text-slate-500">Partners see the badge next to your country.</span>
+          <span className="mt-1 block text-sm text-dim">Partners see the badge next to your country.</span>
         </p>
       ) : step === 'intro' ? (
-        <section className="rounded-2xl bg-white p-6 text-ink">
+        <section className="rounded-2xl bg-card p-6 text-[#f4f5f7]">
           {status === 'pending' && (
-            <p className="mb-4 rounded-lg bg-sky-50 p-3 text-sm text-sky-900">
+            <p className="mb-4 rounded-lg bg-lime/10 p-3 text-sm text-lime">
               ⏳ Your selfie is being reviewed — usually within 24 hours. You can keep chatting meanwhile.
             </p>
           )}
           {status === 'rejected' && (
-            <p className="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+            <p className="mb-4 rounded-lg bg-gold-bg p-3 text-sm text-gold">
               Your last selfie wasn&apos;t approved. Make sure your whole face and the gesture are clearly visible, then try again.
             </p>
           )}
-          <ol className="list-decimal space-y-1.5 pl-5 text-sm text-slate-700">
+          <ol className="list-decimal space-y-1.5 pl-5 text-sm text-[#e6e8ec]">
             <li>We show you a random hand gesture.</li>
             <li>Take a selfie doing it, with your face clearly visible.</li>
             <li>A moderator compares it — the photo is deleted right after and is never shown to anyone else.</li>
           </ol>
           {status !== 'pending' && (
-            <button onClick={() => void start()} className="mt-5 w-full rounded-lg bg-sky-600 py-3 font-semibold text-white hover:bg-sky-700">
+            <button onClick={() => void start()} className="mt-5 w-full rounded-lg bg-lime py-3 font-semibold text-night hover:bg-lime-hover">
               {status === 'rejected' ? 'Try again' : 'Start'}
             </button>
           )}
         </section>
       ) : (
-        <section className="rounded-2xl bg-white p-4 text-ink sm:p-6">
+        <section className="rounded-2xl bg-card p-4 text-[#f4f5f7] sm:p-6">
           {g && (
             <p className="mb-3 text-center text-lg font-semibold">
               <span className="mr-2 text-3xl align-middle">{g.emoji}</span>
               {g.text}
             </p>
           )}
-          <div className="relative mx-auto aspect-[4/3] w-full max-w-md overflow-hidden rounded-xl bg-slate-900">
+          <div className="relative mx-auto aspect-[4/3] w-full max-w-md overflow-hidden rounded-xl bg-card">
             {step === 'camera' ? (
               <>
                 <video ref={videoRef} muted playsInline className="h-full w-full -scale-x-100 object-cover" />
@@ -186,14 +186,14 @@ export default function GetVerifiedPage() {
                     stopCamera();
                     setStep('intro');
                   }}
-                  className="flex-1 rounded-lg bg-slate-200 py-2.5 font-semibold hover:bg-slate-300"
+                  className="flex-1 rounded-lg bg-line py-2.5 font-semibold hover:bg-line-2"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => void capture()}
                   disabled={countdown !== null}
-                  className="flex-1 rounded-lg bg-sky-600 py-2.5 font-semibold text-white hover:bg-sky-700 disabled:opacity-50"
+                  className="flex-1 rounded-lg bg-lime py-2.5 font-semibold text-night hover:bg-lime-hover disabled:opacity-50"
                 >
                   {countdown !== null ? 'Hold it…' : 'Take photo'}
                 </button>
@@ -203,14 +203,14 @@ export default function GetVerifiedPage() {
                 <button
                   onClick={() => setStep('camera')}
                   disabled={step === 'sending'}
-                  className="flex-1 rounded-lg bg-slate-200 py-2.5 font-semibold hover:bg-slate-300 disabled:opacity-50"
+                  className="flex-1 rounded-lg bg-line py-2.5 font-semibold hover:bg-line-2 disabled:opacity-50"
                 >
                   Retake
                 </button>
                 <button
                   onClick={() => void send()}
                   disabled={step === 'sending'}
-                  className="flex-1 rounded-lg bg-sky-600 py-2.5 font-semibold text-white hover:bg-sky-700 disabled:opacity-50"
+                  className="flex-1 rounded-lg bg-lime py-2.5 font-semibold text-night hover:bg-lime-hover disabled:opacity-50"
                 >
                   {step === 'sending' ? 'Sending…' : 'Send for review'}
                 </button>

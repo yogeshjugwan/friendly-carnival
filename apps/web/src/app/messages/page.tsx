@@ -3,23 +3,25 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import type { DmThread } from '@rc/shared';
-import { Avatar, Ticks, WA, WaThread, type WaContact } from '@/components/WaThread';
+import { Brand } from '@/components/SiteHeader';
+import { ThreadRow, WaThread, type WaContact } from '@/components/WaThread';
 import { useAuth } from '@/lib/auth';
 import { getSocket } from '@/lib/socket';
 
-const when = (at: number) => {
-  const d = new Date(at);
-  if (d.toDateString() === new Date().toDateString()) return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  if (d.toDateString() === new Date(Date.now() - 86_400_000).toDateString()) return 'Yesterday';
-  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-};
+/** Filter pill; the ::before pads the hit area to 44px without growing the 36px pill. */
+const tabCls = (on: boolean) =>
+  `relative h-9 shrink-0 rounded-full px-3.5 text-[13px] font-medium transition-colors before:absolute before:inset-x-0 before:-inset-y-1 ${
+    on ? 'bg-[#F4F5F7] text-night' : 'bg-card-2 text-mute hover:text-[#F4F5F7]'
+  }`;
 
-/** WhatsApp-style inbox: conversations on the left, the open chat on the right (one at a time on phones). */
+/** Inbox: conversations on the left, the open chat on the right (one at a time on phones). */
 export default function MessagesPage() {
   const { user, loading } = useAuth();
   const [threads, setThreads] = useState<DmThread[] | null>(null);
   const [open, setOpen] = useState<WaContact | null>(null);
   const [tab, setTab] = useState<'chats' | 'requests'>('chats');
+  // When you last met each person on a call (for the "You met on…" line in the thread).
+  const [met, setMet] = useState<Record<string, NonNullable<WaContact['met']>>>({});
 
   const load = useCallback(() => {
     getSocket()
@@ -41,6 +43,16 @@ export default function MessagesPage() {
     };
   }, [user, load]);
 
+  useEffect(() => {
+    if (!user) return;
+    getSocket()
+      .timeout(8_000)
+      .emit('history:list', (err, r) => {
+        if (err || !r) return;
+        setMet(Object.fromEntries(r.people.map((p) => [p.id, { at: p.lastAt, mode: p.lastMode }])));
+      });
+  }, [user]);
+
   // Keep the open chat's name / online dot in step with the list.
   useEffect(() => {
     const t = open && threads?.find((x) => x.id === open.id);
@@ -61,9 +73,15 @@ export default function MessagesPage() {
 
   if (!loading && !user) {
     return (
-      <main className={`flex min-h-dvh flex-col items-center justify-center gap-3 ${WA.bg} p-6 text-center text-[#e9edef]`}>
+      <main className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-night p-6 text-center text-[#F4F5F7]">
+        <span className="grid h-14 w-14 place-items-center rounded-2xl bg-card-2 text-lime">
+          <ChatIcon />
+        </span>
         <p className="text-lg">Log in to see your messages.</p>
-        <Link href="/login?next=/messages" className={`rounded-full ${WA.send} px-5 py-2 font-semibold text-white`}>
+        <Link
+          href="/login?next=/messages"
+          className="flex h-11 items-center rounded-full bg-lime px-6 font-semibold text-night transition-colors hover:bg-lime-hover"
+        >
           Log in
         </Link>
       </main>
@@ -74,92 +92,91 @@ export default function MessagesPage() {
   const requests = (threads ?? []).filter((t) => t.request).length;
 
   return (
-    <main className="flex h-dvh bg-[#111b21] text-[#e9edef]">
-      <aside className={`flex min-h-0 w-full flex-col border-r border-[#222d34] md:w-[380px] ${open ? 'max-md:hidden' : ''}`}>
-        <header className={`flex items-center gap-3 px-4 py-3 ${WA.bar}`}>
-          <Link href="/" className="text-lg font-semibold">
-            random<span className="text-[#00a884]">Call</span>
+    <main className="flex h-dvh flex-col bg-night text-[#F4F5F7]">
+      <header className={`border-b border-line ${open ? 'max-md:hidden' : ''}`}>
+        <div className="mx-auto flex max-w-[1200px] items-center gap-3 px-4 py-3 sm:px-6">
+          <Brand wordmark />
+          <div className="flex-1" />
+          <Link
+            href="/history"
+            className="flex h-11 items-center rounded-xl border border-line bg-card px-3.5 text-[13px] font-medium text-[#C9CDD4] transition-colors hover:text-[#F4F5F7]"
+            title="People you chatted with"
+          >
+            History
           </Link>
-          <span className="mr-auto text-sm text-[#8696a0]">Messages</span>
-          <Link href="/history" className="rounded-full px-3 py-1 text-sm text-[#8696a0] hover:bg-white/10" title="People you chatted with">
-            🕘 History
-          </Link>
-        </header>
-        <div className="flex gap-2 px-3 py-2">
-          {(['chats', 'requests'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`rounded-full px-3 py-1 text-sm ${tab === t ? 'bg-[#0a332c] text-[#00a884]' : 'bg-[#202c33] text-[#8696a0]'}`}
-            >
-              {t === 'chats' ? 'Chats' : `Requests${requests ? ` (${requests})` : ''}`}
-            </button>
-          ))}
         </div>
-        <ul className="min-h-0 flex-1 overflow-y-auto">
-          {threads === null && <li className="p-6 text-center text-sm text-[#8696a0]">Loading…</li>}
-          {threads && shown.length === 0 && (
-            <li className="p-6 text-center text-sm text-[#8696a0]">
-              {tab === 'requests' ? 'No message requests.' : (
-                <>
-                  No chats yet. Message people from your{' '}
-                  <Link href="/history" className="text-[#00a884]">
-                    History
-                  </Link>{' '}
-                  or friends.
-                </>
-              )}
-            </li>
-          )}
-          {shown.map((t) => (
-            <li key={t.id}>
-              <button
-                onClick={() => setOpen({ id: t.id, name: t.name, avatar: t.avatar, online: t.online })}
-                className={`flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-[#202c33] ${open?.id === t.id ? 'bg-[#2a3942]' : ''}`}
-              >
-                <Avatar contact={t} size="h-12 w-12 text-3xl" />
-                <span className="min-w-0 flex-1 border-b border-[#222d34] pb-3">
-                  <span className="flex items-baseline gap-2">
-                    <span className="truncate font-medium">{t.name}</span>
-                    {t.friend && <span className="text-xs text-pink-300">❤️</span>}
-                    <span className={`ml-auto shrink-0 text-xs ${t.unread ? 'text-[#00a884]' : 'text-[#8696a0]'}`}>{when(t.lastAt)}</span>
-                  </span>
-                  <span className="mt-0.5 flex items-center gap-2">
-                    <span className="truncate text-sm text-[#8696a0]">
-                      {t.lastFromMe && <Ticks />}
-                      {t.lastFromMe ? ' ' : ''}
-                      {t.lastText}
-                    </span>
-                    {t.unread > 0 && (
-                      <span className="ml-auto flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-[#00a884] px-1.5 text-[11px] font-bold text-[#111b21]">
-                        {t.unread}
-                      </span>
+      </header>
+
+      <div className="mx-auto flex min-h-0 w-full max-w-[1200px] flex-1 md:p-6">
+        <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden md:rounded-[20px] md:border md:border-line">
+          <aside className={`flex min-h-0 w-full flex-col md:w-[380px] md:shrink-0 md:border-r md:border-divider md:bg-card ${open ? 'max-md:hidden' : ''}`}>
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 pb-3 pt-5 md:border-b md:border-divider md:p-[18px]">
+              <h1 className="font-display text-[26px] font-bold md:text-lg">Messages</h1>
+              <div className="flex gap-1.5" role="group" aria-label="Show">
+                {(['chats', 'requests'] as const).map((t) => (
+                  <button key={t} type="button" onClick={() => setTab(t)} aria-pressed={tab === t} className={tabCls(tab === t)}>
+                    {t === 'chats' ? 'Chats' : `Requests${requests ? ` (${requests})` : ''}`}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto max-md:px-4 max-md:pb-4">
+              <ul className="divide-y divide-divider overflow-hidden max-md:rounded-[18px] max-md:border max-md:border-line max-md:bg-card">
+                {threads === null && <li className="p-6 text-center text-sm text-dim">Loading…</li>}
+                {threads && shown.length === 0 && (
+                  <li className="px-6 py-10 text-center text-sm text-dim">
+                    {tab === 'requests' ? (
+                      'No message requests.'
+                    ) : (
+                      <>
+                        <span className="mb-1 block font-semibold text-[#F4F5F7]">No chats yet</span>
+                        Message people from your{' '}
+                        <Link href="/history" className="font-medium text-lime underline-offset-2 hover:underline">
+                          History
+                        </Link>{' '}
+                        or friends.
+                      </>
                     )}
-                  </span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </aside>
-      {open ? (
-        <WaThread
-          key={open.id}
-          contact={open}
-          onBack={() => {
-            setOpen(null);
-            window.history.replaceState(null, '', '/messages');
-            load();
-          }}
-          className="min-w-0 flex-1"
-        />
-      ) : (
-        <div className={`hidden flex-1 flex-col items-center justify-center gap-2 ${WA.bg} text-center text-[#8696a0] md:flex`}>
-          <p className="text-5xl">💬</p>
-          <p className="text-lg text-[#e9edef]">randomCall Messages</p>
-          <p className="text-sm">Pick a chat, or message someone from your History.</p>
+                  </li>
+                )}
+                {shown.map((t) => (
+                  <li key={t.id}>
+                    <ThreadRow t={t} active={open?.id === t.id} onClick={() => setOpen({ id: t.id, name: t.name, avatar: t.avatar, online: t.online })} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </aside>
+          {open ? (
+            <WaThread
+              key={open.id}
+              contact={{ ...open, met: met[open.id] }}
+              onBack={() => {
+                setOpen(null);
+                window.history.replaceState(null, '', '/messages');
+                load();
+              }}
+              className="min-w-0 flex-1"
+            />
+          ) : (
+            <div className="hidden flex-1 flex-col items-center justify-center gap-2 p-6 text-center md:flex">
+              <span className="mb-1 grid h-14 w-14 place-items-center rounded-2xl bg-card-2 text-lime">
+                <ChatIcon />
+              </span>
+              <p className="font-semibold">Pick a chat</p>
+              <p className="max-w-[260px] text-[13px] text-dim">Open a conversation, or message someone from your History.</p>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </main>
+  );
+}
+
+function ChatIcon() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinejoin="round" aria-hidden>
+      <path d="M21 12a8 8 0 01-12 7l-5 1 1-4a8 8 0 1116-4z" />
+    </svg>
   );
 }

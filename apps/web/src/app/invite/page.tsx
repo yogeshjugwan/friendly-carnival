@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { REFERRAL, type ReferralInfo } from '@rc/shared';
 import { SiteFooter, SiteHeader } from '@/components/SiteHeader';
-import { errorText, FormError } from '@/components/forms/fields';
+import { errorText } from '@/components/forms/fields';
 import { api, useAuth } from '@/lib/auth';
 
 export default function InvitePage() {
@@ -43,96 +43,101 @@ export default function InvitePage() {
     }
   };
 
+  const days = `${REFERRAL.plusDays} day${REFERRAL.plusDays > 1 ? 's' : ''} of Plus.`;
+  const shareBtn =
+    'flex h-11 flex-1 items-center justify-center rounded-xl border border-line-2 bg-card-2 px-[18px] text-[13px] font-semibold text-[#e6e8ec] hover:border-[#384056] sm:flex-none sm:text-sm';
+
   return (
-    <main className="mx-auto flex min-h-full max-w-2xl flex-col gap-6 px-4 py-6 sm:px-6">
+    <main className="mx-auto flex min-h-full max-w-[1200px] flex-col gap-6 px-4 py-6 text-[#f4f5f7] sm:px-6">
       <SiteHeader />
-      <section className="mt-2 text-center">
-        <p className="text-5xl" aria-hidden>
-          🎁
+      <div className="mx-auto mt-3 flex w-full max-w-[760px] flex-col gap-4 sm:mt-10 sm:gap-6 sm:text-center">
+        <p className="text-xs font-bold tracking-[2px] text-lime sm:text-[13px]">INVITE FRIENDS</p>
+        <h1 className="font-display text-[34px] font-bold leading-[1.05] sm:text-[56px] sm:tracking-[-1px]">
+          Bring a friend. <br className="max-sm:hidden" />
+          You both get <span className="text-gold">{days}</span>
+        </h1>
+        <p className="text-sm text-mute sm:text-base">
+          When a friend signs up with your link and finishes their first chat, you both get {REFERRAL.plusDays} free day
+          {REFERRAL.plusDays > 1 ? 's' : ''} of 👑 Plus. Already on Plus? You get 🪙 {REFERRAL.coins} coins instead.
         </p>
-        <h1 className="mt-3 text-3xl font-bold">Invite friends, get Plus free</h1>
-        <p className="mt-2 text-slate-300">
-          When a friend signs up with your link and finishes their first chat, you both get{' '}
-          <strong className="text-amber-300">
-            {REFERRAL.plusDays} free day{REFERRAL.plusDays > 1 ? 's' : ''} of 👑 Plus
-          </strong>
-          . Already paying for Plus? You get 🪙 {REFERRAL.coins} coins instead.
-        </p>
-      </section>
 
-      <FormError error={error} />
-
-      {loading ? null : !user ? (
-        <p className="rounded-xl bg-white/5 p-4 text-center text-slate-300">
-          <Link href="/signup?next=/invite" className="font-semibold text-sky-300 underline">
-            Create a free account
-          </Link>{' '}
-          to get your invite link.
-        </p>
-      ) : (
-        <section className="rounded-2xl bg-white p-5 text-ink sm:p-6">
-          <label htmlFor="invite-link" className="text-sm font-semibold">
-            Your invite link
-          </label>
-          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-            <input
-              id="invite-link"
-              readOnly
-              value={link || 'Loading…'}
-              onFocus={(e) => e.currentTarget.select()}
-              className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 font-mono text-sm"
-            />
-            <button
-              onClick={() => void copy()}
-              disabled={!info}
-              className="rounded-lg bg-brand px-4 py-2.5 font-semibold text-white hover:bg-brand-dark disabled:opacity-50"
-            >
-              {copied ? 'Copied ✓' : 'Copy link'}
-            </button>
-          </div>
-          {info && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {canShare && (
-                <button onClick={() => void share()} className="rounded-full bg-slate-800 px-4 py-2 text-sm font-semibold text-white">
-                  Share…
-                </button>
-              )}
-              <a
-                href={`https://wa.me/?text=${encodeURIComponent(message)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white"
-              >
-                WhatsApp
-              </a>
-              <a
-                href={`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Sign up with my link and we both get a free day of Plus')}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-full bg-[#229ED9] px-4 py-2 text-sm font-semibold text-white"
-              >
-                Telegram
-              </a>
-            </div>
-          )}
-          {info && (
-            <dl className="mt-5 grid grid-cols-2 gap-3 text-center">
-              <div className="rounded-xl bg-slate-100 p-3">
-                <dt className="text-xs text-slate-500">Signed up</dt>
-                <dd className="text-2xl font-bold">{info.invited}</dd>
-              </div>
-              <div className="rounded-xl bg-slate-100 p-3">
-                <dt className="text-xs text-slate-500">Rewards earned</dt>
-                <dd className="text-2xl font-bold">{info.rewarded}</dd>
-              </div>
-            </dl>
-          )}
-          <p className="mt-4 text-xs text-slate-500">
-            Rewards count when your friend confirms their email and has their first chat with someone else. Up to {REFERRAL.maxRewards} rewards
-            per account.
+        {error && (
+          <p role="alert" className="rounded-xl border border-stop bg-[#1a0f0f] px-3 py-2 text-left text-sm text-stop-text">
+            {error}
           </p>
-        </section>
-      )}
+        )}
+
+        {loading ? null : !user ? (
+          <p className="rounded-[18px] border border-line bg-card p-4 text-mute sm:rounded-[20px] sm:p-6">
+            <Link href="/signup?next=/invite" className="font-semibold text-lime underline">
+              Create a free account
+            </Link>{' '}
+            to get your invite link.
+          </p>
+        ) : (
+          <>
+            <section aria-label="Your invite link" className="flex flex-col gap-2.5 rounded-[18px] border border-line bg-card p-3.5 text-left sm:gap-4 sm:rounded-[20px] sm:p-6">
+              <label htmlFor="invite-link" className="sr-only">
+                Your invite link
+              </label>
+              <div className="flex flex-col gap-2.5 sm:flex-row">
+                <input
+                  id="invite-link"
+                  readOnly
+                  value={link || 'Loading…'}
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="h-[46px] min-w-0 flex-1 rounded-xl bg-card-2 px-3 font-mono text-[13px] font-medium text-[#c9cdd4] outline-none focus:ring-2 focus:ring-lime sm:h-[52px] sm:px-4 sm:text-[15px]"
+                />
+                <button
+                  onClick={() => void copy()}
+                  disabled={!info}
+                  className="h-[52px] rounded-[14px] bg-lime px-6 font-display text-base font-bold text-[#0b0d10] hover:bg-lime-hover disabled:opacity-50 sm:rounded-xl sm:text-[15px]"
+                >
+                  {copied ? 'Copied ✓' : 'Copy link'}
+                </button>
+              </div>
+              {info && (
+                <div className="flex gap-2">
+                  <a href={`https://wa.me/?text=${encodeURIComponent(message)}`} target="_blank" rel="noopener noreferrer" className={shareBtn}>
+                    WhatsApp
+                  </a>
+                  <a
+                    href={`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Sign up with my link and we both get a free day of Plus')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={shareBtn}
+                  >
+                    Telegram
+                  </a>
+                  {canShare && (
+                    <button onClick={() => void share()} className={shareBtn}>
+                      More…
+                    </button>
+                  )}
+                </div>
+              )}
+            </section>
+            {info && (
+              <dl className="grid grid-cols-2 gap-2.5 text-left sm:gap-4">
+                <div className="rounded-[18px] border border-line bg-card p-3.5 sm:rounded-[20px] sm:p-5">
+                  <dt className="text-xs text-dim sm:text-[13px]">Signed up</dt>
+                  <dd className="font-display text-[30px] font-bold sm:text-[40px]">{info.invited}</dd>
+                </div>
+                <div className="rounded-[18px] border border-line bg-card p-3.5 sm:rounded-[20px] sm:p-5">
+                  <dt className="text-xs text-dim sm:text-[13px]">Rewards earned</dt>
+                  <dd className="font-display text-[30px] font-bold sm:text-[40px]">
+                    {info.rewarded} <span className="text-sm font-normal text-dim sm:text-base">/ {REFERRAL.maxRewards}</span>
+                  </dd>
+                </div>
+              </dl>
+            )}
+            <p className="text-[11px] text-faint sm:text-xs">
+              Rewards count when your friend confirms their email and has their first chat with someone else. Up to {REFERRAL.maxRewards}{' '}
+              rewards per account.
+            </p>
+          </>
+        )}
+      </div>
       <SiteFooter />
     </main>
   );

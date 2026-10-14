@@ -137,7 +137,7 @@ export function FriendsPanel({ call, onClose, className = '' }: { call: RandomCa
   };
 
   return (
-    <section className={`flex min-h-0 flex-col rounded-2xl bg-[#202124] text-slate-100 ${className}`} aria-labelledby="friends-title">
+    <section className={`flex min-h-0 flex-col rounded-[20px] border border-line bg-card text-slate-100 ${className}`} aria-labelledby="friends-title">
       <header className="flex items-center justify-between px-5 pb-2 pt-4">
         <div>
           <h2 id="friends-title" className="text-lg">
@@ -163,6 +163,7 @@ export function FriendsPanel({ call, onClose, className = '' }: { call: RandomCa
             setThread(null);
             void refresh();
           }}
+          onCall={thread.status === 'offline' ? undefined : () => void callFriend(thread.id)}
           className="min-h-0 flex-1 rounded-b-2xl"
         />
       ) : (

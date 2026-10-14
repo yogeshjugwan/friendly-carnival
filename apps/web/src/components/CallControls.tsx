@@ -108,9 +108,11 @@ interface ControlsProps {
   onToggleFit: () => void;
   onToggleFullscreen: () => void;
   rail?: boolean;
+  /** While matching: just the mic and camera. */
+  minimal?: boolean;
 }
 
-export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fit, onToggleFit, onToggleFullscreen, rail = false }: ControlsProps) {
+export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fit, onToggleFit, onToggleFullscreen, rail = false, minimal = false }: ControlsProps) {
   const { t } = useI18n();
   const [showReactions, setShowReactions] = useState(false);
   // Menus open above the bar, or to the left of the rail.
@@ -166,6 +168,8 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
           OffIcon={VideoOffIcon}
         />
       )}
+      {!minimal && (
+        <>
       <button
         onClick={onToggleChat}
         aria-label={unread ? `${t('call.chat')}, ${unread}` : t('call.chat')}
@@ -192,7 +196,21 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
         <SmileIcon />
       </button>
       <MoreMenu call={call} className={ctl('normal', rail)} fit={fit} onToggleFit={onToggleFit} onToggleFullscreen={onToggleFullscreen} menuPos={menuPos} />
+        </>
+      )}
     </div>
+  );
+}
+
+/** Cancel matching (dark red), in place of Stop / Next while looking for someone. */
+export function CancelButton({ call, wide = false }: { call: RandomCall; wide?: boolean }) {
+  return (
+    <button
+      onClick={call.stop}
+      className={`h-14 rounded-2xl bg-stop px-7 text-base font-semibold text-stop-text transition hover:brightness-125 ${wide ? 'w-full' : ''}`}
+    >
+      Cancel
+    </button>
   );
 }
 

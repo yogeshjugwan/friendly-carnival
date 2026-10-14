@@ -165,7 +165,7 @@ export function GameCard({ call, className = '' }: { call: RandomCall; className
   if (!view) return null;
   const meta = GAMES.find((g) => g.id === view.game)!;
   return (
-    <section className={`w-[min(20rem,92vw)] rounded-2xl bg-[#202124]/95 p-3 text-slate-100 shadow-2xl backdrop-blur ${className}`} aria-label={meta.name}>
+    <section className={`w-[min(20rem,92vw)] rounded-[20px] border border-line bg-card/95 p-3 text-slate-100 shadow-2xl backdrop-blur ${className}`} aria-label={meta.name}>
       <div className="mb-2 flex items-center justify-between">
         <p className="text-sm font-semibold">
           {meta.emoji} {meta.name}

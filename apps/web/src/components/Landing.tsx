@@ -27,10 +27,13 @@ const TILE_COLORS = [
   ['linear-gradient(160deg,#d7a6ff,#8a4fd1)', '#3a1a60'],
   ['linear-gradient(160deg,#f7e07a,#c9a12e)', '#4f3e0c'],
 ] as const;
+const PLACES = ['India', 'Brazil', 'Japan', 'Spain', 'Kenya', 'Canada', 'Turkey', 'Mexico'];
+const SKINS = ['#f1c7a5', '#c68b5e', '#8d5a3b', '#e8b48a', '#5e3a26'];
+const HAIRS = ['#1b1210', '#4a2c18', '#2a1a12', '#7a4a20', '#111111'];
 
 /**
  * Photos for the tile wall: list them in public/faces/index.json (["face-1.webp", ...]).
- * Without it the wall shows coloured silhouettes. They're decoration, not people online.
+ * Without it the wall shows animated cartoon people.
  */
 function useFaces() {
   const [faces, setFaces] = useState<string[]>([]);
@@ -49,7 +52,16 @@ function TileWall() {
   const cols = [0, 1, 2, 3, 4, 5].map((i) =>
     Array.from({ length: 8 }, (_, k) => {
       const [bg, fg] = TILE_COLORS[(i + k) % 6]!;
-      return { bg, fg, face: faces.length ? faces[(i * 5 + k * 7) % faces.length] : null };
+      return {
+        bg,
+        fg,
+        skin: SKINS[(i + k * 2) % 5]!,
+        hair: HAIRS[(i * 2 + k) % 5]!,
+        place: PLACES[(i * 3 + k) % 8]!,
+        // Out of step, so the wall doesn't move as one.
+        delay: `-${((i * 7 + k * 3) % 10) / 3}s`,
+        face: faces.length ? faces[(i * 5 + k * 7) % faces.length] : null,
+      };
     }),
   );
   return (
@@ -64,11 +76,26 @@ function TileWall() {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={t.face} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
                 ) : (
+                  // A cartoon person chatting: head sways, mouth talks, eyes blink, hand waves.
                   <svg viewBox="0 0 100 80" preserveAspectRatio="xMidYMax meet" className="absolute inset-x-0 bottom-0 h-4/5 w-full">
-                    <circle cx="50" cy="30" r="16" fill={t.fg} />
-                    <path d="M14 80c4-22 18-32 36-32s32 10 36 32z" fill={t.fg} />
+                    <path d="M12 80c4-22 18-32 38-32s34 10 38 32z" fill={t.fg} />
+                    <g className="rc-sway" style={{ animationDelay: t.delay }}>
+                      <circle cx="50" cy="30" r="15" fill={t.skin} />
+                      <path d="M35 28c0-12 7-17 15-17s15 5 15 17c-3-6-8-8-15-8s-12 2-15 8z" fill={t.hair} />
+                      <g className="rc-eyes" style={{ animationDelay: t.delay }}>
+                        <circle cx="44" cy="30" r="1.6" fill="#1a1a1a" />
+                        <circle cx="56" cy="30" r="1.6" fill="#1a1a1a" />
+                      </g>
+                      <ellipse className="rc-talk" style={{ animationDelay: t.delay }} cx="50" cy="38" rx="4" ry="2" fill="#7a2a2a" />
+                    </g>
+                    <path className="rc-wave" style={{ animationDelay: t.delay }} d="M78 60l6-22" stroke={t.skin} strokeWidth="6" strokeLinecap="round" />
                   </svg>
                 )}
+                <span className="absolute inset-0 bg-[linear-gradient(180deg,transparent_60%,rgba(0,0,0,.35))]" />
+                <span className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-black/50 px-2 py-1 text-[11px] font-semibold text-white max-sm:hidden">
+                  <i className="rc-blink h-1.5 w-1.5 rounded-full bg-lime" />
+                  {t.place}
+                </span>
               </div>
             ))}
           </div>
@@ -274,7 +301,7 @@ export function Landing({ online, onStart }: Props) {
       <section className="relative flex min-h-dvh flex-col overflow-hidden px-4 sm:px-6">
         <TileWall />
         <div className="relative z-10 [&>header]:border-transparent">
-          <SiteHeader online={online} />
+          <SiteHeader online={online} home />
         </div>
 
         <div className="relative z-10 mx-auto flex w-full max-w-[820px] flex-1 flex-col items-center gap-4 pb-8 text-center max-sm:pb-24 max-sm:items-stretch max-sm:justify-end max-sm:text-left sm:gap-7 sm:pt-20">

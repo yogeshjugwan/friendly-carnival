@@ -5,15 +5,16 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { inr, PLUS_PASSES, PLUS_TRIAL_HOURS, type PlanPrice, type PlusPlan } from '@rc/shared';
 import { payWithRazorpay, razorpayEnabled } from '@/lib/razorpay';
-import { PLUS_FEATURES } from '@/components/PlusUpsell';
+import { PlusFeatureList } from '@/components/PlusUpsell';
+import { CrownIcon } from '@/components/UiIcons';
 import { SiteFooter, SiteHeader } from '@/components/SiteHeader';
 import { errorText, FormError, FormNote } from '@/components/forms/fields';
 import { api, useAuth } from '@/lib/auth';
 
-const PLAN_INFO: Record<PlusPlan, { name: string; tag?: string; fallback: PlanPrice }> = {
-  week: { name: '1 week', fallback: { plan: 'week', amount: 799, currency: 'usd', interval: 'week', intervalCount: 1 } },
-  month: { name: '1 month', tag: 'Popular', fallback: { plan: 'month', amount: 1999, currency: 'usd', interval: 'month', intervalCount: 1 } },
-  halfyear: { name: '6 months', tag: 'Best value', fallback: { plan: 'halfyear', amount: 8999, currency: 'usd', interval: 'month', intervalCount: 6 } },
+const PLAN_INFO: Record<PlusPlan, { name: string; label: string; tag?: string; fallback: PlanPrice }> = {
+  week: { name: '1 week', label: 'Weekly', fallback: { plan: 'week', amount: 799, currency: 'usd', interval: 'week', intervalCount: 1 } },
+  month: { name: '1 month', label: 'Monthly', tag: 'Popular', fallback: { plan: 'month', amount: 1999, currency: 'usd', interval: 'month', intervalCount: 1 } },
+  halfyear: { name: '6 months', label: '6 months', tag: 'Best value', fallback: { plan: 'halfyear', amount: 8999, currency: 'usd', interval: 'month', intervalCount: 6 } },
 };
 
 // A fixed locale, so the server-rendered price matches the browser's ("$7.99", "₹299.00").
@@ -47,6 +48,7 @@ export default function PlusPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
+  const [picked, setPicked] = useState<PlusPlan>('month');
 
   useEffect(() => {
     api<{ enabled: boolean; plans: PlanPrice[] }>('/billing/plans')
@@ -112,161 +114,188 @@ export default function PlusPage() {
   const shown = (['week', 'month', 'halfyear'] as PlusPlan[]).map((plan) => plans?.find((p) => p.plan === plan) ?? PLAN_INFO[plan].fallback);
   const plus = user?.plus;
 
+  const chosen = shown.find((p) => p.plan === picked)!;
+  const card = 'rounded-[18px] border border-line bg-card p-4 sm:rounded-[20px] sm:p-6';
+
   return (
-    <main className="mx-auto flex min-h-full max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6">
+    <main className="mx-auto flex min-h-full w-full max-w-[1100px] flex-col gap-5 bg-[radial-gradient(circle_at_50%_0%,#2A220A_0,#07080B_420px)] px-4 py-5 sm:gap-6 sm:px-6 sm:py-6">
       <SiteHeader />
-      <section className="mt-4 text-center">
-        <p className="text-sm font-semibold uppercase tracking-wide text-amber-400">randomCall Plus</p>
-        <h1 className="mt-2 text-4xl font-bold">Choose who you meet</h1>
-        <p className="mt-3 text-slate-300">Filters, no ads, and a Plus badge. Cancel any time.</p>
-      </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {PLUS_FEATURES.map((f) => (
-          <div key={f.title} className="rounded-xl bg-panel p-4">
-            <p className="text-2xl" aria-hidden>
-              {f.icon}
-            </p>
-            <p className="mt-2 font-semibold">{f.title}</p>
-            <p className="text-sm text-slate-400">{f.body}</p>
-          </div>
-        ))}
-      </section>
-
-      {notice && <FormNote>{notice}</FormNote>}
-      {waiting && <p className="text-center text-slate-300">Activating your Plus membership…</p>}
-      <FormError error={error} />
-
-      {user?.trialAvailable && !plus?.active && (
-        <section className="flex flex-col items-center gap-3 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 p-5 text-center text-white sm:flex-row sm:text-left">
-          <div className="flex-1">
-            <p className="text-lg font-bold">🎁 Try Plus free for {PLUS_TRIAL_HOURS} hours</p>
-            <p className="text-sm text-white/90">
-              No card needed. Filters, no ads, see who&apos;s online — then decide.
-              {!user.emailVerified && ' Confirm your email first.'}
-            </p>
-          </div>
-          <button
-            disabled={trialBusy || !user.emailVerified}
-            onClick={async () => {
-              setTrialBusy(true);
-              setError(null);
-              try {
-                await api('/auth/plus/trial', {}, token);
-                await refresh();
-                setNotice(`👑 Plus is on for the next ${PLUS_TRIAL_HOURS} hours. Enjoy!`);
-              } catch (e) {
-                setError(errorText(e));
-              } finally {
-                setTrialBusy(false);
-              }
-            }}
-            className="rounded-full bg-white px-5 py-2.5 font-semibold text-orange-600 disabled:opacity-60"
-          >
-            {trialBusy ? 'Starting…' : 'Start free trial'}
-          </button>
+      <div className="grid gap-6 lg:mt-6 lg:grid-cols-2 lg:gap-12">
+        {/* Pitch */}
+        <section className="flex flex-col gap-[18px]">
+          <span className="flex h-16 w-16 items-center justify-center rounded-[20px] bg-gold text-gold-bg">
+            <CrownIcon className="h-[34px] w-[34px]" />
+          </span>
+          <h1 className="m-0 font-display text-[34px] font-bold leading-[1.05] sm:text-[44px]">
+            Get <span className="text-gold">Plus</span>.
+            <br />
+            Meet who you want.
+          </h1>
+          <p className="m-0 text-sm text-mute">Filters, no ads, and a Plus badge. Cancel any time.</p>
+          <PlusFeatureList />
         </section>
-      )}
 
-      {plus?.active ? (
-        <section className="rounded-2xl bg-white p-6 text-ink">
-          <h2 className="text-xl font-semibold">👑 You have Plus</h2>
-          <p className="mt-2 text-slate-600">
-            {plus.status === 'admin'
-              ? `Complimentary Plus until ${new Date(plus.until!).toLocaleDateString()}.`
-              : plus.status === 'pass'
-                ? `Your Plus pass lasts until ${new Date(plus.until!).toLocaleDateString()} (no auto-renew).`
-                : plus.cancelAtPeriodEnd
-                  ? `Your plan ends on ${new Date(plus.until!).toLocaleDateString()} and will not renew.`
-                  : `Your ${plus.plan ? PLAN_INFO[plus.plan].name : ''} plan renews on ${new Date(plus.until!).toLocaleDateString()}.`}
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Link href="/" className="rounded-lg bg-brand px-4 py-2 font-semibold text-white">
-              Start chatting
-            </Link>
-            {plus.status !== 'admin' && plus.status !== 'pass' && (
-              <button onClick={manage} disabled={busy === 'portal'} className="rounded-lg bg-slate-200 px-4 py-2 font-semibold disabled:opacity-50">
-                {busy === 'portal' ? 'Opening…' : 'Manage or cancel subscription'}
-              </button>
-            )}
-          </div>
-        </section>
-      ) : (
-        <section className="grid gap-4 md:grid-cols-3">
-          {shown.map((p) => {
-            const info = PLAN_INFO[p.plan];
-            const featured = p.plan === 'month';
-            return (
-              <div key={p.plan} className={`relative rounded-2xl bg-white p-6 text-ink ${featured ? 'ring-4 ring-amber-400' : ''}`}>
-                {info.tag && (
-                  <span className="absolute -top-3 left-6 rounded-full bg-amber-500 px-3 py-0.5 text-xs font-semibold text-white">{info.tag}</span>
-                )}
-                <p className="text-lg font-semibold">{info.name}</p>
-                <p className="mt-2 text-3xl font-bold">
-                  {perWeek(p)}
-                  <span className="text-base font-normal text-slate-500">/week</span>
+        {/* Buy / manage */}
+        <section aria-label="Plans" className="flex min-w-0 flex-col gap-4 lg:justify-end">
+          {(notice || waiting || error) && (
+            <div className="flex flex-col gap-2 [&>p]:mt-0">
+              {notice && <FormNote>{notice}</FormNote>}
+              {waiting && <p className="text-center text-sm text-mute">Activating your Plus membership…</p>}
+              <FormError error={error} />
+            </div>
+          )}
+
+          {user?.trialAvailable && !plus?.active && (
+            <div className="flex flex-col gap-3 rounded-[18px] border border-gold/40 bg-gold-bg p-4 sm:flex-row sm:items-center sm:rounded-[20px]">
+              <div className="min-w-0 flex-1">
+                <p className="m-0 font-display text-base font-bold text-gold">Try Plus free for {PLUS_TRIAL_HOURS} hours</p>
+                <p className="m-0 mt-0.5 text-[13px] text-mute">
+                  No card needed. Filters, no ads, see who&apos;s online — then decide.
+                  {!user.emailVerified && ' Confirm your email first.'}
                 </p>
-                <p className="mt-1 text-sm text-slate-500">{billedText(p)}</p>
-                <button
-                  onClick={() => void subscribe(p.plan)}
-                  disabled={!enabled || busy !== null}
-                  className={`mt-5 w-full rounded-lg py-2.5 font-semibold disabled:opacity-50 ${featured ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-slate-900 text-white hover:bg-slate-700'}`}
-                >
-                  {busy === p.plan ? 'Opening checkout…' : user ? 'Continue' : 'Sign up to subscribe'}
-                </button>
               </div>
-            );
-          })}
-        </section>
-      )}
-
-      {upi && (!plus?.active || plus.status === 'pass' || plus.status === 'admin') && (
-        <section className="rounded-2xl bg-white p-5 text-ink">
-          <h2 className="text-lg font-semibold">🇮🇳 Plus passes — pay with UPI</h2>
-          <p className="text-sm text-slate-500">One-time payment in rupees (UPI, cards, wallets). No auto-renew{plus?.active ? ' — adds to your current Plus' : ''}.</p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            {PLUS_PASSES.map((p) => (
               <button
-                key={p.plan}
-                disabled={busy !== null}
+                disabled={trialBusy || !user.emailVerified}
                 onClick={async () => {
-                  if (!user || !token) return router.push('/signup?next=/plus');
-                  setBusy(`upi:${p.plan}`);
+                  setTrialBusy(true);
                   setError(null);
                   try {
-                    const done = await payWithRazorpay(`plus:${p.plan}`, token, { email: user.email }, `Plus for ${p.days} days`);
-                    if (done === 'paid') {
-                      await refresh();
-                      setNotice(`👑 Plus is on for ${p.days} more days. Enjoy!`);
-                    }
+                    await api('/auth/plus/trial', {}, token);
+                    await refresh();
+                    setNotice(`👑 Plus is on for the next ${PLUS_TRIAL_HOURS} hours. Enjoy!`);
                   } catch (e) {
                     setError(errorText(e));
                   } finally {
-                    setBusy(null);
+                    setTrialBusy(false);
                   }
                 }}
-                className="rounded-xl border-2 border-emerald-500 p-3 text-left hover:bg-emerald-50 disabled:opacity-50"
+                className="h-11 shrink-0 rounded-xl border border-gold px-4 text-sm font-semibold text-gold transition hover:bg-gold hover:text-gold-bg disabled:opacity-50"
               >
-                <span className="block font-semibold">{p.days === 7 ? '1 week' : p.days === 30 ? '1 month' : '6 months'}</span>
-                <span className="text-xl font-bold text-emerald-700">{inr(p.paise)}</span>
-                {busy === `upi:${p.plan}` && <span className="ml-2 text-xs text-slate-500">Opening…</span>}
+                {trialBusy ? 'Starting…' : 'Start free trial'}
               </button>
-            ))}
-          </div>
-        </section>
-      )}
+            </div>
+          )}
 
-      {!enabled && !plus?.active && (
-        <p className="text-center text-sm text-slate-400">Payments are being set up. Plus will be available soon.</p>
-      )}
-      <p className="text-center text-xs text-slate-500">
-        Secure payment by Stripe. Prices shown before tax. Subscriptions renew automatically until canceled; cancel any time in
-        Settings → Manage subscription. See the{' '}
-        <Link href="/terms" className="underline">
-          Terms
-        </Link>
-        .
-      </p>
+          {plus?.active ? (
+            <div className={card}>
+              <h2 className="m-0 flex items-center gap-2 font-display text-xl font-bold">
+                <CrownIcon className="h-5 w-5 text-gold" /> You have Plus
+              </h2>
+              <p className="m-0 mt-2 text-sm text-mute">
+                {plus.status === 'admin'
+                  ? `Complimentary Plus until ${new Date(plus.until!).toLocaleDateString()}.`
+                  : plus.status === 'pass'
+                    ? `Your Plus pass lasts until ${new Date(plus.until!).toLocaleDateString()} (no auto-renew).`
+                    : plus.cancelAtPeriodEnd
+                      ? `Your plan ends on ${new Date(plus.until!).toLocaleDateString()} and will not renew.`
+                      : `Your ${plus.plan ? PLAN_INFO[plus.plan].name : ''} plan renews on ${new Date(plus.until!).toLocaleDateString()}.`}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link
+                  href="/"
+                  className="inline-flex h-11 items-center rounded-xl bg-lime px-5 font-display font-bold text-[#0b0d10] transition hover:bg-lime-hover"
+                >
+                  Start chatting
+                </Link>
+                {plus.status !== 'admin' && plus.status !== 'pass' && (
+                  <button
+                    onClick={manage}
+                    disabled={busy === 'portal'}
+                    className="h-11 rounded-xl border border-line-2 px-4 text-sm font-semibold text-[#e6e8ec] transition hover:border-mute disabled:opacity-50"
+                  >
+                    {busy === 'portal' ? 'Opening…' : 'Manage or cancel subscription'}
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <div role="radiogroup" aria-label="Choose a plan" className="grid grid-cols-3 gap-2">
+                {shown.map((p) => {
+                  const info = PLAN_INFO[p.plan];
+                  const on = p.plan === picked;
+                  return (
+                    <button
+                      key={p.plan}
+                      role="radio"
+                      aria-checked={on}
+                      onClick={() => setPicked(p.plan)}
+                      className={`flex min-h-[76px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl px-1.5 py-3 text-center transition ${
+                        on ? 'border-2 border-gold bg-gold-bg' : 'border border-line-2 bg-card hover:border-mute'
+                      }`}
+                    >
+                      <span className={`text-xs ${on ? 'text-gold' : 'text-mute'}`}>
+                        {info.label}
+                        {info.tag && <span className="max-[379px]:hidden"> · {info.tag.toLowerCase()}</span>}
+                      </span>
+                      <span className="max-w-full break-words font-display text-lg font-bold leading-tight sm:text-xl">{money(p.amount, p.currency)}</span>
+                      <span className="text-[11px] text-dim">{perWeek(p)}/wk</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                onClick={() => void subscribe(picked)}
+                disabled={!enabled || busy !== null}
+                className="h-[58px] rounded-2xl bg-gold font-display text-lg font-bold text-gold-bg transition hover:brightness-110 disabled:opacity-50"
+              >
+                {busy === picked ? 'Opening checkout…' : user ? 'Continue' : 'Sign up to subscribe'}
+              </button>
+              <p className="m-0 text-center text-xs text-dim">
+                {PLAN_INFO[chosen.plan].name} · {billedText(chosen)}
+              </p>
+            </div>
+          )}
+
+          {upi && (!plus?.active || plus.status === 'pass' || plus.status === 'admin') && (
+            <div className={card}>
+              <h2 className="m-0 font-display text-base font-bold">Plus passes — pay with UPI</h2>
+              <p className="m-0 mt-1 text-[13px] text-dim">
+                One-time payment in rupees (UPI, cards, wallets). No auto-renew{plus?.active ? ' — adds to your current Plus' : ''}.
+              </p>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {PLUS_PASSES.map((p) => (
+                  <button
+                    key={p.plan}
+                    disabled={busy !== null}
+                    onClick={async () => {
+                      if (!user || !token) return router.push('/signup?next=/plus');
+                      setBusy(`upi:${p.plan}`);
+                      setError(null);
+                      try {
+                        const done = await payWithRazorpay(`plus:${p.plan}`, token, { email: user.email }, `Plus for ${p.days} days`);
+                        if (done === 'paid') {
+                          await refresh();
+                          setNotice(`👑 Plus is on for ${p.days} more days. Enjoy!`);
+                        }
+                      } catch (e) {
+                        setError(errorText(e));
+                      } finally {
+                        setBusy(null);
+                      }
+                    }}
+                    className="flex min-h-[64px] min-w-0 flex-col items-center justify-center rounded-2xl border border-line-2 bg-card-2 px-1.5 py-2.5 text-center transition hover:border-lime disabled:opacity-50"
+                  >
+                    <span className="text-xs text-mute">{p.days === 7 ? '1 week' : p.days === 30 ? '1 month' : '6 months'}</span>
+                    <span className="font-display text-lg font-bold">{busy === `upi:${p.plan}` ? 'Opening…' : inr(p.paise)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!enabled && !plus?.active && <p className="m-0 text-center text-sm text-mute">Payments are being set up. Plus will be available soon.</p>}
+          <p className="m-0 text-center text-[11px] leading-normal text-faint">
+            Cancel anytime. Secure payment by Stripe. Prices shown before tax. Subscriptions renew automatically until canceled; cancel any time in
+            Settings → Manage subscription. See the{' '}
+            <Link href="/terms" className="underline hover:text-mute">
+              Terms
+            </Link>
+            .
+          </p>
+        </section>
+      </div>
       <SiteFooter />
     </main>
   );

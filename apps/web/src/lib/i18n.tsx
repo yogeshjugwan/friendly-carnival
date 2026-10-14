@@ -67,7 +67,7 @@ const EN = {
   'footer.rooms': 'Group rooms',
   'footer.invite': 'Invite friends',
   'footer.help': 'Help',
-  'status.searching': 'Looking for someone to chat with…',
+  'status.searching': 'Finding someone…',
   'status.connecting': 'Connecting…',
   'status.partnerLeft': 'Your partner left. Finding someone new.',
   'call.stop': 'Stop',

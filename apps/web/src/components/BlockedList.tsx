@@ -7,7 +7,7 @@ import { getSocket } from '@/lib/socket';
 
 const fmtDate = (t: number) => new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
-/** People this browser blocked, with Unblock. `tone` matches a dark (call) or light (settings) background. */
+/** People this browser blocked, with Unblock. `tone="dark"` is the call screen's menu; the default suits a settings card. */
 export function BlockedList({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
   const [items, setItems] = useState<BlockedUser[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -37,31 +37,37 @@ export function BlockedList({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
       });
   };
 
-  if (items === null) return <p className={`text-sm ${dark ? 'text-slate-400' : 'text-slate-500'}`}>Loading…</p>;
+  if (items === null) return <p className={`text-sm ${dark ? 'text-slate-400' : 'text-dim'}`}>Loading…</p>;
   if (items.length === 0) {
-    return <p className={`text-sm ${dark ? 'text-slate-400' : 'text-slate-500'}`}>You haven&apos;t blocked anyone.</p>;
+    return <p className={`text-sm ${dark ? 'text-slate-400' : 'text-dim'}`}>You haven&apos;t blocked anyone.</p>;
   }
 
   return (
     <div>
-      {error && <p className="mb-2 text-sm text-red-500">{error}</p>}
-      <ul className={`divide-y ${dark ? 'divide-white/10' : 'divide-slate-200'}`}>
+      {error && (
+        <p role="alert" className={`mb-2 text-sm ${dark ? 'text-red-500' : 'text-stop-text'}`}>
+          {error}
+        </p>
+      )}
+      <ul className={`divide-y ${dark ? 'divide-white/10' : 'divide-divider'}`}>
         {items.map((b) => (
           <li key={b.id} className="flex items-center gap-3 py-2.5">
             <span className="text-xl" title={b.gender ? GENDER_LABEL[b.gender] : 'Unknown'} aria-hidden>
               {b.gender ? GENDER_ICON[b.gender] : '👤'}
             </span>
             <div className="min-w-0 flex-1">
-              <p className={`truncate text-sm font-medium ${dark ? 'text-slate-100' : ''}`}>
+              <p className={`truncate text-sm font-medium ${dark ? 'text-slate-100' : 'text-[#f4f5f7]'}`}>
                 {b.gender ? GENDER_LABEL[b.gender] : 'Stranger'} · {b.country ? `${flagEmoji(b.country)} ${countryName(b.country)}` : '🌐 Location not shown'}
               </p>
-              <p className={`text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>Blocked {fmtDate(b.createdAt)}</p>
+              <p className={`text-xs ${dark ? 'text-slate-400' : 'text-dim'}`}>Blocked {fmtDate(b.createdAt)}</p>
             </div>
             <button
               onClick={() => unblock(b.id)}
               disabled={busy === b.id}
-              className={`rounded-full px-3 py-1.5 text-sm font-semibold disabled:opacity-50 ${
-                dark ? 'bg-white/10 text-sky-300 hover:bg-white/20' : 'bg-slate-100 text-brand hover:bg-slate-200'
+              className={`text-sm font-semibold disabled:opacity-50 ${
+                dark
+                  ? 'rounded-full bg-white/10 px-3 py-1.5 text-sky-300 hover:bg-white/20'
+                  : 'h-11 flex-none rounded-xl border border-line-2 bg-card-2 px-3.5 text-[#e6e8ec] hover:border-[#384056]'
               }`}
             >
               {busy === b.id ? 'Unblocking…' : 'Unblock'}
@@ -69,7 +75,7 @@ export function BlockedList({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
           </li>
         ))}
       </ul>
-      <p className={`mt-2 text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>Unblocked people can be matched with you again.</p>
+      <p className={`mt-2 text-xs ${dark ? 'text-slate-400' : 'text-faint'}`}>Unblocked people can be matched with you again.</p>
     </div>
   );
 }

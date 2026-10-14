@@ -1,18 +1,19 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { DM_REQUEST_LIMIT, MAX_MESSAGE_LENGTH, type DirectMessage, type DmSendResult } from '@rc/shared';
+import { DM_REQUEST_LIMIT, MAX_MESSAGE_LENGTH, type ChatMode, type DirectMessage, type DmSendResult, type DmThread } from '@rc/shared';
 import { getSocket } from '@/lib/socket';
 
-/** WhatsApp-like colours (dark theme). */
+/** Thread colours (the night / lime look). Kept under the old name for existing imports. */
 export const WA = {
-  bg: 'bg-[#0b141a]',
-  bar: 'bg-[#202c33]',
-  mine: 'bg-[#005c4b]',
-  theirs: 'bg-[#202c33]',
-  input: 'bg-[#2a3942]',
-  send: 'bg-[#00a884]',
-  muted: 'text-[#8696a0]',
+  bg: 'bg-night',
+  bar: 'bg-card',
+  mine: 'bg-lime text-night',
+  theirs: 'bg-card-2',
+  input: 'bg-card',
+  send: 'bg-lime text-night',
+  muted: 'text-dim',
 } as const;
 
 export interface WaContact {
@@ -20,6 +21,8 @@ export interface WaContact {
   name: string;
   avatar: string | null;
   online?: boolean;
+  /** When / how you last met on a call, if known: shown at the top of the thread. */
+  met?: { at: number; mode: ChatMode };
 }
 
 const time = (at: number) => new Date(at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
@@ -32,26 +35,98 @@ const dayLabel = (at: number) => {
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: d.getFullYear() === today.getFullYear() ? undefined : 'numeric' });
 };
 
-/** ✓ sent · ✓✓ read (blue). */
-export function Ticks({ read }: { read?: boolean }) {
+/** Inbox time: "14:05" today, "Yesterday", else "3 Oct". */
+export const threadTime = (at: number) => {
+  const d = new Date(at);
+  if (d.toDateString() === new Date().toDateString()) return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  if (d.toDateString() === new Date(Date.now() - 86_400_000).toDateString()) return 'Yesterday';
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+};
+
+/** ✓ sent · ✓✓ read. `onLime` for ticks inside your own (lime) bubble. */
+export function Ticks({ read, onLime = false }: { read?: boolean; onLime?: boolean }) {
+  const colour = onLime ? (read ? 'text-night' : 'text-night/50') : read ? 'text-lime' : 'text-dim';
   return (
-    <span className={`ml-1 text-[11px] ${read ? 'text-[#53bdeb]' : WA.muted}`} aria-label={read ? 'Read' : 'Sent'}>
+    <span className={`ml-1 text-[11px] ${colour}`} aria-label={read ? 'Read' : 'Sent'}>
       {read ? '✓✓' : '✓'}
     </span>
   );
 }
 
-export function Avatar({ contact, size = 'h-10 w-10 text-2xl' }: { contact: Pick<WaContact, 'avatar' | 'online'>; size?: string }) {
+export function Avatar({
+  contact,
+  size = 'h-10 w-10 text-2xl',
+  rounded = 'rounded-full',
+}: {
+  contact: Pick<WaContact, 'avatar' | 'online'>;
+  size?: string;
+  rounded?: string;
+}) {
   return (
-    <span className={`relative flex shrink-0 items-center justify-center rounded-full bg-[#374248] ${size}`} aria-hidden>
+    <span className={`relative flex shrink-0 items-center justify-center bg-card-2 ${rounded} ${size}`} aria-hidden>
       {contact.avatar ?? '🙂'}
-      {contact.online && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-[#111b21] bg-[#25d366]" />}
+      {contact.online && <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-[3px] border-card bg-lime" />}
     </span>
   );
 }
 
-/** A WhatsApp-style conversation with someone (friend, someone you met, or a message request). */
-export function WaThread({ contact, onBack, className = '' }: { contact: WaContact; onBack?: () => void; className?: string }) {
+/** One conversation in an inbox list: a link (`href`) or a button (`onClick`). */
+export function ThreadRow({ t, href, onClick, active = false }: { t: DmThread; href?: string; onClick?: () => void; active?: boolean }) {
+  const body = (
+    <>
+      <Avatar contact={t} size="h-11 w-11 text-2xl" />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-baseline gap-2">
+          <span className="truncate font-semibold">{t.name}</span>
+          {t.friend && (
+            <span className="text-xs text-lime" title="Friend">
+              ♥
+            </span>
+          )}
+          <span className={`ml-auto shrink-0 text-xs ${t.unread ? 'font-semibold text-lime' : 'text-dim'}`}>{threadTime(t.lastAt)}</span>
+        </span>
+        <span className="mt-0.5 flex items-center gap-2">
+          <span className={`truncate text-[13px] ${t.unread ? 'text-mute' : 'text-dim'}`}>
+            {t.lastFromMe && <Ticks />}
+            {t.lastFromMe ? ' ' : ''}
+            {t.lastText}
+          </span>
+          {t.unread > 0 && (
+            <span
+              className="ml-auto flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-lime px-1.5 text-[11px] font-bold text-night"
+              aria-label={`${t.unread} unread`}
+            >
+              {t.unread}
+            </span>
+          )}
+        </span>
+      </span>
+    </>
+  );
+  const cls = `flex w-full items-center gap-3.5 px-4 py-3.5 text-left transition-colors hover:bg-card-2 sm:px-[18px] ${active ? 'bg-card-2' : ''}`;
+  return href ? (
+    <Link href={href} className={cls}>
+      {body}
+    </Link>
+  ) : (
+    <button type="button" onClick={onClick} className={cls} aria-current={active || undefined}>
+      {body}
+    </button>
+  );
+}
+
+/** A conversation with someone (friend, someone you met, or a message request). `onCall` shows the video-call button. */
+export function WaThread({
+  contact,
+  onBack,
+  onCall,
+  className = '',
+}: {
+  contact: WaContact;
+  onBack?: () => void;
+  onCall?: () => void;
+  className?: string;
+}) {
   const [messages, setMessages] = useState<DirectMessage[] | null>(null);
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -105,87 +180,103 @@ export function WaThread({ contact, onBack, className = '' }: { contact: WaConta
 
   const theyWrote = messages?.some((m) => !m.fromMe);
   const iWrote = messages?.some((m) => m.fromMe);
+  const iconBtn = 'flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors';
 
   return (
-    <section className={`flex min-h-0 flex-col ${WA.bg} text-[#e9edef] ${className}`} aria-label={`Chat with ${contact.name}`}>
-      <header className={`flex items-center gap-3 px-3 py-2 ${WA.bar}`}>
+    <section className={`flex min-h-0 flex-col bg-night text-[#F4F5F7] ${className}`} aria-label={`Chat with ${contact.name}`}>
+      <header className="flex items-center gap-2.5 border-b border-divider px-4 py-3">
         {onBack && (
-          <button onClick={onBack} aria-label="Back" className="rounded-full px-2 py-1 text-xl hover:bg-white/10">
-            ←
+          <button type="button" onClick={onBack} aria-label="Back" className={`${iconBtn} bg-card-2 text-[#E6E8EC] hover:bg-line`}>
+            <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
+              <path d="M15 6l-6 6 6 6" />
+            </svg>
           </button>
         )}
-        <Avatar contact={contact} />
-        <div className="min-w-0">
-          <p className="truncate font-medium">{contact.name}</p>
-          <p className={`text-xs ${contact.online ? 'text-[#25d366]' : WA.muted}`}>{contact.online ? 'online' : 'offline'}</p>
+        <Avatar contact={{ avatar: contact.avatar }} rounded="rounded-[12px]" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-semibold">{contact.name}</p>
+          <p className={`text-xs ${contact.online ? 'text-lime' : 'text-dim'}`}>{contact.online ? 'Online' : 'Offline'}</p>
         </div>
+        {onCall && (
+          <button type="button" onClick={onCall} aria-label={`Video call ${contact.name}`} className={`${iconBtn} bg-lime text-night hover:bg-lime-hover`}>
+            <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <rect x="2" y="6" width="14" height="12" rx="2" />
+              <path d="M16 10l6-3v10l-6-3" />
+            </svg>
+          </button>
+        )}
       </header>
 
-      <div
-        className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-3 sm:px-[6%]"
-        style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px)', backgroundSize: '18px 18px' }}
-      >
-        <p className="mx-auto mb-2 max-w-sm rounded-lg bg-[#182229] px-3 py-1.5 text-center text-[11px] text-[#ffd279]">
-          🔒 Messages stay on randomCall. Never share passwords, money or private photos.
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4">
+        {/* Pushes a short conversation to the bottom, next to the input. */}
+        <div className="flex-1" />
+        <p className="mx-auto mb-3 max-w-sm rounded-xl border border-gold/20 bg-gold-bg px-3 py-2 text-center text-[11px] leading-snug text-gold">
+          Messages stay on randomCall. Never share passwords, money or private photos.
         </p>
-        {messages === null && <p className={`py-8 text-center text-sm ${WA.muted}`}>Loading…</p>}
-        {messages?.length === 0 && <p className={`py-8 text-center text-sm ${WA.muted}`}>Say hi 👋 — they&apos;ll see it even if they&apos;re away.</p>}
+        {contact.met && (
+          <p className="mb-2 text-center text-[11px] text-faint">
+            You met on a {contact.met.mode} chat · {dayLabel(contact.met.at)}
+          </p>
+        )}
+        {messages === null && <p className="py-8 text-center text-sm text-dim">Loading…</p>}
+        {messages?.length === 0 && <p className="py-8 text-center text-sm text-dim">Say hi 👋 — they&apos;ll see it even if they&apos;re away.</p>}
         {messages?.map((m, i) => {
           const prev = messages[i - 1];
           const newDay = !prev || new Date(prev.at).toDateString() !== new Date(m.at).toDateString();
           const grouped = prev && prev.fromMe === m.fromMe && !newDay;
           return (
-            <div key={m.id}>
-              {newDay && (
-                <p className="my-2 text-center">
-                  <span className={`rounded-lg ${WA.bar} px-3 py-1 text-[11px] ${WA.muted}`}>{dayLabel(m.at)}</span>
-                </p>
-              )}
-              <div className={`flex ${m.fromMe ? 'justify-end' : 'justify-start'} ${grouped ? 'mt-0.5' : 'mt-2'}`}>
-                <p
-                  className={`relative max-w-[80%] whitespace-pre-wrap break-words rounded-lg px-2.5 pb-1.5 pt-1.5 text-[14.5px] shadow ${
-                    m.fromMe ? `${WA.mine} ${grouped ? '' : 'rounded-tr-none'}` : `${WA.theirs} ${grouped ? '' : 'rounded-tl-none'}`
-                  }`}
-                >
-                  {m.text}
-                  <span className={`float-right ml-2 mt-1.5 translate-y-0.5 text-[11px] ${WA.muted}`}>
-                    {time(m.at)}
-                    {m.fromMe && <Ticks read={m.read} />}
-                  </span>
-                </p>
-              </div>
+            <div key={m.id} className="flex flex-col">
+              {newDay && <p className="mb-1 mt-3 text-center text-[11px] text-faint">{dayLabel(m.at)}</p>}
+              <p
+                className={`max-w-[75%] whitespace-pre-wrap break-words px-3.5 py-2.5 text-[14px] leading-snug ${grouped ? 'mt-1' : 'mt-2'} ${
+                  m.fromMe ? 'self-end rounded-[18px_18px_4px_18px] bg-lime text-night' : 'self-start rounded-[18px_18px_18px_4px] bg-card-2'
+                }`}
+              >
+                {m.text}
+                <span className={`float-right ml-2 mt-1.5 translate-y-0.5 text-[10.5px] ${m.fromMe ? 'text-night/60' : 'text-dim'}`}>
+                  {time(m.at)}
+                  {m.fromMe && <Ticks read={m.read} onLime />}
+                </span>
+              </p>
             </div>
           );
         })}
         {theyWrote && !iWrote && (
-          <p className={`mt-3 text-center text-xs ${WA.muted}`}>This is a message request. Reply to chat, or just ignore it.</p>
+          <p className="mx-auto mt-4 rounded-full bg-card-2 px-3 py-1.5 text-center text-xs text-mute">
+            This is a message request. Reply to chat, or just ignore it.
+          </p>
         )}
         <div ref={endRef} />
       </div>
 
-      {error && <p className="bg-[#111b21] px-4 py-1.5 text-xs text-[#ffd279]">{error}</p>}
+      {error && (
+        <p className="border-t border-divider bg-gold-bg px-4 py-2 text-xs text-gold" role="alert">
+          {error}
+        </p>
+      )}
       <form
         onSubmit={(e) => {
           e.preventDefault();
           send();
         }}
-        className={`flex items-center gap-2 px-2 py-2 ${WA.bar}`}
+        className="flex items-center gap-2 border-t border-divider px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3"
       >
         <input
           value={draft}
           maxLength={MAX_MESSAGE_LENGTH}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="Type a message"
+          placeholder="Message…"
           aria-label={`Message ${contact.name}`}
-          className={`min-w-0 flex-1 rounded-lg ${WA.input} px-4 py-2.5 text-[15px] text-[#e9edef] placeholder:text-[#8696a0] focus:outline-none`}
+          className="h-11 min-w-0 flex-1 rounded-full border border-line-2 bg-card px-4 text-[14px] text-[#F4F5F7] placeholder:text-faint focus:border-lime/60 focus:outline-none"
         />
         <button
+          type="submit"
           disabled={!draft.trim()}
           aria-label="Send"
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${WA.send} text-white transition disabled:opacity-40`}
+          className={`${iconBtn} bg-lime text-night hover:bg-lime-hover disabled:opacity-40 disabled:hover:bg-lime`}
         >
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden>
-            <path d="M2 21 23 12 2 3v7l15 2-15 2z" />
+          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={2} strokeLinejoin="round" aria-hidden>
+            <path d="M4 12l16-8-6 16-2-7z" />
           </svg>
         </button>
       </form>

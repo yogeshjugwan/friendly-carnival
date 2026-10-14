@@ -49,7 +49,7 @@ export function RandomCall() {
     const missing = call.status === 'no-face';
     const problem = call.cameraProblem;
     return (
-      <main className="flex h-full flex-col items-center justify-center gap-4 bg-[#202124] p-6 text-center">
+      <main className="flex h-full flex-col items-center justify-center gap-4 bg-night p-6 text-center">
         <div className={`relative w-full max-w-sm overflow-hidden rounded-2xl ring-4 transition-colors ${missing ? 'ring-amber-400' : 'ring-sky-400/60'}`}>
           <VideoTile stream={call.localStream} muted mirrored className="aspect-[4/3] w-full rounded-none" />
           {/* Face guide */}

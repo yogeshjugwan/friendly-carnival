@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { STREAK_REWARDS, type DailyStatus } from '@rc/shared';
 import { ACCOUNT_CHANGED, api, useAuth } from '@/lib/auth';
-import { FlameIcon } from './UiIcons';
 
 /** Daily streak status for the logged-in user, plus a claim action. */
 function useDaily(refreshKey?: unknown) {
@@ -54,30 +53,34 @@ export function DailyRewardCard({ className = '' }: { className?: string }) {
           ? `Have one chat today to unlock ${status.reward} coins`
           : 'Your reward is ready!');
   return (
-    <section className={`flex flex-col gap-4 rounded-[18px] border border-[#3a2a1a] bg-[#16130f] p-4 sm:p-5 ${className}`}>
+    <section
+      aria-label="Daily streak"
+      className={`flex flex-col gap-2.5 rounded-[18px] border border-line bg-card p-3.5 sm:gap-3.5 sm:rounded-[20px] sm:p-[22px] ${className}`}
+    >
       <div className="flex items-center gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#2a1c10]">
-          <FlameIcon className="h-5 w-5" color="#ff8a3d" />
-        </span>
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="text-base font-semibold text-[#f4f6fa]">{status.streak}-day streak</span>
-          <span className="text-[13px] text-mute">{hint}</span>
+          <h2 className="m-0 font-display text-[15px] font-bold text-[#f4f5f7] sm:text-lg">
+            Daily streak<span className="font-medium text-mute"> · day {status.streak}</span>
+          </h2>
+          <p className="m-0 text-xs text-dim sm:text-[13px]" aria-live="polite">
+            {hint}
+          </p>
         </div>
         {status.claimedToday ? (
-          <span className="rounded-[10px] border border-[#3a2a1a] px-3.5 py-2 text-[13px] font-semibold text-[#ff8a3d]">Claimed ✓</span>
+          <span className="shrink-0 rounded-xl border border-line px-3.5 py-2.5 text-[13px] font-semibold text-lime">Claimed ✓</span>
         ) : (
           <button
             onClick={() => void claim()}
             disabled={busy || !canClaim}
-            className={`h-9 rounded-[10px] px-3.5 text-[13px] font-semibold ${
-              canClaim ? 'bg-[#ff8a3d] text-[#1a0f06] hover:brightness-110' : 'cursor-not-allowed border border-[#3a2a1a] text-[#b39a80]'
+            className={`h-11 shrink-0 rounded-xl px-4 text-[13px] font-semibold transition ${
+              canClaim ? 'bg-lime text-[#0b0d10] hover:bg-lime-hover' : 'cursor-not-allowed border border-line-2 bg-card text-mute'
             }`}
           >
             {busy ? 'Claiming…' : `Claim ${status.reward}`}
           </button>
         )}
       </div>
-      <ol className="m-0 grid list-none grid-cols-7 gap-1 p-0 text-center sm:gap-1.5">
+      <ol className="m-0 grid list-none grid-cols-7 gap-1 p-0 text-center sm:gap-2">
         {STREAK_REWARDS.map((coins, i) => {
           const n = i + 1;
           const done = n <= status.streak;
@@ -85,16 +88,19 @@ export function DailyRewardCard({ className = '' }: { className?: string }) {
           return (
             <li
               key={n}
-              className={`flex flex-col items-center gap-0.5 rounded-[10px] py-1.5 sm:py-2 ${
-                today ? 'bg-[#ff8a3d] text-[#1a0f06]' : done ? 'bg-[#4a2c12] text-[#ffb27a]' : 'bg-[#211a12] text-[#c9b09a]'
+              aria-current={today ? 'step' : undefined}
+              className={`flex flex-col items-center rounded-[10px] py-2 text-[10px] sm:rounded-xl sm:py-3 sm:text-xs ${
+                today ? 'bg-lime text-[#0b0d10]' : done ? 'bg-lime/15 text-lime' : 'bg-card-2 text-dim'
               }`}
             >
-              <span className="text-[10px] opacity-80 sm:text-[11px]">
+              <span>
                 <span className="max-sm:hidden">Day </span>
                 <span className="sm:hidden">D</span>
                 {n}
               </span>
-              <span className="text-[13px] font-semibold sm:text-sm">{coins}</span>
+              <b className={`font-display text-sm font-bold sm:mt-0.5 sm:text-lg ${today ? 'text-[#0b0d10]' : done ? 'text-lime' : 'text-[#e6e8ec]'}`}>
+                {coins}
+              </b>
             </li>
           );
         })}

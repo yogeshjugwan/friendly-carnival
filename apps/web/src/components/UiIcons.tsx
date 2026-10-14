@@ -77,3 +77,9 @@ export const UsersIcon = svg(
 export const HeartIcon = svg(<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />);
 export const CrownIcon = svg(<path d="M3 8l4 4 5-7 5 7 4-4-2 11H5z" />);
 export const DownloadIcon = svg(<path d="M12 4v11M7 10l5 5 5-5M5 20h14" />);
+export const UserIcon = svg(
+  <>
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 21c1-4 4-6 8-6s7 2 8 6" />
+  </>,
+);

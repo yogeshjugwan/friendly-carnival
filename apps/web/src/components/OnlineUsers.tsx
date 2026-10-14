@@ -108,7 +108,7 @@ export function OnlineUsersPanel({ call, onClose, className = '' }: { call: Rand
   };
 
   return (
-    <section className={`flex min-h-0 flex-col rounded-2xl bg-[#202124] text-slate-100 ${className}`} aria-labelledby="online-title">
+    <section className={`flex min-h-0 flex-col rounded-[20px] border border-line bg-card text-slate-100 ${className}`} aria-labelledby="online-title">
       <header className="flex items-center justify-between px-5 pb-2 pt-4">
         <div>
           <h2 id="online-title" className="text-lg">

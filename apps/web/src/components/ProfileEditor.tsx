@@ -2,64 +2,78 @@
 
 import { AVATARS, MAX_BIO, MAX_NAME, type UserSettings } from '@rc/shared';
 
-/** Profile card: an emoji avatar and one line about you, shown to partners. */
+const input =
+  'h-[46px] w-full rounded-xl border border-line-2 bg-card-2 px-3.5 text-base text-[#f4f5f7] outline-none placeholder:text-faint focus:border-lime';
+
+/** Profile card: an emoji avatar and one line about you, shown to partners (live preview on top). */
 export function ProfileEditor({ settings, onChange }: { settings: UserSettings; onChange: (patch: Partial<UserSettings>) => void }) {
   const avatar = settings.avatar ?? null;
   const bio = settings.bio ?? '';
   const name = settings.name ?? '';
   return (
-    <div className="mt-3">
-      <label htmlFor="display-name" className="block text-sm font-medium">
-        Your name <span className="font-normal text-slate-500">(what people see — a first name or nickname)</span>
-      </label>
-      <input
-        id="display-name"
-        value={name}
-        maxLength={MAX_NAME}
-        onChange={(e) => onChange({ name: e.target.value })}
-        placeholder="e.g. Priya"
-        autoComplete="nickname"
-        className="mb-4 mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-      />
-      <p className="text-sm font-medium">Avatar</p>
-      <div className="mt-2 grid grid-cols-8 gap-1.5 sm:grid-cols-12" role="radiogroup" aria-label="Avatar">
-        {AVATARS.map((a) => (
-          <button
-            key={a}
-            type="button"
-            role="radio"
-            aria-checked={avatar === a}
-            onClick={() => onChange({ avatar: avatar === a ? null : a })}
-            className={`flex aspect-square items-center justify-center rounded-lg text-2xl transition ${
-              avatar === a ? 'bg-brand/15 ring-2 ring-brand' : 'bg-slate-100 hover:bg-slate-200'
-            }`}
-          >
-            {a}
-          </button>
-        ))}
-      </div>
-      <label htmlFor="bio" className="mt-4 block text-sm font-medium">
-        About you <span className="font-normal text-slate-500">(one line, no links or handles)</span>
-      </label>
-      <input
-        id="bio"
-        value={bio}
-        maxLength={MAX_BIO}
-        onChange={(e) => onChange({ bio: e.target.value })}
-        placeholder="e.g. Chai lover, learning guitar, ask me about cricket"
-        className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-      />
-      <p className="mt-1 text-right text-xs text-slate-500">
-        {bio.length}/{MAX_BIO}
-      </p>
-      <div className="mt-2 flex items-center gap-3 rounded-xl bg-slate-900 p-3 text-white">
-        <span className="text-3xl">{avatar ?? '🙂'}</span>
+    <div className="flex flex-col gap-3.5">
+      <div className="flex items-center gap-3.5 rounded-[14px] border border-line bg-[#0b0d10] p-3.5">
+        <span className="flex h-12 w-12 flex-none items-center justify-center rounded-[14px] bg-card-2 text-[28px]" aria-hidden>
+          {avatar ?? '🙂'}
+        </span>
         <span className="min-w-0">
-          <span className="block text-xs text-slate-400">Partners see</span>
-          <span className="block truncate font-semibold">{name || 'Stranger'}</span>
-          <span className="block truncate text-sm">{bio || 'No bio yet'}</span>
+          <span className="block text-xs text-dim">Partners see</span>
+          <span className="block truncate font-semibold text-[#f4f5f7]">{name || 'Stranger'}</span>
+          <span className="block truncate text-[13px] text-dim">{bio || 'No bio yet'}</span>
         </span>
       </div>
+
+      <label htmlFor="display-name" className="flex flex-col gap-1.5 text-[13px] text-mute">
+        <span>
+          Name <span className="text-faint">· a first name or nickname</span>
+        </span>
+        <input
+          id="display-name"
+          value={name}
+          maxLength={MAX_NAME}
+          onChange={(e) => onChange({ name: e.target.value })}
+          placeholder="e.g. Priya"
+          autoComplete="nickname"
+          className={input}
+        />
+      </label>
+
+      <div className="flex flex-col gap-1.5 text-[13px] text-mute">
+        <span id="avatar-label">Avatar</span>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(44px,1fr))] gap-2" role="radiogroup" aria-labelledby="avatar-label">
+          {AVATARS.map((a) => (
+            <button
+              key={a}
+              type="button"
+              role="radio"
+              aria-checked={avatar === a}
+              onClick={() => onChange({ avatar: avatar === a ? null : a })}
+              className={`flex aspect-square min-h-11 items-center justify-center rounded-xl text-2xl transition ${
+                avatar === a ? 'bg-[#232731] outline-2 outline-offset-2 outline-lime' : 'bg-card-2 hover:bg-[#232731]'
+              }`}
+            >
+              {a}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <label htmlFor="bio" className="flex flex-col gap-1.5 text-[13px] text-mute">
+        <span>
+          About you <span className="text-faint">· one line, no links or handles</span>
+        </span>
+        <input
+          id="bio"
+          value={bio}
+          maxLength={MAX_BIO}
+          onChange={(e) => onChange({ bio: e.target.value })}
+          placeholder="e.g. Chai lover, learning guitar, ask me about cricket"
+          className={input}
+        />
+        <span className="self-end text-[11px] text-faint">
+          {bio.length}/{MAX_BIO}
+        </span>
+      </label>
     </div>
   );
 }

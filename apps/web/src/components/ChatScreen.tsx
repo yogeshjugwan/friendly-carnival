@@ -9,7 +9,7 @@ import { loadSettings } from '@/lib/settings';
 import type { RandomCall } from '@/lib/useRandomCall';
 import { AdSlot } from './AdSlot';
 import { DraggablePip, type Corner } from './DraggablePip';
-import { CallControls, ReactionLayer, StopNext } from './CallControls';
+import { CallControls, CancelButton, ReactionLayer, StopNext } from './CallControls';
 import { FilterBar } from './FilterBar';
 import { LimitModal } from './LimitModal';
 import { GiftButton, GiftLayer, spendError } from './Coins';
@@ -113,14 +113,17 @@ function PriorityButton({ call }: { call: RandomCall }) {
           const r = await call.buyPriority();
           setError(spendError(r));
         }}
-        className="flex items-center gap-3 rounded-[14px] border border-[#3a3418] bg-[#1b1a10] py-2 pl-4 pr-2 text-left text-gold transition hover:border-[#4a4220]"
+        className="flex h-11 items-center gap-2.5 rounded-xl border border-[#4a3f17] bg-gold-bg px-4 text-left text-gold transition hover:border-gold/60"
       >
         <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6z" />
           <path d="M9 12l2 2 4-4" />
         </svg>
-        <span className="text-sm font-semibold">Meet a verified person next</span>
-        <span className="flex h-8 items-center rounded-[9px] bg-gold px-3 text-[13px] font-bold text-[#1a1608]">{PRIORITY_MATCH.coins} coins</span>
+        <span className="text-[13px] font-semibold sm:text-sm">
+          <span className="max-sm:hidden">Meet a </span>
+          <span className="sm:hidden">V</span>
+          <span className="max-sm:hidden">v</span>erified person next · {PRIORITY_MATCH.coins} coins
+        </span>
       </button>
       {error && <p className="mt-1 text-xs text-red-300">{error}</p>}
     </div>
@@ -176,26 +179,60 @@ function SearchingStage({ call }: { call: RandomCall }) {
     );
   }
   if (call.status !== 'searching' && call.status !== 'connecting') return null;
+  const isPlus = !!user?.plus.active;
   return (
-    <div className="flex flex-col items-center gap-5 px-4 text-center sm:gap-7">
-      <div className="relative flex h-36 w-36 items-center justify-center sm:h-[200px] sm:w-[200px]" aria-hidden>
-        <span className="rc-pulse absolute inset-0 rounded-full border-2 border-lime" />
-        <span className="rc-pulse-late absolute inset-0 rounded-full border-2 border-lime" />
-        <span className="flex h-20 w-20 items-center justify-center rounded-full border border-[#2b3243] bg-[#1a1f2c] sm:h-24 sm:w-24">
-          <svg viewBox="0 0 24 24" className="h-9 w-9 sm:h-10 sm:w-10" fill="none" stroke="#c6f24e" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M15 10l5-3v10l-5-3z" />
-            <rect x="3" y="6" width="12" height="12" rx="2" />
-          </svg>
+    <div className="flex flex-col items-center gap-6 px-4 text-center sm:gap-8">
+      {/* You in the middle, people orbiting, ripples going out. */}
+      <div className="relative h-[300px] w-[300px] sm:h-[440px] sm:w-[440px]" aria-hidden>
+        {[0, 1, 2].map((i) => (
+          <span key={i} className="rc-ripple absolute inset-0 m-auto h-[130px] w-[130px] rounded-full border-2 border-lime sm:h-[200px] sm:w-[200px]" style={{ animationDelay: `${i}s` }} />
+        ))}
+        <div className="rc-orbit absolute inset-0">
+          {ORBIT.map((a, i) => {
+            const angle = (i / ORBIT.length) * Math.PI * 2;
+            return (
+              <span
+                key={i}
+                className="rc-counter absolute h-12 w-12 overflow-hidden rounded-full border-[3px] border-night sm:h-16 sm:w-16"
+                style={{ left: `${50 + 45 * Math.cos(angle)}%`, top: `${50 + 45 * Math.sin(angle)}%`, background: a.bg }}
+              >
+                <svg viewBox="0 0 40 40" className="h-full w-full">
+                  <circle cx="20" cy="16" r="8" fill={a.skin} />
+                  <path d="M6 40c2-10 7-14 14-14s12 4 14 14z" fill={a.fg} />
+                </svg>
+              </span>
+            );
+          })}
+        </div>
+        <span className="absolute inset-0 m-auto h-[110px] w-[110px] overflow-hidden rounded-full border-[3px] border-lime bg-[#1f2638] sm:h-[150px] sm:w-[150px]">
+          {call.localStream && call.cameraOn ? (
+            <VideoTile stream={call.localStream} muted mirrored className="h-full w-full rounded-none !bg-[#1f2638]" />
+          ) : (
+            <svg viewBox="0 0 40 40" className="h-full w-full">
+              <circle cx="20" cy="16" r="8" fill="#c68b5e" />
+              <path d="M6 40c2-10 7-14 14-14s12 4 14 14z" fill="#3a4a6e" />
+            </svg>
+          )}
         </span>
       </div>
-      <div className="flex flex-col items-center gap-2.5">
-        <h1 className="m-0 font-display text-2xl font-bold tracking-[-0.02em] text-[#f4f6fa] sm:text-[28px]" role="status">
-          {call.status === 'connecting' ? t('status.connecting') : t('status.searching')}
+      <div className="flex flex-col items-center gap-2.5 sm:gap-3">
+        <h1 className="m-0 font-display text-[30px] font-bold text-[#f4f5f7] sm:text-[40px]" role="status">
+          {call.status === 'connecting' ? t('status.connecting') : t('status.searching').replace(/[.…]+$/, '')}
+          {call.status === 'searching' && (
+            <span aria-hidden>
+              <span className="rc-dot">.</span>
+              <span className="rc-dot [animation-delay:.2s]">.</span>
+              <span className="rc-dot [animation-delay:.4s]">.</span>
+            </span>
+          )}
         </h1>
         {call.status === 'searching' && call.lastLeftReason ? (
-          <p className="m-0 text-sm text-mute">{t('status.partnerLeft')}</p>
+          <p className="m-0 text-sm text-mute sm:text-[15px]">{t('status.partnerLeft')}</p>
         ) : (
-          matching && <p className="m-0 text-sm text-mute">Matching: {matching}</p>
+          <p className="m-0 text-sm text-mute sm:text-[15px]">
+            {isPlus && call.online !== null ? `${Math.max(0, call.online - 1).toLocaleString()} people online · ` : ''}
+            {matching && matching !== 'anyone' ? `Matching ${matching} · ` : ''}usually under 5 seconds
+          </p>
         )}
       </div>
       {call.searchingLong && <WidenSearch />}
@@ -204,7 +241,16 @@ function SearchingStage({ call }: { call: RandomCall }) {
   );
 }
 
-/** Who you're talking to: name · country, what you share, and Add friend / Gift / Play. */
+/** The people orbiting you while matching: [tile colour, skin, clothes]. */
+const ORBIT = [
+  { bg: '#ff8a9a', skin: '#f1c7a5', fg: '#5a1730' },
+  { bg: '#7fd6c2', skin: '#8d5a3b', fg: '#0f3d35' },
+  { bg: '#ffc37a', skin: '#e8b48a', fg: '#5c2a10' },
+  { bg: '#8fb2ff', skin: '#5e3a26', fg: '#17255a' },
+  { bg: '#d7a6ff', skin: '#c68b5e', fg: '#3a1a60' },
+  { bg: '#f7e07a', skin: '#f1c7a5', fg: '#4f3e0c' },
+];
+
 /** Who you're talking to, as pills over the top-left of the video: name · country, and the call clock. */
 function PartnerPills({ call }: { call: RandomCall }) {
   const p = call.partner;
@@ -509,7 +555,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               stream={matched ? call.remoteStream : null}
               videoRef={call.setPartnerVideo}
               forceVisible={call.relayActive}
-              className="min-h-0 !bg-[#141720] max-sm:rounded-none sm:rounded-3xl"
+              className={`min-h-0 max-sm:rounded-none sm:rounded-3xl ${matched || isVoice ? '!bg-[#141720]' : '!bg-[radial-gradient(circle_at_50%_45%,#16200a_0%,#07080b_55%)]'}`}
               videoClassName={`transition-[filter] duration-700 ${fit ? '!object-contain' : ''} ${
                 call.partnerHidden || call.aiHidden ? 'blur-3xl brightness-50' : call.blurPartner ? 'blur-xl' : ''
               }`}
@@ -619,7 +665,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               )}
 
               {/* You (picture-in-picture): drag it to any corner; voice calls have no picture */}
-              {!isVoice && (
+              {!isVoice && matched && (
                 <DraggablePip onCornerChange={setPipCorner} className="h-[150px] w-[110px] overflow-hidden rounded-[14px] border-2 border-white/20 bg-[#1f2638] shadow-xl sm:h-[170px] sm:w-[260px] sm:rounded-2xl sm:border-white/15 max-lg:landscape:h-[34%] max-lg:landscape:w-auto max-lg:landscape:aspect-video [@media(max-height:500px)]:h-[30%]">
                   <VideoTile stream={call.localStream} muted mirrored className="pointer-events-none h-full w-full rounded-none !bg-[#1f2638]" />
                   {(!call.localStream || !call.cameraOn) && (
@@ -673,6 +719,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               <div className="absolute bottom-[104px] right-3 z-20 sm:hidden">
                 <CallControls
                   rail
+                  minimal={!matched}
                   call={call}
                   matched={matched}
                   chatOpen={chatOpen}
@@ -684,7 +731,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                 />
               </div>
               <div className="absolute inset-x-4 bottom-7 z-20 sm:hidden">
-                <StopNext call={call} wide />
+                {matched || call.status === 'browsing' ? <StopNext call={call} wide /> : <CancelButton call={call} wide />}
               </div>
             </VideoTile>
 
@@ -714,6 +761,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
         {!isText && (
           <div className="flex shrink-0 items-center justify-between gap-4 px-2 pt-1 max-sm:hidden">
             <CallControls
+              minimal={!matched}
               call={call}
               matched={matched}
               chatOpen={chatOpen}
@@ -723,7 +771,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
               onToggleFit={() => setFit((f) => !f)}
               onToggleFullscreen={toggleFullscreen}
             />
-            <StopNext call={call} />
+            {matched || call.status === 'browsing' ? <StopNext call={call} /> : <CancelButton call={call} />}
           </div>
         )}
       </div>

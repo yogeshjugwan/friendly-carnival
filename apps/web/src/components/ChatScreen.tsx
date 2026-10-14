@@ -388,9 +388,9 @@ function MatchPanel({ call, onPlus }: { call: RandomCall; onPlus: () => void }) 
 function SelfTile({ call, className = '', controls = false }: { call: RandomCall; className?: string; controls?: boolean }) {
   return (
     <div className={`relative overflow-hidden rounded-3xl bg-[linear-gradient(165deg,#3a4a6e,#1a2033)] ${className}`}>
-      <VideoTile stream={call.localStream} muted mirrored className="pointer-events-none absolute inset-0 h-full w-full rounded-none !bg-transparent" />
+      <VideoTile stream={call.localStream} muted mirrored className="pointer-events-none absolute inset-0 h-full w-full rounded-none !bg-transparent" videoClassName="absolute inset-0" />
       {(!call.localStream || !call.cameraOn) && (
-        <div className="absolute inset-0 grid place-items-center text-xs uppercase tracking-[0.08em] text-[#8a8f99]">Camera off</div>
+        <div className="absolute inset-0 grid place-items-center bg-[linear-gradient(165deg,#3a4a6e,#1a2033)] text-xs uppercase tracking-[0.08em] text-[#c9cdd4]">Camera off</div>
       )}
       <span className="absolute left-3 top-3 flex h-[30px] items-center rounded-full bg-black/50 px-2.5 text-xs font-semibold text-white sm:left-4 sm:top-4 sm:h-9 sm:px-3 sm:text-[13px] sm:font-medium">
         You
@@ -728,7 +728,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                   ? 'rounded-b-[28px] !bg-[linear-gradient(165deg,#8a5fc2,#3b2a4f)]'
                   : 'max-sm:!bg-transparent sm:border sm:border-[#1c1f26] sm:!bg-[radial-gradient(circle_at_50%_45%,#1e0f2a_0%,#120d18_65%)]'
               }`}
-              videoClassName={`transition-[filter] duration-700 ${fit ? '!object-contain' : ''} ${
+              videoClassName={`absolute inset-0 transition-[filter] duration-700 ${fit ? '!object-contain' : ''} ${
                 reportOpen || call.partnerHidden || call.aiHidden ? 'blur-3xl brightness-50' : call.blurPartner ? 'blur-xl' : ''
               }`}
             >
@@ -817,9 +817,6 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                       </svg>
                       <span className="max-sm:hidden">Report</span>
                     </button>
-                    <span className="max-sm:hidden">
-                      <SafetyMenu call={call} />
-                    </span>
                   </div>
                 </div>
               )}
@@ -902,7 +899,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                 onToggleFullscreen={toggleFullscreen}
               />
             </div>
-            <span className="text-[13px] text-[#8a8f99] max-sm:hidden">{matched ? 'Esc to stop · → for next' : 'Esc to cancel'}</span>
+            <span className="whitespace-nowrap text-[13px] text-[#8a8f99] max-sm:hidden">{matched ? 'Esc to stop · → for next' : 'Esc to cancel'}</span>
             {matched || call.status === 'browsing' ? (
               <StopNext call={call} wide />
             ) : (

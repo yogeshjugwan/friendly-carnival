@@ -10,13 +10,13 @@ import { useI18n } from '@/lib/i18n';
 
 /** Control button: dark tile, white when switched off (muted / camera off), gradient when open. Rail = the round phone buttons. */
 const ctl = (state: 'normal' | 'off' | 'active' = 'normal', rail = false) =>
-  `relative flex h-12 w-12 shrink-0 items-center justify-center transition ${rail ? 'rounded-full' : 'rounded-[14px]'} ${
+  `relative flex h-12 w-12 shrink-0 items-center justify-center transition ${rail ? 'rounded-full sm:rounded-[14px]' : 'rounded-[14px]'} ${
     state === 'off'
       ? 'bg-[#f4f5f7] text-night'
       : state === 'active'
         ? 'bg-lime text-night'
         : rail
-          ? 'bg-white/10 text-white hover:bg-white/20'
+          ? 'bg-white/10 text-white hover:bg-white/20 sm:bg-card-2 sm:text-[#e6e8ec] sm:hover:bg-[#2a2236]'
           : 'bg-card-2 text-[#e6e8ec] hover:bg-[#2a2236]'
   }`;
 
@@ -118,7 +118,7 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
   const menuPos = rail ? 'absolute bottom-full right-0 mb-3' : 'absolute bottom-full right-0 mb-3';
 
   return (
-    <div className={`relative flex items-center gap-2 ${rail ? 'w-full justify-between' : ''}`}>
+    <div className={`relative flex items-center gap-2 ${rail ? 'w-full justify-between sm:w-auto sm:justify-start' : ''}`}>
       {call.canGoBack && !rail && (
         <button onClick={call.back} aria-label={t('call.back')} title={t('call.back')} className={ctl()}>
           <BackIcon />
@@ -179,7 +179,7 @@ export function CancelButton({ call, wide = false }: { call: RandomCall; wide?: 
     <button
       onClick={call.stop}
       aria-keyshortcuts="Escape"
-      className={`h-14 rounded-2xl border-[1.5px] border-[#4a3f5c] px-8 text-base font-semibold text-[#e6e8ec] transition hover:bg-white/5 ${wide ? 'flex-1' : ''}`}
+      className={`h-14 rounded-2xl border-[1.5px] border-[#4a3f5c] px-8 text-base font-semibold text-[#e6e8ec] transition hover:bg-white/5 ${wide ? 'max-sm:flex-1' : ''}`}
     >
       Cancel
     </button>
@@ -191,13 +191,13 @@ export function StopNext({ call, wide = false, compact = false }: { call: Random
   const { t } = useI18n();
   const h = compact ? 'h-12' : 'h-14 max-sm:h-[58px]';
   return (
-    <div className={`flex items-center gap-2.5 ${wide ? 'w-full' : ''}`}>
+    <div className={`flex items-center gap-2.5 ${wide ? 'w-full sm:w-auto' : ''}`}>
       <button
         onClick={call.stop}
         aria-label={t('call.end')}
         title={t('call.end')}
         aria-keyshortcuts="Escape"
-        className={`${h} rounded-2xl border-[1.5px] border-[#4a3f5c] px-6 text-base font-semibold text-[#e6e8ec] transition hover:bg-white/5 ${wide ? 'w-24 px-0' : ''}`}
+        className={`${h} rounded-2xl border-[1.5px] border-[#4a3f5c] px-6 text-base font-semibold text-[#e6e8ec] transition hover:bg-white/5 ${wide ? 'max-sm:w-24 max-sm:px-0' : ''}`}
       >
         {t('call.stop')}
       </button>
@@ -206,7 +206,7 @@ export function StopNext({ call, wide = false, compact = false }: { call: Random
         aria-label={t('call.nextStranger')}
         title={`${t('call.nextStranger')} (→)`}
         aria-keyshortcuts="ArrowRight Space"
-        className={`${h} rounded-2xl bg-lime px-10 font-display text-lg font-bold text-night transition ${wide ? 'flex-1 px-0 text-[19px]' : ''}`}
+        className={`${h} rounded-2xl bg-lime px-10 font-display text-lg font-bold text-night transition ${wide ? 'max-sm:flex-1 max-sm:px-0 max-sm:text-[19px]' : ''}`}
       >
         {t('call.next')} →
       </button>

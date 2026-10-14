@@ -421,7 +421,20 @@ export function Landing({ online, onStart }: Props) {
   const ageNum = Number(ageText);
   const age = Number.isInteger(ageNum) && ageNum >= MIN_PROFILE_AGE && ageNum <= MAX_PROFILE_AGE ? ageNum : null;
 
+  const [missing, setMissing] = useState<'name' | 'age' | null>(null);
   const begin = (m: ChatMode, browse: false | 'online' | 'friends' = false) => {
+    // Name and age are shown to the people you meet, so both are required.
+    if (!name.trim()) {
+      setMissing('name');
+      document.getElementById('home-name')?.focus();
+      return;
+    }
+    if (age === null) {
+      setMissing('age');
+      document.getElementById('home-age')?.focus();
+      return;
+    }
+    setMissing(null);
     if (!agreed) {
       setNudge(true);
       document.getElementById('agree18')?.focus();
@@ -442,7 +455,7 @@ export function Landing({ online, onStart }: Props) {
   const modeLabel = MODES.find(([m]) => m === mode)![1].toLowerCase();
 
   const field =
-    'h-12 w-full rounded-xl border border-line-2 bg-card px-3.5 text-base font-medium text-[#f4f5f7] placeholder:text-[#6b6478] focus:outline-2 focus:outline-offset-1 focus:outline-lime max-sm:px-3';
+    'h-12 w-full rounded-xl border border-line-2 bg-card px-3.5 text-base font-medium text-[#f4f5f7] placeholder:text-[#6b6478] focus:outline-2 focus:outline-offset-1 focus:outline-lime aria-[invalid=true]:border-stop-text max-sm:px-3';
 
   return (
     <main className="relative flex min-h-dvh flex-col bg-night text-[#f4f5f7] sm:bg-[radial-gradient(ellipse_60%_70%_at_78%_45%,#1e0f2a_0%,#0b0811_60%)]">
@@ -505,11 +518,14 @@ export function Landing({ online, onStart }: Props) {
           <div className="grid grid-cols-[minmax(0,1fr)_92px] gap-2 sm:grid-cols-[minmax(0,1fr)_120px]">
             <label className="flex flex-col gap-1 text-xs text-mute sm:gap-1.5 sm:text-[13px]">
               Your name
-              <input value={name} maxLength={MAX_NAME} onChange={(e) => setName(e.target.value)} placeholder="e.g. Alex" autoComplete="given-name" className={field} />
+              <input id="home-name" required aria-invalid={missing === 'name'} value={name} maxLength={MAX_NAME} onChange={(e) => setName(e.target.value)} placeholder="e.g. Alex" autoComplete="given-name" className={field} />
             </label>
             <label className="flex flex-col gap-1 text-xs text-mute sm:gap-1.5 sm:text-[13px]">
               Age
               <input
+                id="home-age"
+                required
+                aria-invalid={missing === 'age'}
                 type="number"
                 min={MIN_PROFILE_AGE}
                 max={MAX_PROFILE_AGE}
@@ -521,6 +537,11 @@ export function Landing({ online, onStart }: Props) {
               />
             </label>
           </div>
+          {missing && (
+            <p role="alert" className="-mt-1.5 m-0 text-[13px] font-medium text-stop-text">
+              {missing === 'name' ? 'Enter your name to start.' : `Enter your age (${MIN_PROFILE_AGE}–${MAX_PROFILE_AGE}) to start.`}
+            </p>
+          )}
 
           <div role="radiogroup" aria-label="Chat type" className="grid grid-cols-3 gap-1 rounded-[14px] border border-divider bg-card p-1">
             {MODES.map(([m, label]) => (

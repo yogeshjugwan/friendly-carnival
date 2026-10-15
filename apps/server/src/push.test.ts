@@ -37,7 +37,7 @@ test('push: friends who are away hear when you come online (with their nickname)
   const accounts = new MemoryAccountStore();
   const sent: { endpoint: string; payload: PushPayload }[] = [];
   const pushSender: PushSender = async (s, body) => void sent.push({ endpoint: s.endpoint, payload: JSON.parse(body) });
-  const app = createApp({ store: new MemoryStore(), accounts, statsIntervalMs: 60_000, limits: null, pushSender, webUrl: 'https://example.com' });
+  const app = createApp({ store: new MemoryStore(), accounts, statsIntervalMs: 60_000, limits: null, pushSender, webUrl: 'https://example.com', friendOnlineDelayMs: 50 });
   await new Promise<void>((r) => app.http.listen(0, r));
   const url = `http://localhost:${(app.http.address() as AddressInfo).port}`;
   const open: Client[] = [];
@@ -62,7 +62,7 @@ test('push: friends who are away hear when you come online (with their nickname)
       const s: Client = connect(url, { auth: { deviceId: '11111111-1111-4111-8111-111111111111', token: meToken }, transports: ['websocket'], forceNew: true });
       open.push(s);
       await once(s, 'stats');
-      await new Promise((r) => setTimeout(r, 2_300));
+      await new Promise((r) => setTimeout(r, 300));
       return s;
     };
     const first = await join();

@@ -60,7 +60,8 @@ export class Rooms {
   leave(socketId: string): { room: Room; seat: RoomSeat } | null {
     const room = this.roomOf(socketId);
     if (!room) return null;
-    const seat = room.seats.find((s) => s.socketId === socketId)!;
+    const seat = room.seats.find((s) => s.socketId === socketId);
+    if (!seat) return null;
     room.seats = room.seats.filter((s) => s.socketId !== socketId);
     this.bySocket.delete(socketId);
     if (!room.seats.length) this.rooms.delete(room.id);

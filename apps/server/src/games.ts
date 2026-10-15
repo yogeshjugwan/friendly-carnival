@@ -92,3 +92,51 @@ export function viewFor(state: GameState, me: string): GameView {
     theirVote: other === null ? null : mine ? other : 'hidden',
   };
 }
+
+/**
+ * Live games by match id. Entries are dropped when a match ends or a player
+ * leaves (`endFor`); past `max`, the least recently played game goes first.
+ */
+export class GameStore {
+  private games = new Map<string, { state: GameState; players: [string, string] }>();
+  private byPlayer = new Map<string, string>();
+
+  constructor(private readonly max = 5_000) {}
+
+  get size() {
+    return this.games.size;
+  }
+
+  get(matchId: string): GameState | undefined {
+    return this.games.get(matchId)?.state;
+  }
+
+  /** Stores a game (start or move) and marks it most recently used. */
+  set(matchId: string, state: GameState, a: string, b: string) {
+    this.games.delete(matchId);
+    for (const p of [a, b]) {
+      const old = this.byPlayer.get(p);
+      if (old && old !== matchId) this.delete(old);
+      this.byPlayer.set(p, matchId);
+    }
+    this.games.set(matchId, { state, players: [a, b] });
+    for (const oldest of this.games.keys()) {
+      if (this.games.size <= this.max) break;
+      this.delete(oldest);
+    }
+  }
+
+  delete(matchId: string): boolean {
+    const entry = this.games.get(matchId);
+    if (!entry) return false;
+    this.games.delete(matchId);
+    for (const p of entry.players) if (this.byPlayer.get(p) === matchId) this.byPlayer.delete(p);
+    return true;
+  }
+
+  /** Drops the game a player is in (their match ended or they left). */
+  endFor(playerId: string) {
+    const matchId = this.byPlayer.get(playerId);
+    if (matchId) this.delete(matchId);
+  }
+}

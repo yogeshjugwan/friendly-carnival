@@ -18,7 +18,7 @@ test('history: who you met (with counts), follow, and message requests', async (
   const accounts = new MemoryAccountStore();
   const pushed: { endpoint: string; p: PushPayload }[] = [];
   const pushSender: PushSender = async (sub, body) => void pushed.push({ endpoint: sub.endpoint, p: JSON.parse(body) });
-  const app = createApp({ store: new MemoryStore(), accounts, statsIntervalMs: 60_000, limits: null, pushSender, webUrl: 'https://example.com' });
+  const app = createApp({ store: new MemoryStore(), accounts, statsIntervalMs: 60_000, limits: null, pushSender, webUrl: 'https://example.com', friendOnlineDelayMs: 50 });
   await new Promise<void>((r) => app.http.listen(0, r));
   const url = `http://localhost:${(app.http.address() as AddressInfo).port}`;
   const open: Client[] = [];
@@ -97,7 +97,7 @@ test('history: who you met (with counts), follow, and message requests', async (
     await accounts.addPushSubscription(asha.id, { endpoint: 'https://push.example/asha', keys: { p256dh: 'k', auth: 'a' } });
     sa.disconnect();
     sr.disconnect();
-    const later = createApp({ store: new MemoryStore(), accounts, statsIntervalMs: 60_000, limits: null, pushSender, webUrl: 'https://example.com' });
+    const later = createApp({ store: new MemoryStore(), accounts, statsIntervalMs: 60_000, limits: null, pushSender, webUrl: 'https://example.com', friendOnlineDelayMs: 50 });
     await new Promise<void>((r) => later.http.listen(0, r));
     const r2: Client = connect(`http://localhost:${(later.http.address() as AddressInfo).port}`, {
       auth: { deviceId: '77777777-1111-4111-8111-111111111111', token: ravi.token },
@@ -106,7 +106,7 @@ test('history: who you met (with counts), follow, and message requests', async (
     });
     await once(r2, 'stats');
     r2.emit('profile:set', { name: 'Ravi', avatar: null, bio: '' });
-    await wait(2_300);
+    await wait(300);
     r2.disconnect();
     await later.close();
     assert.ok(pushed.some((x) => x.endpoint.endsWith('/asha') && x.p.title === '⭐ Online now' && x.p.body.startsWith('Ravi')), JSON.stringify(pushed));

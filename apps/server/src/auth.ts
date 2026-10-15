@@ -1,3 +1,4 @@
+import { log } from './log.ts';
 import { randomInt } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
@@ -152,7 +153,7 @@ export function createAuthHandler(deps: AuthDeps) {
         if (user === 'exists') return fail(409, 'An account with this email already exists');
         await accounts.setBirthDate(user.id, birthDate as string);
         user.birthDate = birthDate as string;
-        await sendVerification(user).catch((e) => console.error('[mail]', e));
+        await sendVerification(user).catch((e) => log.error('mail', e));
         const token = await accounts.createToken(user.id, 'session');
         return sendJson(res, 201, { token, user: publicUser(user) }), true;
       }
@@ -193,7 +194,7 @@ export function createAuthHandler(deps: AuthDeps) {
           const link = `${deps.webUrl}/reset?token=${encodeURIComponent(token)}`;
           await mailer
             .send(linkEmail(user.email, 'Reset your randomCall password', 'Someone asked to reset your randomCall password.', 'Choose a new password', link, 'This link expires in 1 hour. If it was not you, ignore this email.'))
-            .catch((e) => console.error('[mail]', e));
+            .catch((e) => log.error('mail', e));
         }
         // Same answer either way, so the form can't be used to find accounts.
         return sendJson(res, 200, { ok: true }), true;
@@ -370,7 +371,7 @@ export function createAuthHandler(deps: AuthDeps) {
       return fail(404, 'Not found');
     } catch (e) {
       if (e instanceof SyntaxError) return fail(400, 'Invalid request');
-      console.error('[auth]', e);
+      log.error('auth', e);
       return fail(500, 'Server error');
     }
   };

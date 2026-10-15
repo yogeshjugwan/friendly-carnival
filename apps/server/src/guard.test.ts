@@ -43,6 +43,33 @@ async function setup(opts: Parameters<typeof createApp>[0] = { store: new Memory
   return { app, url, sock, close: async () => (open.forEach((s) => s.disconnect()), await app.close()) };
 }
 
+test('guard: ack requests sent before the proof are answered once proven, not dropped', async () => {
+  const { url, close } = await setup({ store: new MemoryStore(), requireProof: true, guard: new Guard({ baseBits: 8 }) });
+  const s: Client = connect(url, { auth: { deviceId: uuid(9) }, transports: ['websocket'], forceNew: true, reconnection: false });
+  try {
+    const c = await once(s, 'guard:challenge');
+    let listed: unknown = 'pending';
+    let called: unknown = 'pending';
+    let room: unknown = 'pending';
+    s.emit('users:list', (r) => (listed = r));
+    s.emit('users:call', 'nobody', (r) => (called = r));
+    s.emit('room:join', 'music', 'video', 'male', (r) => (room = r));
+    assert.equal(await never(s, 'match:found', 200), true);
+    assert.deepEqual([listed, called, room], ['pending', 'pending', 'pending'], 'held until proven');
+    const answered = new Promise<void>((r) => {
+      const t = setInterval(() => room !== 'pending' && (clearInterval(t), r()), 10);
+    });
+    s.emit('guard:proof', solve(c));
+    await answered;
+    assert.equal(listed, null, 'guest: no Online list');
+    assert.deepEqual(called, { ok: false, reason: 'plus-required' });
+    assert.deepEqual(room, { ok: false, reason: 'login-required' });
+  } finally {
+    s.disconnect();
+    await close();
+  }
+});
+
 test('guard: proof of work is checked, single-use and harder for busy IPs', () => {
   const g = new Guard({ baseBits: 8 });
   const c = g.challenge('ip:a');

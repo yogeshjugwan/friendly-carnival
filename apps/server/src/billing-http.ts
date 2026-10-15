@@ -1,3 +1,4 @@
+import { log } from './log.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { COIN_PACKS, PLUS_PLANS, type CoinPackId, type PlusPlan, type RazorpayProduct } from '@rc/shared';
 import { isPlusActive, type AccountStore } from './accounts.ts';
@@ -59,7 +60,7 @@ export function createBillingHandler(deps: BillingDeps) {
         return sendJson(res, 200, { received: true }), true;
       } catch (e) {
         // A 500 makes Stripe retry the event later.
-        console.error('[billing:webhook]', e);
+        log.error('billing:webhook', e);
         return sendJson(res, 500, { error: 'Processing failed' }), true;
       }
     }
@@ -90,7 +91,7 @@ export function createBillingHandler(deps: BillingDeps) {
         }
         return sendJson(res, 200, { received: true }), true;
       } catch (e) {
-        console.error('[razorpay:webhook]', e);
+        log.error('razorpay:webhook', e);
         return sendJson(res, 500, { error: 'Processing failed' }), true;
       }
     }
@@ -171,7 +172,7 @@ export function createBillingHandler(deps: BillingDeps) {
       return fail(404, 'Not found');
     } catch (e) {
       if (e instanceof SyntaxError) return fail(400, 'Invalid request');
-      console.error('[billing]', e);
+      log.error('billing', e);
       return fail(502, 'Payment provider error. Please try again.');
     }
   };

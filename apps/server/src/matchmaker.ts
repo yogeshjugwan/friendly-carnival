@@ -319,7 +319,10 @@ export class Matchmaker {
     this.endMatch(fromId);
     this.dequeue(fromId);
     this.dequeue(toId);
-    return this.pair(this.sessions.get(fromId)!, this.sessions.get(toId)!, false);
+    const from = this.sessions.get(fromId);
+    const to = this.sessions.get(toId);
+    if (!from || !to) return 'gone';
+    return this.pair(from, to, false);
   }
 
   leaveQueue(id: string): void {

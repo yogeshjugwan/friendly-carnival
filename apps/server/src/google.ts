@@ -1,3 +1,4 @@
+import { log } from './log.ts';
 import { randomBytes } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { hashPassword, normalizeEmail, type AccountStore } from './accounts.ts';
@@ -123,7 +124,7 @@ export function createGoogleHandler(deps: GoogleDeps) {
         const fragment = new URLSearchParams({ token, next: entry.next, ...(created ? { new: '1' } : {}) });
         return redirect(res, `${deps.webUrl}/auth/google#${fragment}`);
       } catch (e) {
-        console.error('[google]', e);
+        log.error('google', e);
         return backToLogin(res, 'google_failed');
       }
     }

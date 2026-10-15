@@ -1,61 +1,39 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { log } from './log.ts';
+import { createHash } from 'node:crypto';
 import { createServer, type IncomingHttpHeaders, type IncomingMessage, type ServerResponse, type Server as HttpServer } from 'node:http';
 import { Server } from 'socket.io';
 import {
-  BOOST,
-  GAMES,
-  REPORT_REASONS,
-  TOPICS,
-  DM_REQUEST_LIMIT,
-  PRIORITY_MATCH,
   REFERRAL,
-  CALL_REQUEST_MS,
   NEW_ACCOUNT_MS,
   NEW_DEVICE_MS,
-  availableGifts,
-  GIFT_SHARE,
-  MATCHES_FOR_COINS,
-  ICEBREAKERS,
-  MAX_FRIEND_NICKNAME,
-  REACTIONS,
-  CHAT_BURST,
-  CHAT_WINDOW_MS,
-  MAX_APPEAL_LENGTH,
   MAX_RELAY_CHUNK_BYTES,
   MAX_SNAPSHOT_BYTES,
-  RELAY_BYTES_PER_SECOND,
-  hasFilters,
-  type BanInfo,
-  type BlockedUser,
   type CallAnswer,
-  type CallRequestResult,
-  type SpendResult,
   type AgeHold,
-  type DirectMessage,
-  type ChatMode,
-  type HistoryPerson,
-  type RoomMember,
-  type UserProfile,
   type Wallet,
-  type Friend,
   type CallResult,
-  type ClientToServerEvents,
   type HandshakeAuth,
   type PartnerLeftReason,
-  type ServerToClientEvents,
 } from '@rc/shared';
 import type { AccountStore } from './accounts.ts';
 import { Analytics, dayOf } from './analytics.ts';
 import { PushService, type PushSender } from './push.ts';
-import { Guard, looksLikeLink } from './guard.ts';
-import { applyMove, newGame, viewFor, type GameState } from './games.ts';
-import { Rooms, type RoomSeat } from './rooms.ts';
+import { Guard } from './guard.ts';
+import { GameStore } from './games.ts';
+import { type AppContext, type IO, type SocketData, type SocketScope } from './sockets/context.ts';
+import { createStartRequest, registerCall, registerCallCleanup } from './sockets/call.ts';
+import { registerBilling } from './sockets/billing.ts';
+import { registerRooms } from './sockets/rooms.ts';
+import { registerGames } from './sockets/games.ts';
+import { registerDm } from './sockets/dm.ts';
+import { registerSafety } from './sockets/safety.ts';
+import { Rooms } from './rooms.ts';
 import { Razorpay } from './razorpay.ts';
 import { LOW_TRUST, SkipTracker, trustScore } from './trust.ts';
 import { Translator } from './translate.ts';
 import { runWinback } from './winback.ts';
 import { cors, RateLimiter, readJson, sendJson } from './http.ts';
-import { isPlusActive, MAX_FRIENDS, MemoryAccountStore, NO_PLUS, type HistoryRow, type StoredMessage } from './accounts.ts';
+import { isPlusActive, MemoryAccountStore, NO_PLUS } from './accounts.ts';
 import type { BillingProvider } from './billing.ts';
 import { createBillingHandler } from './billing-http.ts';
 import { handleAdmin } from './admin.ts';
@@ -65,51 +43,12 @@ import { MatchLimits, type LimitOptions } from './limits.ts';
 import { TurnCredentials, type TurnConfig } from './turn.ts';
 import { ConsoleMailer, type Mailer } from './mailer.ts';
 import { config } from './config.ts';
-import { Matchmaker, type Pairing, type Session } from './matchmaker.ts';
-import { banInfo, clientIp, hashIp, isDeviceId, parseReport, Safety, SNAPSHOT_RETENTION_MS } from './safety.ts';
+import { Matchmaker, type Pairing } from './matchmaker.ts';
+import { banInfo, clientIp, hashIp, isDeviceId, Safety, SNAPSHOT_RETENTION_MS } from './safety.ts';
 import { MemoryStore, type SafetyStore } from './store.ts';
-import { parseCallResult, parseChatText, parseJoin, parseProfile, parseSignal } from './validate.ts';
+import { parseProfile } from './validate.ts';
 
-interface SocketData {
-  deviceId: string;
-  /** Boost end time from the account, at handshake. */
-  boostUntil?: number | null;
-  /** Logged-in account, from the handshake token. */
-  userId: string | null;
-  /** Sign-up time of that account. */
-  accountCreatedAt?: number | null;
-  /** The account has the ✓ Verified badge. */
-  verified?: boolean;
-  /** No invite reward can be due any more (checked on matches). */
-  referralDone?: boolean;
-  /** Chatting paused: under 18, or an underage report awaiting ✓ verification. */
-  ageHold?: AgeHold;
-  /** 0–100; below LOW_TRUST means the shadow pool. */
-  trust?: number;
-  /** Passed the proof-of-work check (a real browser, not a script). */
-  human?: boolean;
-  /** The proof-of-work challenge sent to this socket. */
-  challenge?: string;
-  /** Profile card shown to partners. */
-  profile?: UserProfile;
-  /** Active Plus subscription at handshake time (updated live by webhooks). */
-  plus: boolean;
-  ipHash: string | null;
-  /** Set while the device or IP is banned; the socket stays connected so it can appeal. */
-  ban: BanInfo | null;
-  /** Devices blocked by or blocking this device, loaded at handshake. */
-  blocked: Set<string>;
-  reportsAt: number[];
-}
-
-type IO = Server<ClientToServerEvents, ServerToClientEvents, Record<string, never>, SocketData>;
-
-/** Per-socket report limit: 10 reports per 10 minutes. */
-const REPORT_BURST = 10;
-const REPORT_WINDOW_MS = 10 * 60_000;
-/** WebRTC signals (offers, answers, ICE candidates) per socket in rooms. */
-export const ROOM_SIGNAL_BURST = 200;
-export const ROOM_SIGNAL_WINDOW_MS = 10_000;
+export { ROOM_SIGNAL_BURST, ROOM_SIGNAL_WINDOW_MS } from './sockets/rooms.ts';
 
 export interface CallMetrics {
   reports: number;
@@ -158,6 +97,8 @@ export interface AppOptions {
   razorpay?: Razorpay | null;
   /** How long a ⭐ priority match waits for a verified partner before refunding (tests shorten it). */
   priorityWaitMs?: number;
+  /** Delay before "your friend is online" pushes, so the profile name is known (tests shorten it). */
+  friendOnlineDelayMs?: number;
   /** Bot / flood shield (tests pass their own to tune it). */
   guard?: Guard;
   /** TURN provider (defaults to the environment); fetch is injectable for tests. */
@@ -187,7 +128,10 @@ export function createApp(opts: AppOptions = {}): App {
   let io: IO;
 
   const notifyLeft = (partnerId: string | undefined, reason: PartnerLeftReason) => {
-    if (partnerId) io.to(partnerId).emit('partner:left', reason);
+    if (!partnerId) return;
+    // The match is over: so is any mini-game in it.
+    games.endFor(partnerId);
+    io.to(partnerId).emit('partner:left', reason);
   };
 
   // A new ban takes effect at once: end the banned user's call and show them the ban.
@@ -265,7 +209,7 @@ export function createApp(opts: AppOptions = {}): App {
         for (const s of io.sockets.sockets.values()) if (s.data.userId === userId) s.data.plus = active;
         return pushWallet(userId);
       })
-      .catch((e) => console.error('[plus]', e));
+      .catch((e) => log.error('plus', e));
   };
 
   const handleBilling = createBillingHandler({
@@ -294,7 +238,7 @@ export function createApp(opts: AppOptions = {}): App {
       const result = await translator.translate(text.trim(), to);
       return result ? (sendJson(res, 200, result), true) : (sendJson(res, 502, { error: 'Could not translate' }), true);
     } catch (e) {
-      if (!(e instanceof SyntaxError)) console.error('[translate]', e);
+      if (!(e instanceof SyntaxError)) log.error('translate', e);
       return sendJson(res, 400, { error: 'Invalid request' }), true;
     }
   };
@@ -335,7 +279,7 @@ export function createApp(opts: AppOptions = {}): App {
                 .setAgeReview(userId, false)
                 .then(() => accounts.userById(userId))
                 .then((u) => u && setAgeHold(userId, ageHoldOf(u)))
-                .catch((e) => console.error('[age]', e));
+                .catch((e) => log.error('age', e));
             }
             if (verified) {
               void push.send(userId, { title: '✓ You are verified', body: 'Your blue badge is live — people now see you are real.', url: '/', tag: 'verified' });
@@ -370,7 +314,7 @@ export function createApp(opts: AppOptions = {}): App {
       }
       res.writeHead(404).end();
     })().catch((e) => {
-      console.error('[http]', e);
+      log.error('http', e);
       if (!res.headersSent) res.writeHead(500).end();
     });
   });
@@ -390,7 +334,7 @@ export function createApp(opts: AppOptions = {}): App {
   const deviceFirstSeen = new Map<string, number>();
   const seeDevice = (deviceId: string) => {
     if (deviceId.startsWith('anon:') || deviceFirstSeen.has(deviceId)) return;
-    if (deviceFirstSeen.size >= MAX_DEVICES) deviceFirstSeen.delete(deviceFirstSeen.keys().next().value!);
+    if (deviceFirstSeen.size >= MAX_DEVICES) dropOldest(deviceFirstSeen);
     deviceFirstSeen.set(deviceId, clock());
   };
   const isNewUser = (socketId: string) => {
@@ -444,7 +388,7 @@ export function createApp(opts: AppOptions = {}): App {
       })
       .catch((e) => {
         // Fail open: a storage hiccup should not lock everyone out.
-        console.error('[handshake]', e);
+        log.error('handshake', e);
         socket.data.userId ??= null;
         socket.data.plus ??= false;
         socket.data.ban = null;
@@ -513,13 +457,13 @@ export function createApp(opts: AppOptions = {}): App {
         () =>
           void runWinback({
             accounts,
-            mailer: opts.mailer!,
+            mailer: opts.mailer ?? new ConsoleMailer(),
             webUrl: opts.webUrl ?? config.webUrl,
             serverUrl: opts.serverUrl ?? config.serverUrl,
             online: matchmaker.onlineCount,
           })
-            .then((n) => n && console.log(`[winback] sent ${n}`))
-            .catch((e) => console.error('[winback]', e)),
+            .then((n) => n && log.info('winback', `sent ${n}`))
+            .catch((e) => log.error('winback', e)),
         6 * 3_600_000,
       )
     : null;
@@ -547,7 +491,7 @@ export function createApp(opts: AppOptions = {}): App {
   const priorityTimers = new Map<string, NodeJS.Timeout>();
 
   /** Mini-game per match. */
-  const games = new Map<string, GameState>();
+  const games = new GameStore();
 
   /** Matches between friends: they may share links. */
   const friendMatches = new Set<string>();
@@ -675,6 +619,9 @@ export function createApp(opts: AppOptions = {}): App {
 
   const announce = (pairing: Pairing) => {
     const { a, b, matchId, sharedInterests, reconnected } = pairing;
+    // A new match replaces any game either person was still in.
+    games.endFor(a.id);
+    games.endFor(b.id);
     // Matched some other way: any open call request involving them lapses.
     for (const [id, r] of callRequests) {
       if (r.to === a.id || r.to === b.id) closeRequest(id, { accepted: false, reason: 'busy' }, true);
@@ -688,7 +635,7 @@ export function createApp(opts: AppOptions = {}): App {
         s.emit('limit:status', limits.status(limitKey(s.data), false));
       }
     }
-    for (const [x, y] of [[a.id, b.id], [b.id, a.id]]) void checkReferral(x, y).catch((e) => console.error('[referral]', e));
+    for (const [x, y] of [[a.id, b.id], [b.id, a.id]]) void checkReferral(x, y).catch((e) => log.error('referral', e));
     // Skipping through people very fast (bots, spammers): pause their matching for a bit.
     if (!reconnected) {
       for (const id of [a.id, b.id]) {
@@ -709,7 +656,7 @@ export function createApp(opts: AppOptions = {}): App {
       }
     }
     matchStarted.set(matchId, Date.now());
-    if (matchStarted.size > 20_000) matchStarted.delete(matchStarted.keys().next().value!);
+    if (matchStarted.size > 20_000) dropOldest(matchStarted);
     {
       const da = io.sockets.sockets.get(a.id)?.data;
       const db = io.sockets.sockets.get(b.id)?.data;
@@ -739,7 +686,7 @@ export function createApp(opts: AppOptions = {}): App {
           mode: other.mode,
           at: Date.now(),
         })
-        .catch((e) => console.error('[history]', e));
+        .catch((e) => log.error('history', e));
     }
     analytics.count('matches');
     analytics.count(`${b.mode}Matches`);
@@ -767,7 +714,7 @@ export function createApp(opts: AppOptions = {}): App {
         .then((yes) => {
           if (!yes) return;
           friendMatches.add(matchId);
-          if (friendMatches.size > 10_000) friendMatches.delete(friendMatches.values().next().value!);
+          if (friendMatches.size > 10_000) dropOldest(friendMatches);
           io.to(a.id).emit('friend:state', 'friends');
           io.to(b.id).emit('friend:state', 'friends');
         })
@@ -776,6 +723,11 @@ export function createApp(opts: AppOptions = {}): App {
   };
 
   const socketsByDevice = new Map<string, Set<string>>();
+  const ctx: AppContext = {
+    io, opts, matchmaker, metrics, relayedMatches, store, accounts, safety, push, analytics, guard, limits, limitKey, mayMatch,
+    notifyLeft, announce, pushWallet, refreshTrust, isNewUser, profileOf, setAgeHold, skips, matchStarted, priorityTimers, games,
+    friendMatches, friendWants, callRequests, requestFrom, closeRequest, friendHandleFor, rooms, turn, socketsByDevice,
+  };
   io.on('connection', (socket) => {
     const { deviceId, ipHash, blocked, userId, plus, verified } = socket.data;
     // deviceId -> sockets index, so lookups by device are O(1) instead of a scan of every socket.
@@ -801,8 +753,11 @@ export function createApp(opts: AppOptions = {}): App {
     // ---- Shield: proof of work, event rate limits, skipping brake ----
     const ipKey = ipKeyOf(socket.data.ipHash, socket.id);
     socket.data.human = !requireProof;
-    /** A join that arrived before the proof; run once proven. */
-    let pendingJoin: unknown = null;
+    /**
+     * Requests that arrived before the proof (a join, or an ack-style request
+     * the client is waiting on); run once proven, latest per event.
+     */
+    const pendingUntilProof = new Map<string, unknown[]>();
     if (requireProof) {
       const c = guard.challenge(ipKey);
       socket.data.challenge = c.challenge;
@@ -820,10 +775,10 @@ export function createApp(opts: AppOptions = {}): App {
         return void socket.emit('guard:challenge', c);
       }
       socket.data.human = true;
-      if (pendingJoin !== null) {
-        const payload = pendingJoin;
-        pendingJoin = null;
-        for (const handler of socket.listeners('queue:join')) (handler as (p: unknown) => void)(payload);
+      const queued = [...pendingUntilProof];
+      pendingUntilProof.clear();
+      for (const [event, args] of queued) {
+        for (const handler of socket.listeners(event as 'queue:join')) (handler as (...a: unknown[]) => void)(...args);
       }
     });
     /** Events that need a proven browser (everything that reaches other people). */
@@ -839,11 +794,13 @@ export function createApp(opts: AppOptions = {}): App {
       'room:join',
       'room:chat',
     ]);
+    /** Of those, the ones replayed after the proof instead of dropped. */
+    const QUEUED_UNTIL_PROOF = new Set(['queue:join', 'users:call', 'friends:call', 'users:list', 'room:join']);
     const allowEvent = guard.eventLimiter();
     socket.use(([event, ...args], next) => {
       const verdict = allowEvent(event);
       if (verdict === 'kick') {
-        console.warn('[guard] flood, disconnecting', ipKey.slice(0, 12));
+        log.warn('guard', 'flood, disconnecting', { key: ipKey.slice(0, 12) });
         // Cut off this browser for 5 minutes, and its IP briefly (shared IPs recover fast).
         guard.block(`d:${socket.data.deviceId}`);
         guard.block(ipKey, 60_000);
@@ -852,7 +809,8 @@ export function createApp(opts: AppOptions = {}): App {
       }
       if (verdict === 'drop') return;
       if (!socket.data.human && HUMAN_ONLY.has(event)) {
-        if (event === 'queue:join') pendingJoin = args[0];
+        // Joins and requests with a reply are held until the proof arrives, so the client never hangs.
+        if (QUEUED_UNTIL_PROOF.has(event)) pendingUntilProof.set(event, args);
         return;
       }
       next();
@@ -867,7 +825,7 @@ export function createApp(opts: AppOptions = {}): App {
     };
 
     analytics.visit(socket.data.userId ? `u:${socket.data.userId}` : socket.data.deviceId);
-    void refreshTrust(socket.id).catch((e) => console.error('[trust]', e));
+    void refreshTrust(socket.id).catch((e) => log.error('trust', e));
     // "Last seen" for win-back emails (at most hourly per user).
     if (socket.data.userId && Date.now() - (lastSeenWrite.get(socket.data.userId) ?? 0) > 3_600_000) {
       lastSeenWrite.set(socket.data.userId, Date.now());
@@ -877,16 +835,12 @@ export function createApp(opts: AppOptions = {}): App {
     const onlineUser = socket.data.userId;
     if (onlineUser && [...io.sockets.sockets.values()].filter((x) => x.data.userId === onlineUser).length === 1) {
       // A moment later, so their name (sent right after connecting) is known.
-      setTimeout(() => void notifyFriendsOnline(onlineUser).catch((e) => console.error('[push]', e)), 2_000).unref?.();
+      setTimeout(() => void notifyFriendsOnline(onlineUser).catch((e) => log.error('push', e)), opts.friendOnlineDelayMs ?? 2_000).unref?.();
     }
     analytics.peak('peakOnline', matchmaker.onlineCount);
     if (limits) socket.emit('limit:status', limits.status(limitKey(socket.data), plus));
     if (userId) void pushWallet(userId).catch(() => undefined);
     if (socket.data.ban) socket.emit('banned', socket.data.ban);
-    const sentAt: number[] = [];
-    const recentTexts: string[] = [];
-    const roomChatAt: number[] = [];
-    const roomSignalAt: number[] = [];
     /** Sliding-window burst limit: true (and records the event) when under `limit` per `windowMs`. */
     const underBurst = (times: number[], limit: number, windowMs: number) => {
       const now = Date.now();
@@ -908,889 +862,15 @@ export function createApp(opts: AppOptions = {}): App {
       return !!socket.data.ban;
     };
 
-    socket.on('queue:join', (payload) => {
-      if (stillBanned()) return;
-      const join = parseJoin(payload);
-      if (!join) return void socket.emit('error:message', 'Invalid join request');
-      if (matchmaker.get(socket.id)?.partnerId) return;
-      if (pausedForSkipping()) return;
-      if (!mayMatch(socket, join.mode)) return;
-      if (hasFilters(join.filters) && !socket.data.plus) socket.emit('plus:required');
-      // Plus members browse the Online list; any logged-in user can wait for friends.
-      const browsing = !!join.browse && (socket.data.plus || !!socket.data.userId);
-      const pairing = matchmaker.join(socket.id, join.gender, join.interests, join.mode, join.hideCountry, join.filters, browsing, join.topic ?? null);
-      if (pairing) announce(pairing);
-      else if (!browsing) socket.emit('queue:waiting');
-    });
-
-    socket.on('queue:leave', () => {
-      matchmaker.leaveQueue(socket.id);
-      notifyLeft(matchmaker.endMatch(socket.id)?.id, 'stop');
-    });
-
-    socket.on('call:next', () => {
-      if (!matchmaker.get(socket.id) || stillBanned()) return;
-      // Skipped within seconds: counts against the person skipped (see trust.ts).
-      const current = matchmaker.get(socket.id)!;
-      const skipped = matchmaker.partnerOf(socket.id);
-      const started = current.matchId ? matchStarted.get(current.matchId) : undefined;
-      if (skipped && started && Date.now() - started < 5_000) {
-        const d = io.sockets.sockets.get(skipped.id)?.data;
-        if (d) {
-          skips.quickSkipped(limitKey(d), limitKey(socket.data));
-          void refreshTrust(skipped.id).catch(() => undefined);
-        }
-      }
-      notifyLeft(matchmaker.endMatch(socket.id)?.id, 'next');
-      if (pausedForSkipping()) return;
-      if (!mayMatch(socket)) return void matchmaker.leaveQueue(socket.id);
-      const pairing = matchmaker.rejoin(socket.id);
-      if (pairing) announce(pairing);
-      else socket.emit('queue:waiting');
-    });
-
-    socket.on('call:skip', () => {
-      if (!matchmaker.get(socket.id)) return;
-      notifyLeft(matchmaker.endMatch(socket.id)?.id, 'next');
-      matchmaker.leaveQueue(socket.id);
-    });
-
-    socket.on('call:back', () => {
-      if (stillBanned() || pausedForSkipping() || !mayMatch(socket)) return;
-      const current = matchmaker.partnerOf(socket.id);
-      const result = matchmaker.reconnect(socket.id);
-      if (typeof result === 'string') return void socket.emit('back:unavailable', result);
-      // Leaving a live match to go back: the person being left sees a normal "next".
-      if (current && current.id !== result.a.id) notifyLeft(current.id, 'next');
-      announce(result);
-    });
-
-    // ---- Coins: gifts, Boost, matches ----
-    /** Spends coins from my account; replies with the new wallet or why not. */
-    const spend = async (coins: number, reason: string): Promise<SpendResult> => {
-      const me = socket.data.userId;
-      if (!me) return { ok: false, reason: 'login' };
-      const balance = await accounts.changeCoins(me, -coins, reason);
-      if (balance === null) return { ok: false, reason: 'coins' };
-      const w = (await pushWallet(me)) ?? { coins: balance, boostUntil: null };
-      return { ok: true, wallet: w };
-    };
-
-    socket.on('gift:send', async (giftId, ack) => {
-      const done = typeof ack === 'function' ? ack : () => undefined;
-      const gift = availableGifts().find((g) => g.id === giftId);
-      if (!gift) return done({ ok: false, reason: 'invalid' });
-      const partner = matchmaker.partnerOf(socket.id);
-      if (!partner) return done({ ok: false, reason: 'no-partner' });
-      try {
-        const me = socket.data.userId;
-        if (!me) return done({ ok: false, reason: 'login' });
-        // The receiver earns a share if they have an account; both legs move in one transaction.
-        const theirId = io.sockets.sockets.get(partner.id)?.data.userId ?? null;
-        const earned = theirId ? Math.floor(gift.coins * GIFT_SHARE) : 0;
-        const balance = await accounts.transferCoins(me, theirId, gift.coins, earned, `gift:${gift.id}`, `gift-received:${gift.id}`);
-        if (balance === null) return done({ ok: false, reason: 'coins' });
-        const r: SpendResult = { ok: true, wallet: (await pushWallet(me)) ?? { coins: balance, boostUntil: null } };
-        if (theirId && earned) void pushWallet(theirId);
-        socket.emit('gift', { giftId: gift.id, from: 'me', earned });
-        io.to(partner.id).emit('gift', { giftId: gift.id, from: 'them', earned });
-        analytics.count('gifts');
-        done(r);
-      } catch (e) {
-        console.error('[gift]', e);
-        done({ ok: false, reason: 'invalid' });
-      }
-    });
-
-    socket.on('boost:buy', async (ack) => {
-      const done = typeof ack === 'function' ? ack : () => undefined;
-      try {
-        const r = await spend(BOOST.coins, 'boost');
-        if (!r.ok) return done(r);
-        const me = socket.data.userId!;
-        // Extends an active Boost.
-        const current = (await accounts.userById(me))?.boostUntil ?? 0;
-        const until = Math.max(Date.now(), current) + BOOST.minutes * 60_000;
-        await accounts.setBoost(me, until);
-        analytics.count('boosts');
-        matchmaker.setBoost(me, until);
-        const w = (await pushWallet(me))!;
-        done({ ok: true, wallet: w });
-      } catch (e) {
-        console.error('[boost]', e);
-        done({ ok: false, reason: 'invalid' });
-      }
-    });
-
-    socket.on('match:priority', async (ack) => {
-      const done = typeof ack === 'function' ? ack : () => undefined;
-      const session = matchmaker.get(socket.id);
-      if (!session || session.partnerId || session.priority || priorityTimers.has(socket.id) || stillBanned()) {
-        return done({ ok: false, reason: 'invalid' });
-      }
-      try {
-        const r = await spend(PRIORITY_MATCH.coins, 'priority');
-        if (!r.ok) return done(r);
-        analytics.count('priorityMatches');
-        const me = socket.data.userId!;
-        // No verified person in time: give the coins back.
-        priorityTimers.set(
-          socket.id,
-          setTimeout(() => {
-            priorityTimers.delete(socket.id);
-            matchmaker.setPriority(socket.id, false);
-            void accounts
-              .changeCoins(me, PRIORITY_MATCH.coins, 'priority-refund')
-              .then(() => pushWallet(me))
-              .catch((e) => console.error('[priority]', e));
-            socket.emit('priority:expired');
-          }, opts.priorityWaitMs ?? PRIORITY_MATCH.waitMinutes * 60_000),
-        );
-        done(r);
-        const pairing = matchmaker.setPriority(socket.id, true);
-        if (pairing) announce(pairing);
-      } catch (e) {
-        console.error('[priority]', e);
-        done({ ok: false, reason: 'invalid' });
-      }
-    });
-
-    socket.on('limit:buy', async (ack) => {
-      const done = typeof ack === 'function' ? ack : () => undefined;
-      if (!limits) return done({ ok: false, reason: 'invalid' });
-      try {
-        const r = await spend(MATCHES_FOR_COINS.coins, 'matches');
-        if (!r.ok) return done(r);
-        const key = limitKey(socket.data);
-        limits.addBonus(key, MATCHES_FOR_COINS.matches);
-        socket.emit('limit:granted', limits.status(key, socket.data.plus));
-        done(r);
-      } catch (e) {
-        console.error('[limit:buy]', e);
-        done({ ok: false, reason: 'invalid' });
-      }
-    });
-
-    let lastIcebreaker = 0;
-    socket.on('icebreaker', () => {
-      const partner = matchmaker.partnerOf(socket.id);
-      const now = Date.now();
-      if (!partner || now - lastIcebreaker < 4_000) return;
-      lastIcebreaker = now;
-      const question = ICEBREAKERS[Math.floor(Math.random() * ICEBREAKERS.length)];
-      socket.emit('icebreaker', question);
-      io.to(partner.id).emit('icebreaker', question);
-    });
-
-    // ---- Group rooms ----
-    const roomPeers = (except?: string) => (rooms.roomOf(socket.id)?.seats ?? []).filter((x) => x.socketId !== except);
-    const memberView = (x: RoomSeat): RoomMember => ({ id: x.id, name: x.name, gender: x.gender, avatar: x.avatar, country: x.country, verified: x.verified });
-    const leaveRoom = () => {
-      const left = rooms.leave(socket.id);
-      if (left) for (const x of left.room.seats) io.to(x.socketId).emit('room:member-left', left.seat.id);
-    };
-    socket.on('rooms:list', (ack) => {
-      if (typeof ack === 'function') ack(rooms.counts());
-    });
-    socket.on('room:join', (topic, mode, gender, ack) => {
-      if (typeof ack !== 'function') return;
-      if (!socket.data.userId) return ack({ ok: false, reason: 'login-required' });
-      if (stillBanned()) return ack({ ok: false, reason: 'banned' });
-      if (!TOPICS.some((t) => t.id === topic) || (mode !== 'video' && mode !== 'voice') || !['male', 'female', 'couple'].includes(gender)) {
-        return ack({ ok: false, reason: 'invalid' });
-      }
-      // A room replaces any one-to-one chat.
-      matchmaker.leaveQueue(socket.id);
-      notifyLeft(matchmaker.endMatch(socket.id)?.id, 'stop');
-      const me = matchmaker.get(socket.id);
-      const myDevice = socket.data.deviceId;
-      const blockedPair = (a: string, b: string) => {
-        const other = a === myDevice ? b : a;
-        if (socket.data.blocked.has(other)) return true;
-        for (const id of socketsByDevice.get(other) ?? []) if (io.sockets.sockets.get(id)?.data.blocked.has(myDevice)) return true;
-        return false;
-      };
-      const { room, seat } = rooms.join(
-        {
-          socketId: socket.id,
-          deviceId: myDevice,
-          gender,
-          name: socket.data.profile?.name ?? '',
-          avatar: socket.data.profile?.avatar ?? null,
-          country: me && !me.hideCountry ? me.country : null,
-          verified: !!socket.data.verified,
-        },
-        topic,
-        mode,
-        blockedPair,
-      );
-      analytics.count('roomJoins');
-      ack({ ok: true, roomId: room.id, you: seat.id, members: roomPeers(socket.id).map(memberView), iceServers: turn.current(), mode });
-      for (const x of roomPeers(socket.id)) io.to(x.socketId).emit('room:member-joined', memberView(seat));
-    });
-    socket.on('room:leave', leaveRoom);
-    socket.on('disconnect', leaveRoom);
-    socket.on('room:signal', (to, payload) => {
-      const me = rooms.seatOf(socket.id);
-      const target = roomPeers(socket.id).find((x) => x.id === to);
-      const msg = parseSignal(payload);
-      if (!me || !target || !msg) return;
-      if (!underBurst(roomSignalAt, ROOM_SIGNAL_BURST, ROOM_SIGNAL_WINDOW_MS)) return;
-      io.to(target.socketId).emit('room:signal', { from: me.id, msg });
-    });
-    socket.on('room:chat', (payload) => {
-      const me = rooms.seatOf(socket.id);
-      const text = parseChatText(payload);
-      if (!me || !text) return;
-      if (!underBurst(roomChatAt, CHAT_BURST, CHAT_WINDOW_MS)) return void socket.emit('chat:rejected', 'rate-limited');
-      if (looksLikeLink(text)) return void socket.emit('chat:rejected', 'link');
-      const chat = { from: me.id, text, at: Date.now() };
-      for (const x of rooms.roomOf(socket.id)?.seats ?? []) io.to(x.socketId).emit('room:chat', chat);
-    });
-    socket.on('room:report', async (memberId, reason) => {
-      const target = roomPeers(socket.id).find((x) => x.id === memberId);
-      if (!target || !REPORT_REASONS.includes(reason)) return;
-      const now = Date.now();
-      const times = socket.data.reportsAt;
-      while (times.length && now - times[0]! > REPORT_WINDOW_MS) times.shift();
-      if (times.length >= REPORT_BURST) return;
-      times.push(now);
-      const t = io.sockets.sockets.get(target.socketId)?.data;
-      if (!t) return;
-      try {
-        await safety.report(
-          { deviceId: socket.data.deviceId, ipHash: socket.data.ipHash, userId: socket.data.userId },
-          { deviceId: t.deviceId, ipHash: t.ipHash, userId: t.userId },
-          { target: 'current', reason, source: 'user', note: 'Reported in a group room' },
-        );
-        analytics.count('reports');
-        void refreshTrust(target.socketId).catch(() => undefined);
-        // Block them so you're never put in a room (or chat) together again.
-        await store.addBlock(socket.data.deviceId, t.deviceId).catch(() => undefined);
-        matchmaker.block(socket.data.deviceId, t.deviceId);
-        socket.data.blocked.add(t.deviceId);
-      } catch (e) {
-        console.error('[room:report]', e);
-      }
-    });
-
-    // ---- Mini-games (the server keeps the board so both see the same thing) ----
-    const sendGame = (matchId: string, a: string, b: string) => {
-      const entry = games.get(matchId);
-      io.to(a).emit('game:state', entry ? viewFor(entry, a) : null);
-      io.to(b).emit('game:state', entry ? viewFor(entry, b) : null);
-    };
-    socket.on('game:start', (game) => {
-      const partner = matchmaker.partnerOf(socket.id);
-      const matchId = matchmaker.get(socket.id)?.matchId;
-      if (!partner || !matchId || !GAMES.some((g) => g.id === game)) return;
-      games.set(matchId, newGame(game, socket.id, partner.id));
-      if (games.size > 5_000) games.delete(games.keys().next().value!);
-      analytics.count('games');
-      sendGame(matchId, socket.id, partner.id);
-    });
-    socket.on('game:move', (move) => {
-      const partner = matchmaker.partnerOf(socket.id);
-      const matchId = matchmaker.get(socket.id)?.matchId;
-      const state = matchId ? games.get(matchId) : undefined;
-      if (!partner || !matchId || !state || !move || typeof move !== 'object') return;
-      const next = applyMove(state, socket.id, partner.id, move);
-      if (!next) return;
-      games.set(matchId, next);
-      sendGame(matchId, socket.id, partner.id);
-    });
-    socket.on('game:end', () => {
-      const partner = matchmaker.partnerOf(socket.id);
-      const matchId = matchmaker.get(socket.id)?.matchId;
-      if (!partner || !matchId || !games.delete(matchId)) return;
-      sendGame(matchId, socket.id, partner.id);
-    });
-
-    const reactionsAt: number[] = [];
-    socket.on('reaction', (emoji) => {
-      if (!(REACTIONS as readonly string[]).includes(emoji)) return;
-      const partner = matchmaker.partnerOf(socket.id);
-      if (!partner) return;
-      // At most 8 reactions per 4 s.
-      const now = Date.now();
-      while (reactionsAt.length && now - reactionsAt[0] > 4_000) reactionsAt.shift();
-      if (reactionsAt.length >= 8) return;
-      reactionsAt.push(now);
-      io.to(partner.id).emit('reaction', emoji);
-    });
-
-    socket.on('users:list', (ack) => {
-      if (typeof ack !== 'function') return;
-      if (!socket.data.plus) return ack(null);
-      ack(
-        matchmaker.listActive(socket.id).map((u) => {
-          const session = matchmaker.byPublicId(u.publicId);
-          return session ? { ...u, ...profileOf(session.id) } : u;
-        }),
-      );
-    });
-
-    /** Sends a direct call request to `target` (from the Online list or the Friends list). */
-    const startRequest = (target: Session, friend: boolean, friendNickname?: string): CallRequestResult => {
-      if (stillBanned()) return { ok: false, reason: 'unavailable' };
-      if (requestFrom(socket.id)) return { ok: false, reason: 'pending' };
-      // Someone with a request already open can't be asked again until it's answered.
-      if ([...callRequests.values()].some((r) => r.to === target.id)) return { ok: false, reason: 'busy' };
-      const check = matchmaker.canCall(socket.id, target.id, friend);
-      if (check !== 'ok') return { ok: false, reason: check };
-      // No ringing the same person again and again after they said no.
-      const targetData = io.sockets.sockets.get(target.id)?.data;
-      if (targetData) {
-        const loop = guard.canRequest(limitKey(socket.data), limitKey(targetData));
-        if (loop !== 'ok') return { ok: false, reason: loop };
-        guard.noteRequest(limitKey(targetData));
-      }
-
-      const me = matchmaker.get(socket.id)!;
-      const requestId = randomUUID();
-      const expiresAt = Date.now() + CALL_REQUEST_MS;
-      const timer = setTimeout(() => closeRequest(requestId, { accepted: false, reason: 'timeout' }, true), CALL_REQUEST_MS);
-      callRequests.set(requestId, { from: socket.id, to: target.id, timer, friend });
-      io.to(target.id).emit('call:incoming', {
-        requestId,
-        expiresAt,
-        ...(friend ? { friend: friendNickname ?? '' } : {}),
-        from: {
-          gender: me.gender,
-          country: me.hideCountry ? null : me.country,
-          locationHidden: me.hideCountry,
-          plus: me.plus,
-          isNew: isNewUser(socket.id),
-          verified: me.verified,
-          ...profileOf(socket.id),
-          sharedInterests: me.interests.filter((i) => target.interests.includes(i)),
-        },
-      });
-      return { ok: true, requestId, expiresAt };
-    };
-
-    socket.on('users:call', (publicId, ack) => {
-      if (typeof ack !== 'function') return;
-      if (!socket.data.plus) return ack({ ok: false, reason: 'plus-required' });
-      const target = typeof publicId === 'string' ? matchmaker.byPublicId(publicId) : undefined;
-      if (!target) return ack({ ok: false, reason: 'gone' });
-      ack(startRequest(target, false));
-    });
-
-    // ---- Friends (accounts only) ----
-    const myUser = () => socket.data.userId;
-    /** Opaque per-user handle for a friend, so account ids never reach the browser. */
-    const friendHandle = (friendId: string) => createHash('sha256').update(`f:${myUser()}:${friendId}`).digest('base64url').slice(0, 16);
-    const resolveFriend = async (handle: unknown) => {
-      const me = myUser();
-      if (!me || typeof handle !== 'string') return null;
-      return (await accounts.listFriends(me)).find((f) => friendHandle(f.friendId) === handle) ?? null;
-    };
-    /**
-     * Someone you may message: a friend, a person from your History with an
-     * account, or someone who messaged you.
-     */
-    const resolveContact = async (handle: unknown): Promise<{ userId: string; friend: boolean; label: string } | null> => {
-      const me = myUser();
-      if (!me || typeof handle !== 'string') return null;
-      const friend = (await accounts.listFriends(me)).find((f) => friendHandle(f.friendId) === handle);
-      if (friend) return { userId: friend.friendId, friend: true, label: friend.nickname ?? '' };
-      const met = (await accounts.historyOf(me, 1000)).find((h) => h.partnerUserId && friendHandle(h.partnerUserId) === handle);
-      if (met) return { userId: met.partnerUserId!, friend: false, label: met.name };
-      const thread = (await accounts.threadsOf(me)).find((t) => friendHandle(t.other) === handle);
-      return thread ? { userId: thread.other, friend: false, label: '' } : null;
-    };
-    /** The best socket of a user: a free one in the call screen first. */
-    const socketsOfUser = (userId: string) => [...io.sockets.sockets.values()].filter((x) => x.data.userId === userId);
-
-    socket.on('friend:add', async () => {
-      const partner = matchmaker.partnerOf(socket.id);
-      const me = matchmaker.get(socket.id);
-      if (!partner || !me?.matchId) return;
-      const myId = myUser();
-      const partnerSocket = io.sockets.sockets.get(partner.id);
-      const theirId = partnerSocket?.data.userId ?? null;
-      if (!myId) return void socket.emit('friend:state', 'login-required');
-      if (!theirId) return void socket.emit('friend:state', 'partner-guest');
-      try {
-        if (await accounts.isFriend(myId, theirId)) {
-          socket.emit('friend:state', 'friends');
-          return;
-        }
-        if ((await accounts.listFriends(myId)).length >= MAX_FRIENDS) return void socket.emit('friend:state', 'full');
-        const wants = friendWants.get(me.matchId) ?? new Set<string>();
-        wants.add(myId);
-        friendWants.set(me.matchId, wants);
-        if (!wants.has(theirId)) {
-          socket.emit('friend:state', 'requested');
-          io.to(partner.id).emit('friend:state', 'they-requested');
-          return;
-        }
-        friendWants.delete(me.matchId);
-        const seen = (s: Session) => ({ gender: s.gender, country: s.hideCountry ? null : s.country });
-        await accounts.addFriend(myId, theirId, seen(partner));
-        await accounts.addFriend(theirId, myId, seen(me));
-        socket.emit('friend:state', 'friends');
-        io.to(partner.id).emit('friend:state', 'friends');
-      } catch (e) {
-        console.error('[friend:add]', e);
-      }
-    });
-
-    socket.on('friends:list', async (ack) => {
-      if (typeof ack !== 'function') return;
-      const me = myUser();
-      if (!me) return ack(null);
-      try {
-        const [list, unread] = await Promise.all([accounts.listFriends(me), accounts.unreadCounts(me)]);
-        ack(
-          list.map((f) => {
-            const socks = socketsOfUser(f.friendId);
-            const sessions = socks.map((x) => matchmaker.get(x.id)).filter((x): x is Session => !!x);
-            const status: Friend['status'] = sessions.some((x) => x.joined && !x.partnerId)
-              ? 'available'
-              : sessions.some((x) => x.partnerId)
-                ? 'in-call'
-                : socks.length
-                  ? 'online'
-                  : 'offline';
-            return {
-              id: friendHandle(f.friendId),
-              nickname: f.nickname,
-              gender: (f.gender as Friend['gender']) ?? null,
-              country: f.country,
-              since: f.createdAt,
-              status,
-              unread: unread.get(f.friendId) ?? 0,
-            };
-          }),
-        );
-      } catch (e) {
-        console.error('[friends:list]', e);
-        ack([]);
-      }
-    });
-
-    // ---- Messages between friends (kept until read, pushed when they're away) ----
-    const dmView = (m: StoredMessage, me: string): DirectMessage => ({
-      id: m.id,
-      fromMe: m.from === me,
-      text: m.text,
-      at: m.at,
-      ...(m.from === me ? { read: !!m.readAt } : {}),
-    });
-
-    socket.on('dm:threads', async (ack) => {
-      if (typeof ack !== 'function') return;
-      const me = myUser();
-      if (!me) return ack(null);
-      try {
-        const [threads, friends, history] = await Promise.all([accounts.threadsOf(me), accounts.listFriends(me), accounts.historyOf(me, 1000)]);
-        const friendOf = new Map(friends.map((f) => [f.friendId, f]));
-        ack(
-          threads.map((t) => {
-            const f = friendOf.get(t.other);
-            const met = history.find((h) => h.partnerUserId === t.other);
-            const live = socketsOfUser(t.other);
-            return {
-              id: friendHandle(t.other),
-              name: f?.nickname || met?.name || live[0]?.data.profile?.name || (f ? 'Friend' : 'Someone'),
-              avatar: met?.avatar ?? live[0]?.data.profile?.avatar ?? null,
-              lastText: t.last.text,
-              lastAt: t.last.at,
-              lastFromMe: t.last.from === me,
-              unread: t.unread,
-              friend: !!f,
-              online: live.length > 0,
-              request: !f && t.mine === 0 && t.theirs > 0,
-            };
-          }),
-        );
-      } catch (e) {
-        console.error('[dm:threads]', e);
-        ack(null);
-      }
-    });
-
-    // ---- History & follows ----
-    const historyId = (h: HistoryRow) =>
-      h.partnerUserId ? friendHandle(h.partnerUserId) : `g${createHash('sha256').update(`${myUser()}:${h.partnerKey}`).digest('base64url').slice(0, 15)}`;
-    socket.on('history:list', async (ack) => {
-      if (typeof ack !== 'function') return;
-      const me = myUser();
-      if (!me) return ack(null);
-      try {
-        const [rows, following, friends] = await Promise.all([accounts.historyOf(me, 1000), accounts.following(me), accounts.listFriends(me)]);
-        const friendIds = new Set(friends.map((f) => f.friendId));
-        const people = new Map<string, HistoryPerson>();
-        for (const h of rows) {
-          const p = people.get(h.partnerKey);
-          if (p) {
-            p.count++;
-            continue;
-          }
-          people.set(h.partnerKey, {
-            id: historyId(h),
-            name: h.name,
-            avatar: h.avatar,
-            gender: (h.gender as HistoryPerson['gender']) ?? null,
-            country: h.country,
-            count: 1,
-            lastAt: h.at,
-            lastMode: h.mode as ChatMode,
-            hasAccount: !!h.partnerUserId,
-            following: !!h.partnerUserId && following.has(h.partnerUserId),
-            friend: !!h.partnerUserId && friendIds.has(h.partnerUserId),
-            online: !!h.partnerUserId && socketsOfUser(h.partnerUserId).length > 0,
-          });
-        }
-        const weekAgo = Date.now() - 7 * 86_400_000;
-        ack({ people: [...people.values()], total: rows.length, recent: rows.filter((h) => h.at >= weekAgo).length });
-      } catch (e) {
-        console.error('[history:list]', e);
-        ack(null);
-      }
-    });
-    socket.on('history:remove', async (id, ack) => {
-      if (typeof ack !== 'function') return;
-      const me = myUser();
-      if (!me) return ack(false);
-      const row = (await accounts.historyOf(me, 1000)).find((h) => historyId(h) === id);
-      if (!row) return ack(false);
-      await accounts.removeHistory(me, row.partnerKey);
-      ack(true);
-    });
-    socket.on('follow:set', async (id, on, ack) => {
-      if (typeof ack !== 'function') return;
-      const me = myUser();
-      if (!me || typeof on !== 'boolean') return ack(false);
-      // You can follow people you've actually met.
-      const row = (await accounts.historyOf(me, 1000)).find((h) => h.partnerUserId && historyId(h) === id);
-      if (!row) return ack(false);
-      if (on && (await accounts.following(me)).size >= 500) return ack(false);
-      await accounts.follow(me, row.partnerUserId!, on);
-      ack(true);
-    });
-
-    socket.on('dm:send', async (handle, text, ack) => {
-      if (typeof ack !== 'function') return;
-      const me = myUser();
-      if (!me) return ack({ ok: false, reason: 'login-required' });
-      const clean = parseChatText(text);
-      if (!clean) return ack({ ok: false, reason: 'invalid' });
-      try {
-        const c = await resolveContact(handle);
-        if (!c) return ack({ ok: false, reason: 'not-friends' });
-        const f = { friendId: c.userId };
-        // Not friends: a message request, a few messages until they reply.
-        if (!c.friend) {
-          const t = (await accounts.threadsOf(me)).find((x) => x.other === c.userId);
-          if (t && t.theirs === 0 && t.mine >= DM_REQUEST_LIMIT) return ack({ ok: false, reason: 'wait-reply' });
-        }
-        const stored = await accounts.addMessage(me, f.friendId, clean);
-        ack({ ok: true, message: dmView(stored, me) });
-        const theirSockets = socketsOfUser(f.friendId);
-        for (const x of theirSockets) x.emit('dm:new', { friendId: friendHandleFor(f.friendId, me), message: dmView(stored, f.friendId) });
-        // Your other tabs see it too.
-        for (const x of socketsOfUser(me)) if (x.id !== socket.id) x.emit('dm:new', { friendId: handle as string, message: dmView(stored, me) });
-        if (!theirSockets.length) {
-          const theirs = (await accounts.listFriends(f.friendId)).find((x) => x.friendId === me);
-          void push.send(f.friendId, {
-            title: `💬 ${theirs?.nickname || socket.data.profile?.name || (c.friend ? 'A friend' : 'New message')}`,
-            body: clean.length > 120 ? `${clean.slice(0, 117)}…` : clean,
-            url: `/messages?with=${encodeURIComponent(friendHandleFor(f.friendId, me))}`,
-            tag: `dm-${friendHandleFor(f.friendId, me)}`,
-          });
-        }
-      } catch (e) {
-        console.error('[dm:send]', e);
-        ack({ ok: false, reason: 'invalid' });
-      }
-    });
-    socket.on('dm:history', async (handle, ack) => {
-      if (typeof ack !== 'function') return;
-      const me = myUser();
-      if (!me) return ack(null);
-      try {
-        const c = await resolveContact(handle);
-        if (!c) return ack(null);
-        const messages = await accounts.messagesBetween(me, c.userId, 50);
-        const hadUnread = messages.some((m) => m.to === me && !m.readAt);
-        await accounts.markRead(me, c.userId);
-        ack(messages.map((m) => dmView(m, me)));
-        // Their ✓✓ turns blue.
-        if (hadUnread) for (const x of socketsOfUser(c.userId)) x.emit('dm:read', friendHandleFor(c.userId, me));
-      } catch (e) {
-        console.error('[dm:history]', e);
-        ack(null);
-      }
-    });
-
-    socket.on('friends:call', async (handle, ack) => {
-      if (typeof ack !== 'function') return;
-      if (!myUser()) return ack({ ok: false, reason: 'login-required' });
-      const f = await resolveFriend(handle).catch(() => null);
-      if (!f) return ack({ ok: false, reason: 'gone' });
-      const sessions = socketsOfUser(f.friendId)
-        .map((x) => matchmaker.get(x.id))
-        .filter((x): x is Session => !!x);
-      const target = sessions.find((x) => x.joined && !x.partnerId);
-      if (!target) return ack({ ok: false, reason: sessions.length ? (sessions.some((x) => x.partnerId) ? 'busy' : 'offline') : 'offline' });
-      // Their nickname for me, so they see who is calling.
-      const theirs = await accounts.listFriends(f.friendId).catch(() => []);
-      ack(startRequest(target, true, theirs.find((x) => x.friendId === myUser())?.nickname ?? ''));
-    });
-
-    socket.on('friends:remove', async (handle, ack) => {
-      const done = typeof ack === 'function' ? ack : () => undefined;
-      const f = await resolveFriend(handle).catch(() => null);
-      if (!f) return done(false);
-      await accounts.removeFriendship(myUser()!, f.friendId).catch(() => undefined);
-      done(true);
-    });
-
-    socket.on('friends:rename', async (handle, nickname, ack) => {
-      const done = typeof ack === 'function' ? ack : () => undefined;
-      const f = await resolveFriend(handle).catch(() => null);
-      if (!f || typeof nickname !== 'string') return done(false);
-      const clean = nickname.trim().slice(0, MAX_FRIEND_NICKNAME) || null;
-      await accounts.renameFriend(myUser()!, f.friendId, clean).catch(() => undefined);
-      done(true);
-    });
-
-    socket.on('users:cancel', () => {
-      const pending = requestFrom(socket.id);
-      if (pending) closeRequest(pending[0], null, true);
-    });
-
-    socket.on('users:answer', (requestId, accept) => {
-      const r = typeof requestId === 'string' ? callRequests.get(requestId) : undefined;
-      if (!r || r.to !== socket.id) return;
-      if (!accept) return closeRequest(requestId, { accepted: false, reason: 'declined' });
-      const oldPartner = matchmaker.partnerOf(r.from);
-      const result = matchmaker.pairDirect(r.from, r.to, r.friend);
-      if (typeof result === 'string') {
-        socket.emit('call:incoming-cancelled', requestId);
-        return closeRequest(requestId, { accepted: false, reason: result === 'gone' ? 'gone' : 'busy' });
-      }
-      closeRequest(requestId, { accepted: true });
-      if (oldPartner) notifyLeft(oldPartner.id, 'next');
-      announce(result);
-    });
-
-    socket.on('limit:ad-start', () => {
-      if (!limits) return;
-      const result = limits.startAd(limitKey(socket.data));
-      if (result !== 'ok') socket.emit('limit:ad-rejected', result);
-    });
-
-    socket.on('limit:ad-done', () => {
-      if (!limits) return;
-      const key = limitKey(socket.data);
-      const result = limits.finishAd(key);
-      if (result === 'ok') {
-        socket.emit('limit:granted', limits.status(key, socket.data.plus));
-        analytics.count('adsWatched');
-      } else socket.emit('limit:ad-rejected', result);
-    });
-
-    socket.on('settings:reconnect', (allow) => {
-      if (typeof allow === 'boolean') matchmaker.setAllowReconnect(socket.id, allow);
-    });
-
-    socket.on('chat:message', (payload) => {
-      const partner = matchmaker.partnerOf(socket.id);
-      if (!partner) return;
-      const text = parseChatText(payload);
-      if (!text) return void socket.emit('chat:rejected', 'invalid');
-      const now = Date.now();
-      while (sentAt.length && now - sentAt[0]! > CHAT_WINDOW_MS) sentAt.shift();
-      if (sentAt.length >= CHAT_BURST) return void socket.emit('chat:rejected', 'rate-limited');
-      // Strangers can't swap links or social handles (the classic bot / scam opener); friends can.
-      const matchId = matchmaker.get(socket.id)?.matchId;
-      if (looksLikeLink(text) && !(matchId && friendMatches.has(matchId))) return void socket.emit('chat:rejected', 'link');
-      // The same message over and over.
-      const key = text.toLowerCase().replace(/\s+/g, ' ');
-      recentTexts.push(key);
-      if (recentTexts.length > 5) recentTexts.shift();
-      if (recentTexts.filter((t) => t === key).length >= 3) return void socket.emit('chat:rejected', 'spam');
-      sentAt.push(now);
-      io.to(partner.id).emit('chat:message', { text, at: now });
-    });
-
-    socket.on('chat:typing', (typing) => {
-      const partner = matchmaker.partnerOf(socket.id);
-      if (partner && typeof typing === 'boolean') io.to(partner.id).emit('chat:typing', typing);
-    });
-
-    const targetSocketId = (target: 'current' | 'previous') =>
-      target === 'current' ? matchmaker.get(socket.id)?.partnerId ?? undefined : matchmaker.previousPartnerId(socket.id);
-
-    socket.on('report:submit', async (payload) => {
-      const report = parseReport(payload);
-      if (!report) return void socket.emit('report:rejected', 'invalid');
-      const now = Date.now();
-      const times = socket.data.reportsAt;
-      while (times.length && now - times[0]! > REPORT_WINDOW_MS) times.shift();
-      if (times.length >= REPORT_BURST) return void socket.emit('report:rejected', 'rate-limited');
-
-      const targetId = targetSocketId(report.target);
-      const target = targetId ? matchmaker.identityOf(targetId) : undefined;
-      if (!target) return void socket.emit('report:rejected', 'no-target');
-      times.push(now);
-
-      try {
-        await safety.report({ deviceId, ipHash, userId }, target, report);
-        analytics.count('reports');
-        if (targetId) void refreshTrust(targetId).catch(() => undefined);
-        // Reported as underage: pause their account until they pass ✓ verification.
-        if (report.reason === 'underage' && target.userId) {
-          const t = await accounts.userById(target.userId);
-          if (t && !t.verifiedAt) {
-            await accounts.setAgeReview(t.id, true);
-            setAgeHold(t.id, 'review');
-          }
-        }
-        // People you report are never matched with you again.
-        if (report.source === 'user') {
-          await store.addBlock(deviceId, target.deviceId);
-          matchmaker.block(deviceId, target.deviceId);
-        }
-        socket.emit('report:received');
-      } catch (e) {
-        console.error('[report]', e);
-        socket.emit('report:rejected', 'invalid');
-      }
-    });
-
-    socket.on('user:block', async (which) => {
-      if (which !== 'current' && which !== 'previous') return;
-      const targetId = targetSocketId(which);
-      const target = targetId ? matchmaker.identityOf(targetId) : undefined;
-      if (!target) return;
-      // Remember what the blocker saw, for their Blocked list.
-      const seen = targetId ? matchmaker.get(targetId) : undefined;
-      const info = { gender: seen?.gender ?? null, country: seen && !seen.hideCountry ? seen.country : null };
-      await store.addBlock(deviceId, target.deviceId, info).catch((e) => console.error('[block]', e));
-      // Blocking a friend also ends the friendship.
-      if (socket.data.userId && target.userId) await accounts.removeFriendship(socket.data.userId, target.userId).catch(() => undefined);
-      matchmaker.block(deviceId, target.deviceId);
-      socket.emit('user:blocked');
-      if (which === 'current' && matchmaker.get(socket.id)?.partnerId === targetId) {
-        notifyLeft(matchmaker.endMatch(socket.id)?.id, 'next');
-        const pairing = matchmaker.rejoin(socket.id);
-        if (pairing) announce(pairing);
-        else socket.emit('queue:waiting');
-      }
-    });
-
-    /** Opaque handle for a block, so the other device's id never reaches the browser. */
-    const blockHandle = (blocked: string) => createHash('sha256').update(`${deviceId}:${blocked}`).digest('base64url').slice(0, 16);
-
-    socket.on('blocks:list', async (ack) => {
-      if (typeof ack !== 'function') return;
-      const list = await store.listBlocks(deviceId).catch(() => []);
-      ack(
-        list.map((b) => ({
-          id: blockHandle(b.blocked),
-          gender: (b.gender as BlockedUser['gender']) ?? null,
-          country: b.country,
-          createdAt: b.createdAt,
-        })),
-      );
-    });
-
-    socket.on('blocks:remove', async (id, ack) => {
-      const done = typeof ack === 'function' ? ack : () => undefined;
-      if (typeof id !== 'string') return done(false);
-      try {
-        const match = (await store.listBlocks(deviceId)).find((b) => blockHandle(b.blocked) === id);
-        if (!match || !(await store.removeBlock(deviceId, match.blocked))) return done(false);
-        // Refresh both sides' live block lists (they may still block each other the other way).
-        for (const dev of [deviceId, match.blocked]) {
-          const set = await store.blocksFor(dev);
-          matchmaker.setBlocked(dev, set);
-          for (const s of io.sockets.sockets.values()) if (s.data.deviceId === dev) s.data.blocked = set;
-        }
-        done(true);
-      } catch (e) {
-        console.error('[unblock]', e);
-        done(false);
-      }
-    });
-
-    socket.on('ban:appeal', async (message) => {
-      const ban = socket.data.ban;
-      if (!ban || ban.appealPending || typeof message !== 'string') return;
-      const text = message.trim().slice(0, MAX_APPEAL_LENGTH);
-      if (!text) return;
-      if (await store.hasOpenAppeal(ban.banId)) return;
-      await store.addAppeal(ban.banId, deviceId, text);
-      socket.data.ban = { ...ban, appealPending: true };
-      socket.emit('ban:appealed');
-      socket.emit('banned', socket.data.ban);
-    });
-
-    socket.on('call:result', (payload) => {
-      const result = parseCallResult(payload);
-      if (!result) return;
-      metrics.reports += 1;
-      metrics.recent.unshift({ at: Date.now(), connected: result.connected, ms: result.ms, diag: result.diag });
-      metrics.recent.length = Math.min(metrics.recent.length, 50);
-      if (result.connected) {
-        metrics.connected += 1;
-        metrics.connectMsTotal += result.ms;
-      }
-    });
-
-    // Video over the server when WebRTC cannot connect (no TURN, strict networks).
-    let relayWindowStart = Date.now();
-    let relayWindowBytes = 0;
-
-    socket.on('relay:start', () => {
-      const session = matchmaker.get(socket.id);
-      const partner = matchmaker.partnerOf(socket.id);
-      if (!session?.matchId || !partner) return;
-      // Both sides may announce; count each match once.
-      if (!relayedMatches.has(session.matchId)) {
-        relayedMatches.add(session.matchId);
-        metrics.relayCalls += 1;
-        if (relayedMatches.size > 10_000) relayedMatches.clear();
-      }
-      io.to(partner.id).emit('relay:start');
-    });
-
-    socket.on('relay:chunk', (chunk) => {
-      const partner = matchmaker.partnerOf(socket.id);
-      if (!partner || !chunk || typeof chunk !== 'object') return;
-      const data = (chunk as { data?: unknown }).data;
-      const size = data instanceof ArrayBuffer ? data.byteLength : Buffer.isBuffer(data) ? data.length : -1;
-      const { seq, mime } = chunk as { seq?: unknown; mime?: unknown };
-      if (size <= 0 || size > MAX_RELAY_CHUNK_BYTES || typeof seq !== 'number' || typeof mime !== 'string' || mime.length > 80) return;
-      const now = Date.now();
-      if (now - relayWindowStart >= 1_000) {
-        relayWindowStart = now;
-        relayWindowBytes = 0;
-      }
-      relayWindowBytes += size;
-      if (relayWindowBytes > RELAY_BYTES_PER_SECOND) return; // over budget: drop (the stream recovers on the next keyframe)
-      metrics.relayBytes += size;
-      io.to(partner.id).emit('relay:chunk', { seq, mime, data: data as ArrayBuffer });
-    });
-
-    socket.on('signal', (payload) => {
-      const msg = parseSignal(payload);
-      const partner = matchmaker.partnerOf(socket.id);
-      if (msg && partner) io.to(partner.id).emit('signal', msg);
-    });
-
-    socket.on('disconnect', () => {
-      for (const [id, r] of callRequests) {
-        if (r.from === socket.id) closeRequest(id, null, true);
-        else if (r.to === socket.id) closeRequest(id, { accepted: false, reason: 'gone' });
-      }
-      notifyLeft(matchmaker.disconnect(socket.id)?.id, 'disconnect');
-    });
+    const base = { socket, deviceId, ipHash, userId, stillBanned, pausedForSkipping, underBurst };
+    const scope: SocketScope = { ...base, startRequest: createStartRequest(ctx, base) };
+    registerCall(ctx, scope);
+    registerBilling(ctx, scope);
+    registerRooms(ctx, scope);
+    registerGames(ctx, scope);
+    registerDm(ctx, scope);
+    registerSafety(ctx, scope);
+    registerCallCleanup(ctx, scope);
   });
 
   const statsTimer = setInterval(
@@ -1806,7 +886,7 @@ export function createApp(opts: AppOptions = {}): App {
   }, 60_000);
   memorySweep.unref();
   const purgeTimer = setInterval(
-    () => void store.purgeSnapshots(Date.now() - SNAPSHOT_RETENTION_MS).catch((e) => console.error('[purge]', e)),
+    () => void store.purgeSnapshots(Date.now() - SNAPSHOT_RETENTION_MS).catch((e) => log.error('purge', e)),
     60 * 60_000,
   );
 
@@ -1832,6 +912,12 @@ export function createApp(opts: AppOptions = {}): App {
       await io.close();
     },
   };
+}
+
+/** Drops the oldest entry (insertion order) of a size-capped Map or Set. */
+function dropOldest(c: Map<string, unknown> | Set<string>) {
+  const first = c.keys().next();
+  if (!first.done) c.delete(first.value);
 }
 
 /** Country from a CDN/edge header when deployed behind one; null locally. */

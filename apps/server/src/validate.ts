@@ -5,11 +5,16 @@ import {
   MAX_BIO,
   MAX_NAME,
   TOPICS,
+  GAMES,
+  REACTIONS,
+  REPORT_REASONS,
   MAX_INTEREST_LENGTH,
   MAX_INTERESTS,
   MAX_MESSAGE_LENGTH,
   type CallResult,
   type ChatMode,
+  type GameId,
+  type ReportReason,
   type Gender,
   type JoinPayload,
   type SignalMessage,
@@ -154,4 +159,32 @@ export function parseFilters(input: unknown): MatchFilters | null {
     f.country === 'any' ? 'any' : typeof f.country === 'string' && /^[A-Za-z]{2}$/.test(f.country) ? f.country.toUpperCase() : null;
   if (!gender || !country) return null;
   return f.verifiedOnly === true ? { gender, country, verifiedOnly: true } : { gender, country };
+}
+
+/** A listed emoji reaction, or null. */
+export function parseReaction(input: unknown): (typeof REACTIONS)[number] | null {
+  return typeof input === 'string' && (REACTIONS as readonly string[]).includes(input) ? (input as (typeof REACTIONS)[number]) : null;
+}
+
+/** A known mini-game id, or null. */
+export function parseGameId(input: unknown): GameId | null {
+  return typeof input === 'string' && GAMES.some((g) => g.id === input) ? (input as GameId) : null;
+}
+
+/** A listed report reason, or null. */
+export function parseReportReason(input: unknown): ReportReason | null {
+  return typeof input === 'string' && (REPORT_REASONS as readonly string[]).includes(input) ? (input as ReportReason) : null;
+}
+
+/** Which partner a report or block is about. */
+export function parseReportTarget(input: unknown): 'current' | 'previous' | null {
+  return input === 'current' || input === 'previous' ? input : null;
+}
+
+/** room:join arguments: a listed topic, an audio/video mode and a gender; null when any is off. */
+export function parseRoomJoin(topic: unknown, mode: unknown, gender: unknown): { topic: string; mode: 'video' | 'voice'; gender: Gender } | null {
+  if (typeof topic !== 'string' || !TOPICS.some((t) => t.id === topic)) return null;
+  if (mode !== 'video' && mode !== 'voice') return null;
+  if (!GENDERS.includes(gender as Gender)) return null;
+  return { topic, mode, gender: gender as Gender };
 }

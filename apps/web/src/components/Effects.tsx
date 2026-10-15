@@ -2,37 +2,46 @@
 
 import { useState } from 'react';
 import { BACKGROUND_OPTIONS } from '@/lib/backgroundEffect';
-import { MASK_OPTIONS } from '@/lib/faceMask';
+import { LENSES, MASK_OPTIONS } from '@/lib/faceMask';
 import type { RandomCall } from '@/lib/useRandomCall';
 
 /** The background picker: No effect, blur levels and virtual backgrounds. */
 export function EffectsGrid({ call }: { call: RandomCall }) {
   return (
     <>
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-mute">Face masks</p>
-      <div className="mb-4 grid grid-cols-4 gap-2" role="radiogroup" aria-label="Face mask">
-        {MASK_OPTIONS.map((o) => {
-          const active = call.faceMask === o.kind;
-          return (
-            <button
-              key={o.kind}
-              role="radio"
-              aria-checked={active}
-              disabled={call.backgroundBusy}
-              onClick={() => void call.setFaceMask(o.kind)}
-              title={o.label}
-              className={`flex aspect-square flex-col items-center justify-center gap-0.5 rounded-lg border-2 bg-card-2 text-[10px] leading-tight text-white transition disabled:opacity-50 ${
-                active ? 'border-lime' : 'border-transparent hover:border-white/30'
-              }`}
-            >
-              <span className="text-2xl" aria-hidden>
-                {o.emoji}
-              </span>
-              <span className="font-medium">{o.label}</span>
-            </button>
-          );
-        })}
-      </div>
+      {(
+        [
+          ['Lenses', MASK_OPTIONS.filter((o) => o.kind === 'none' || LENSES.includes(o.kind))],
+          ['Full masks', MASK_OPTIONS.filter((o) => o.kind !== 'none' && !LENSES.includes(o.kind))],
+        ] as const
+      ).map(([title, opts]) => (
+        <div key={title}>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-mute">{title}</p>
+          <div className="mb-4 grid grid-cols-4 gap-2" role="radiogroup" aria-label={title}>
+            {opts.map((o) => {
+              const active = call.faceMask === o.kind;
+              return (
+                <button
+                  key={o.kind}
+                  role="radio"
+                  aria-checked={active}
+                  disabled={call.backgroundBusy}
+                  onClick={() => void call.setFaceMask(o.kind)}
+                  title={o.label}
+                  className={`flex aspect-square flex-col items-center justify-center gap-0.5 rounded-lg border-2 bg-card-2 text-[10px] leading-tight text-white transition disabled:opacity-50 ${
+                    active ? 'border-lime' : 'border-transparent hover:border-white/30'
+                  }`}
+                >
+                  <span className="text-2xl" aria-hidden>
+                    {o.emoji}
+                  </span>
+                  <span className="font-medium">{o.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-mute">Background</p>
       <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label="Background">
         {BACKGROUND_OPTIONS.map((o) => {

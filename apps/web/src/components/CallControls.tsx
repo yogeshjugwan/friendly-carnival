@@ -202,14 +202,14 @@ function MaskButton({ call, className }: { call: RandomCall; className: string }
     <div className="relative">
       <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Face masks and backgrounds" title="Face masks" className={className}>
         <span className="text-xl leading-none" aria-hidden>
-          {MASK_OPTIONS.find((m) => m.kind === call.faceMask && m.kind !== 'none')?.emoji ?? '🐵'}
+          {MASK_OPTIONS.find((m) => m.kind === call.faceMask && m.kind !== 'none')?.emoji ?? '🐶'}
         </span>
         <CtlLabel>Masks</CtlLabel>
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
-          <div className="fixed inset-x-2 bottom-24 z-40 rounded-2xl border border-line-2 bg-card p-4 text-[#f4f5f7] shadow-2xl sm:absolute sm:inset-x-auto sm:bottom-full sm:right-0 sm:mb-3 sm:w-80 sm:max-w-[calc(100vw-2rem)]">
+          <div className="fixed inset-x-2 bottom-24 z-40 max-h-[70dvh] overflow-y-auto rounded-2xl border border-line-2 bg-card p-4 text-[#f4f5f7] shadow-2xl sm:absolute sm:inset-x-auto sm:bottom-full sm:right-0 sm:mb-3 sm:w-80 sm:max-w-[calc(100vw-2rem)]">
             <div className="mb-3 flex items-center gap-2">
               <p className="m-0 font-display font-bold">Face masks & backgrounds</p>
               {call.backgroundBusy && <span className="ml-auto h-4 w-4 animate-spin rounded-full border-2 border-line-2 border-t-lime" aria-label="Loading" />}

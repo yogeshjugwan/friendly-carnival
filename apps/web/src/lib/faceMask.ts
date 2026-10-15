@@ -9,7 +9,15 @@ import type { FaceLandmarker } from '@mediapipe/tasks-vision';
  * when you talk. Runs in the browser; no video leaves the device for this.
  */
 
-export type MaskKind = 'none' | 'monkey' | 'bear' | 'cat' | 'panda' | 'fox' | 'alien';
+export type MaskKind =
+  | 'none'
+  | 'monkey' | 'bear' | 'cat' | 'panda' | 'fox' | 'alien'
+  // Snapchat-style: your face stays, things are added on it.
+  | 'puppy' | 'bunny' | 'shades' | 'crown' | 'flowers' | 'hearts' | 'mustache'
+  | 'devil' | 'angel' | 'kitty' | 'party' | 'clown' | 'stars';
+
+/** Lenses keep your face visible; the others cover it. */
+export const LENSES: MaskKind[] = ['puppy', 'bunny', 'shades', 'crown', 'flowers', 'hearts', 'mustache', 'devil', 'angel', 'kitty', 'party', 'clown', 'stars'];
 
 export const MASK_OPTIONS: { kind: MaskKind; label: string; emoji: string }[] = [
   { kind: 'none', label: 'No mask', emoji: '⊘' },
@@ -19,6 +27,19 @@ export const MASK_OPTIONS: { kind: MaskKind; label: string; emoji: string }[] = 
   { kind: 'panda', label: 'Panda', emoji: '🐼' },
   { kind: 'fox', label: 'Fox', emoji: '🦊' },
   { kind: 'alien', label: 'Alien', emoji: '👽' },
+  { kind: 'puppy', label: 'Puppy', emoji: '🐶' },
+  { kind: 'bunny', label: 'Bunny', emoji: '🐰' },
+  { kind: 'shades', label: 'Shades', emoji: '😎' },
+  { kind: 'crown', label: 'Crown', emoji: '👑' },
+  { kind: 'flowers', label: 'Flowers', emoji: '🌸' },
+  { kind: 'hearts', label: 'Hearts', emoji: '😍' },
+  { kind: 'mustache', label: 'Mustache', emoji: '🥸' },
+  { kind: 'devil', label: 'Devil', emoji: '😈' },
+  { kind: 'angel', label: 'Angel', emoji: '😇' },
+  { kind: 'kitty', label: 'Kitty', emoji: '😺' },
+  { kind: 'party', label: 'Party', emoji: '🥳' },
+  { kind: 'clown', label: 'Clown', emoji: '🤡' },
+  { kind: 'stars', label: 'Stars', emoji: '🤩' },
 ];
 
 const VERSION = '1.0.1';
@@ -112,7 +133,7 @@ interface Look {
   patches?: string;
 }
 
-const LOOKS: Record<Exclude<MaskKind, 'none'>, Look> = {
+const LOOKS: Partial<Record<MaskKind, Look>> = {
   monkey: { head: '#9b6b3e', face: '#f1d3a8', ear: '#9b6b3e', inner: '#f2a7b0', nose: '#5a3a22', ears: 'side' },
   bear: { head: '#8b5a2b', face: '#d9a873', ear: '#8b5a2b', inner: '#d9a873', nose: '#2b1a10', ears: 'round' },
   cat: { head: '#f2a65a', face: '#fde2c4', ear: '#f2a65a', inner: '#f7b6c2', nose: '#e86f8a', ears: 'pointy' },
@@ -131,7 +152,8 @@ function ellipse(ctx: CanvasRenderingContext2D, x: number, y: number, rx: number
 /** Draws `kind` over the face described by `pose`. */
 export function drawMask(ctx: CanvasRenderingContext2D, kind: MaskKind, pose: FacePose) {
   if (kind === 'none') return;
-  const look = LOOKS[kind];
+  if (LENSES.includes(kind)) return drawLens(ctx, kind, pose);
+  const look = LOOKS[kind]!;
   const r = pose.size * 0.62; // head radius: a bit bigger than the face so it covers it
   ctx.save();
   ctx.translate(pose.x, pose.y - r * 0.05);
@@ -236,4 +258,263 @@ export function drawMask(ctx: CanvasRenderingContext2D, kind: MaskKind, pose: Fa
     ctx.stroke();
   }
   ctx.restore();
+}
+
+function heart(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(size / 20, size / 20);
+  ctx.beginPath();
+  ctx.moveTo(0, 6);
+  ctx.bezierCurveTo(-10, -2, -8, -12, 0, -6);
+  ctx.bezierCurveTo(8, -12, 10, -2, 0, 6);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.restore();
+}
+
+function flower(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, petal: string) {
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    ellipse(ctx, x + Math.cos(a) * r * 0.6, y + Math.sin(a) * r * 0.6, r * 0.55, r * 0.55, petal);
+  }
+  ellipse(ctx, x, y, r * 0.45, r * 0.45, '#ffd54a');
+}
+
+/**
+ * Lenses: things added on your face (your face stays visible). Positions are in
+ * the face's own frame: x across, y down, r = half the face size.
+ */
+function drawLens(ctx: CanvasRenderingContext2D, kind: MaskKind, pose: FacePose) {
+  const r = pose.size * 0.5;
+  const t = performance.now() / 1000;
+  const eyeY = -r * 0.12;
+  const eyeX = r * 0.36;
+  const noseY = r * 0.28;
+  const mouthY = r * 0.58;
+  const top = -r * 0.95;
+  const open = Math.min(1, pose.jaw * 1.6);
+  ctx.save();
+  ctx.translate(pose.x, pose.y);
+  ctx.rotate(pose.roll);
+  ctx.shadowColor = 'rgba(0,0,0,.25)';
+  ctx.shadowBlur = r * 0.05;
+
+  if (kind === 'puppy') {
+    for (const s of [-1, 1]) {
+      ctx.save();
+      ctx.translate(s * r * 0.75, top + r * 0.1);
+      ctx.rotate(s * 0.35);
+      ellipse(ctx, 0, r * 0.25, r * 0.26, r * 0.5, '#8a5a35');
+      ellipse(ctx, 0, r * 0.3, r * 0.15, r * 0.36, '#c98b5f');
+      ctx.restore();
+    }
+    ellipse(ctx, 0, noseY, r * 0.16, r * 0.11, '#2b1a14');
+    ellipse(ctx, -r * 0.05, noseY - r * 0.03, r * 0.04, r * 0.025, 'rgba(255,255,255,.6)');
+    if (open > 0.25) {
+      ctx.shadowBlur = 0;
+      ellipse(ctx, 0, mouthY + r * 0.18 * open, r * 0.12, r * 0.22 * open, '#ff6f91');
+      ctx.strokeStyle = '#d94a6e';
+      ctx.lineWidth = r * 0.015;
+      ctx.beginPath();
+      ctx.moveTo(0, mouthY);
+      ctx.lineTo(0, mouthY + r * 0.3 * open);
+      ctx.stroke();
+    }
+  } else if (kind === 'bunny') {
+    for (const s of [-1, 1]) {
+      ctx.save();
+      ctx.translate(s * r * 0.35, top - r * 0.35);
+      ctx.rotate(s * 0.15 + Math.sin(t * 2 + s) * 0.05);
+      ellipse(ctx, 0, 0, r * 0.18, r * 0.62, '#ffffff');
+      ellipse(ctx, 0, r * 0.05, r * 0.09, r * 0.48, '#f7b6c2');
+      ctx.restore();
+    }
+    ellipse(ctx, 0, noseY, r * 0.08, r * 0.06, '#f28aa5');
+    ctx.strokeStyle = 'rgba(255,255,255,.9)';
+    ctx.lineWidth = r * 0.012;
+    for (const s of [-1, 1]) for (const k of [-1, 0, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(s * r * 0.12, noseY + r * 0.04);
+      ctx.lineTo(s * r * 0.55, noseY + k * r * 0.1);
+      ctx.stroke();
+    }
+  } else if (kind === 'shades') {
+    ctx.fillStyle = '#111';
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.roundRect(s * eyeX - r * 0.27, eyeY - r * 0.15, r * 0.54, r * 0.32, r * 0.12);
+      ctx.fill();
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ellipse(ctx, s * eyeX - r * 0.08, eyeY - r * 0.04, r * 0.08, r * 0.04, '#fff');
+      ctx.restore();
+    }
+    ctx.fillRect(-r * 0.12, eyeY - r * 0.08, r * 0.24, r * 0.05);
+    ctx.fillRect(-r * 0.9, eyeY - r * 0.1, r * 0.3, r * 0.05);
+    ctx.fillRect(r * 0.6, eyeY - r * 0.1, r * 0.3, r * 0.05);
+  } else if (kind === 'crown') {
+    const y = top - r * 0.05;
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.6, y);
+    ctx.lineTo(-r * 0.6, y - r * 0.35);
+    ctx.lineTo(-r * 0.3, y - r * 0.15);
+    ctx.lineTo(0, y - r * 0.5);
+    ctx.lineTo(r * 0.3, y - r * 0.15);
+    ctx.lineTo(r * 0.6, y - r * 0.35);
+    ctx.lineTo(r * 0.6, y);
+    ctx.closePath();
+    const g = ctx.createLinearGradient(0, y - r * 0.5, 0, y);
+    g.addColorStop(0, '#ffe680');
+    g.addColorStop(1, '#e0a400');
+    ctx.fillStyle = g;
+    ctx.fill();
+    for (const [x, c] of [[-r * 0.3, '#ff4d6d'], [0, '#4dabff'], [r * 0.3, '#4dff9a']] as const) ellipse(ctx, x, y - r * 0.09, r * 0.06, r * 0.06, c);
+  } else if (kind === 'flowers') {
+    const colors = ['#ff8fab', '#ffc6ff', '#ffadad', '#bdb2ff', '#ffd6a5'];
+    for (let i = 0; i < 7; i++) {
+      const a = Math.PI + (i / 6) * Math.PI;
+      flower(ctx, Math.cos(a) * r * 0.85, top + r * 0.35 + Math.sin(a) * r * 0.45, r * 0.13, colors[i % colors.length]!);
+    }
+  } else if (kind === 'hearts') {
+    ctx.shadowBlur = 0;
+    for (const s of [-1, 1]) {
+      heart(ctx, s * eyeX, eyeY, r * 0.38 * (1 + Math.sin(t * 6) * 0.08), '#ff2d55');
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ellipse(ctx, s * r * 0.48, r * 0.3, r * 0.14, r * 0.08, '#ff5c8a');
+      ctx.restore();
+    }
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + t;
+      heart(ctx, Math.cos(a) * r * 1.1, top + r * 0.1 + Math.sin(a) * r * 0.25, r * 0.16, '#ff6b9a');
+    }
+  } else if (kind === 'mustache') {
+    ctx.fillStyle = '#2b1a14';
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(0, mouthY - r * 0.16);
+      ctx.bezierCurveTo(s * r * 0.15, mouthY - r * 0.3, s * r * 0.45, mouthY - r * 0.2, s * r * 0.5, mouthY - r * 0.05);
+      ctx.bezierCurveTo(s * r * 0.4, mouthY - r * 0.1, s * r * 0.2, mouthY - r * 0.08, 0, mouthY - r * 0.06);
+      ctx.fill();
+    }
+    // Round glasses to go with it.
+    ctx.strokeStyle = '#2b1a14';
+    ctx.lineWidth = r * 0.04;
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.arc(s * eyeX, eyeY, r * 0.2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(-eyeX + r * 0.2, eyeY);
+    ctx.lineTo(eyeX - r * 0.2, eyeY);
+    ctx.stroke();
+  } else if (kind === 'devil') {
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(s * r * 0.3, top + r * 0.08);
+      ctx.quadraticCurveTo(s * r * 0.45, top - r * 0.35, s * r * 0.62, top - r * 0.42);
+      ctx.quadraticCurveTo(s * r * 0.55, top - r * 0.1, s * r * 0.58, top + r * 0.15);
+      ctx.closePath();
+      ctx.fillStyle = '#e0242f';
+      ctx.fill();
+    }
+  } else if (kind === 'angel') {
+    ctx.shadowColor = 'rgba(255,230,120,.9)';
+    ctx.shadowBlur = r * 0.25;
+    ctx.strokeStyle = '#ffe680';
+    ctx.lineWidth = r * 0.08;
+    ctx.beginPath();
+    ctx.ellipse(0, top - r * 0.3 + Math.sin(t * 2) * r * 0.03, r * 0.5, r * 0.14, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  } else if (kind === 'kitty') {
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(s * r * 0.2, top + r * 0.05);
+      ctx.lineTo(s * r * 0.55, top - r * 0.45);
+      ctx.lineTo(s * r * 0.78, top + r * 0.12);
+      ctx.closePath();
+      ctx.fillStyle = '#2b2b2b';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(s * r * 0.33, top + r * 0.02);
+      ctx.lineTo(s * r * 0.55, top - r * 0.28);
+      ctx.lineTo(s * r * 0.68, top + r * 0.06);
+      ctx.closePath();
+      ctx.fillStyle = '#f7b6c2';
+      ctx.fill();
+    }
+    ellipse(ctx, 0, noseY, r * 0.07, r * 0.05, '#2b2b2b');
+    ctx.strokeStyle = '#2b2b2b';
+    ctx.lineWidth = r * 0.015;
+    for (const s of [-1, 1]) for (const k of [-1, 0, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(s * r * 0.15, noseY + r * 0.05);
+      ctx.lineTo(s * r * 0.6, noseY + k * r * 0.1 + r * 0.03);
+      ctx.stroke();
+    }
+  } else if (kind === 'party') {
+    ctx.save();
+    ctx.translate(r * 0.25, top - r * 0.05);
+    ctx.rotate(0.25);
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.32, 0);
+    ctx.lineTo(0, -r * 0.8);
+    ctx.lineTo(r * 0.32, 0);
+    ctx.closePath();
+    const g = ctx.createLinearGradient(-r * 0.3, 0, r * 0.3, -r * 0.8);
+    g.addColorStop(0, '#ff6fae');
+    g.addColorStop(1, '#a36bff');
+    ctx.fillStyle = g;
+    ctx.fill();
+    ellipse(ctx, 0, -r * 0.82, r * 0.08, r * 0.08, '#ffd54a');
+    for (const [x, y, c] of [[-r * 0.12, -r * 0.2, '#ffd54a'], [r * 0.08, -r * 0.4, '#4dabff'], [-r * 0.02, -r * 0.6, '#4dff9a']] as const) ellipse(ctx, x, y, r * 0.04, r * 0.04, c);
+    ctx.restore();
+    const colors = ['#ff6fae', '#ffd54a', '#4dabff', '#a36bff', '#4dff9a'];
+    for (let i = 0; i < 14; i++) {
+      const x = ((i * 0.37) % 1) * 2.4 - 1.2;
+      const y = (((t * 0.4 + i * 0.13) % 1) * 2.6 - 1.4);
+      ctx.fillStyle = colors[i % colors.length]!;
+      ctx.fillRect(x * r, y * r, r * 0.05, r * 0.08);
+    }
+  } else if (kind === 'clown') {
+    ellipse(ctx, 0, noseY, r * 0.16, r * 0.16, '#ff2d3c');
+    ellipse(ctx, -r * 0.05, noseY - r * 0.05, r * 0.05, r * 0.04, 'rgba(255,255,255,.7)');
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    for (const s of [-1, 1]) ellipse(ctx, s * r * 0.5, r * 0.32, r * 0.13, r * 0.13, '#ff4d6d');
+    ctx.restore();
+    for (const s of [-1, 1]) for (let i = 0; i < 4; i++) ellipse(ctx, s * r * (0.85 + (i % 2) * 0.12), top + r * 0.2 + i * r * 0.16, r * 0.12, r * 0.12, i % 2 ? '#ff8c00' : '#ff3d3d');
+  } else if (kind === 'stars') {
+    ctx.shadowBlur = 0;
+    for (const s of [-1, 1]) {
+      ctx.save();
+      ctx.translate(s * eyeX, eyeY);
+      ctx.rotate(t * 1.5 * s);
+      star(ctx, r * 0.24, '#ffd54a');
+      ctx.restore();
+    }
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + t * 0.8;
+      ctx.save();
+      ctx.translate(Math.cos(a) * r * 1.15, Math.sin(a) * r * 1.15 - r * 0.1);
+      ctx.globalAlpha = 0.6 + 0.4 * Math.sin(t * 4 + i);
+      star(ctx, r * 0.08, '#fff6a8');
+      ctx.restore();
+    }
+  }
+  ctx.restore();
+}
+
+function star(ctx: CanvasRenderingContext2D, r: number, color: string) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+    const rr = i % 2 ? r * 0.45 : r;
+    ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr);
+  }
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
 }

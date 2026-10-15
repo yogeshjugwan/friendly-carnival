@@ -166,7 +166,7 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
                   className="flex w-full items-center gap-4 px-4 py-3 text-left text-[15px] text-[#f4f5f7] hover:bg-white/10"
                 >
                   <EffectsIcon className="h-5 w-5 shrink-0 text-mute" />
-                  <span className="flex-1">Backgrounds and effects</span>
+                  <span className="flex-1">Face masks & backgrounds</span>
                   {call.background !== 'none' && <span className="text-xs text-lime">On</span>}
                 </button>
               )}
@@ -253,7 +253,7 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
                 <button onClick={() => setView('menu')} aria-label="Back to menu" className="rounded-full p-1 text-mute hover:bg-white/10">
                   <BackIcon className="h-4 w-4" />
                 </button>
-                <p className="font-semibold">Backgrounds and effects</p>
+                <p className="font-semibold">Face masks & backgrounds</p>
                 {call.backgroundBusy && <span className="ml-auto h-4 w-4 animate-spin rounded-full border-2 border-slate-500 border-t-sky-300" aria-label="Loading" />}
               </div>
               <EffectsGrid call={call} />

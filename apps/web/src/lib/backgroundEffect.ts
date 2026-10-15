@@ -1,6 +1,7 @@
 'use client';
 
-import type { ImageSegmenter } from '@mediapipe/tasks-vision';
+import type { FaceLandmarker, ImageSegmenter } from '@mediapipe/tasks-vision';
+import { drawMask, loadLandmarker, poseFrom, smooth, type FacePose, type MaskKind } from './faceMask';
 
 /**
  * Background blur / virtual backgrounds for the outgoing camera, like Meet's
@@ -88,15 +89,22 @@ export class BackgroundEffect {
   private stopped = false;
   private segmenter: ImageSegmenter | null = null;
   private maskData: ImageData | null = null;
+  private landmarker: FaceLandmarker | null = null;
+  private pose: FacePose | null = null;
+  private lostFrames = 0;
 
-  constructor(private mode: BackgroundMode) {
+  constructor(
+    private mode: BackgroundMode,
+    private faceMask: MaskKind = 'none',
+  ) {
     this.video.muted = true;
     this.video.playsInline = true;
   }
 
   /** Starts processing `input`; resolves with the processed video track. */
   async start(input: MediaStreamTrack): Promise<MediaStreamTrack> {
-    this.segmenter = await loadSegmenter();
+    if (this.mode !== 'none') this.segmenter = await loadSegmenter();
+    if (this.faceMask !== 'none') this.landmarker = await loadLandmarker();
     await this.setInput(input);
     this.stream = this.out.captureStream(FPS);
     this.loop();
@@ -114,8 +122,21 @@ export class BackgroundEffect {
     }
   }
 
-  setMode(mode: BackgroundMode) {
+  async setMode(mode: BackgroundMode) {
+    if (mode !== 'none' && !this.segmenter) this.segmenter = await loadSegmenter();
     this.mode = mode;
+  }
+
+  /** Puts a cartoon mask over the face ('none' = off). */
+  async setMask(kind: MaskKind) {
+    if (kind !== 'none' && !this.landmarker) this.landmarker = await loadLandmarker();
+    this.faceMask = kind;
+    this.pose = null;
+  }
+
+  /** True while it's doing anything (a background or a mask). */
+  get active() {
+    return this.mode !== 'none' || this.faceMask !== 'none';
   }
 
   private loop = () => {
@@ -131,13 +152,34 @@ export class BackgroundEffect {
   };
 
   private frame() {
+    const { video, out } = this;
+    if (video.readyState < 2 || !out.width) return;
+    const ctx = out.getContext('2d')!;
+    const now = performance.now();
+    this.drawBackground(ctx, now);
+    if (this.faceMask !== 'none' && this.landmarker) {
+      const res = this.landmarker.detectForVideo(video, now);
+      const lm = res.faceLandmarks?.[0];
+      if (lm) {
+        this.pose = smooth(this.pose, poseFrom(lm, res.faceBlendshapes?.[0]?.categories, out.width, out.height));
+        this.lostFrames = 0;
+      } else if (++this.lostFrames > 12) {
+        this.pose = null; // face gone for half a second: don't leave a floating mask
+      }
+      if (this.pose) drawMask(ctx, this.faceMask, this.pose);
+    }
+  }
+
+  private drawBackground(ctx: CanvasRenderingContext2D, now: number) {
     const { video, out, person, mask, segmenter } = this;
-    if (!segmenter || video.readyState < 2 || !out.width) return;
     const w = out.width;
     const h = out.height;
-    const ctx = out.getContext('2d')!;
+    if (this.mode === 'none' || !segmenter) {
+      ctx.drawImage(video, 0, 0, w, h);
+      return;
+    }
 
-    const result = segmenter.segmentForVideo(video, performance.now());
+    const result = segmenter.segmentForVideo(video, now);
     const conf = result.confidenceMasks?.[0];
     if (!conf) {
       ctx.drawImage(video, 0, 0, w, h);

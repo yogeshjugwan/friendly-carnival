@@ -37,6 +37,7 @@ import { ACCOUNT_CHANGED } from './auth';
 import { AD_BREAK_MS } from './ads';
 import { explicitScore, snapshot } from './nsfw';
 import { BackgroundEffect, backgroundEffectsSupported, type BackgroundMode } from './backgroundEffect';
+import type { MaskKind } from './faceMask';
 import { RelayReceiver, RelaySender, relaySupported } from './relay';
 import { faceVisible, waitForFace } from './faceCheck';
 import { GAM_REWARDED_UNIT, showRewardedAd } from './rewardedAd';
@@ -743,46 +744,80 @@ export function useRandomCall() {
     [adoptStream],
   );
 
-  /** Backgrounds and effects: blur or replace the background of my camera. */
-  const setBackground = useCallback(
-    async (mode: BackgroundMode) => {
+  const [faceMask, setFaceMaskState] = useState<MaskKind>('none');
+  const effectWant = useRef<{ mode: BackgroundMode; mask: MaskKind }>({ mode: 'none', mask: 'none' });
+
+  /** Applies the wanted background + face mask to my camera (starting / stopping the effect as needed). */
+  const applyEffect = useCallback(
+    async (mode: BackgroundMode, mask: MaskKind) => {
+      effectWant.current = { mode, mask };
+      setBackgroundState(mode);
+      setFaceMaskState(mask);
       const local = localRef.current;
-      try {
-        window.localStorage.setItem('rc.background', mode);
-      } catch {
-        /* ignore */
-      }
-      if (!local || !local.getVideoTracks()[0]) return setBackgroundState(mode);
-      if (mode === 'none') {
+      if (!local || !local.getVideoTracks()[0]) return;
+      if (mode === 'none' && mask === 'none') {
         const raw = rawCameraRef.current;
         effectRef.current?.stop();
         effectRef.current = null;
         rawCameraRef.current = null;
         if (raw) await swapVideoTrack(raw);
-        return setBackgroundState('none');
+        return;
       }
-      if (effectRef.current) {
-        effectRef.current.setMode(mode);
-        return setBackgroundState(mode);
-      }
-      if (!backgroundEffectsSupported()) return flash('Backgrounds and effects are not supported in this browser.');
       setBackgroundBusy(true);
-      const raw = local.getVideoTracks()[0];
-      const effect = new BackgroundEffect(mode);
       try {
-        const processed = await effect.start(raw);
-        effectRef.current = effect;
-        rawCameraRef.current = raw;
-        await swapVideoTrack(processed);
-        setBackgroundState(mode);
+        if (effectRef.current) {
+          await effectRef.current.setMode(mode);
+          await effectRef.current.setMask(mask);
+          return;
+        }
+        if (!backgroundEffectsSupported()) throw new Error('unsupported');
+        const raw = local.getVideoTracks()[0]!;
+        const effect = new BackgroundEffect(mode, mask);
+        try {
+          const processed = await effect.start(raw);
+          effectRef.current = effect;
+          rawCameraRef.current = raw;
+          await swapVideoTrack(processed);
+        } catch (e) {
+          effect.stop();
+          throw e;
+        }
       } catch {
-        effect.stop();
-        flash('Could not load backgrounds and effects on this device.');
+        flash('Could not load effects on this device.');
+        setBackgroundState('none');
+        setFaceMaskState('none');
+        effectWant.current = { mode: 'none', mask: 'none' };
       } finally {
         setBackgroundBusy(false);
       }
     },
     [flash, swapVideoTrack],
+  );
+
+  /** Backgrounds and effects: blur or replace the background of my camera. */
+  const setBackground = useCallback(
+    async (mode: BackgroundMode) => {
+      try {
+        window.localStorage.setItem('rc.background', mode);
+      } catch {
+        /* ignore */
+      }
+      await applyEffect(mode, effectWant.current.mask);
+    },
+    [applyEffect],
+  );
+
+  /** Face masks: a cartoon head (monkey, bear…) that follows my face, blinks and talks. */
+  const setFaceMask = useCallback(
+    async (mask: MaskKind) => {
+      try {
+        window.localStorage.setItem('rc.faceMask', mask);
+      } catch {
+        /* ignore */
+      }
+      await applyEffect(effectWant.current.mode, mask);
+    },
+    [applyEffect],
   );
 
   const start = useCallback(
@@ -822,12 +857,14 @@ export function useRandomCall() {
           void refreshDevices();
           // Bring back the background the user picked last time.
           let saved: BackgroundMode = 'none';
+          let savedMask: MaskKind = 'none';
           try {
             saved = (window.localStorage.getItem('rc.background') as BackgroundMode | null) ?? 'none';
+            savedMask = (window.localStorage.getItem('rc.faceMask') as MaskKind | null) ?? 'none';
           } catch {
             /* ignore */
           }
-          if (wantVideo && saved !== 'none') void setBackground(saved);
+          if (wantVideo && (saved !== 'none' || savedMask !== 'none')) void applyEffect(saved, savedMask);
         } catch {
           setStatus('media-denied');
           return;
@@ -867,7 +904,7 @@ export function useRandomCall() {
       setStatus('searching');
       startAdBreak(() => getSocket().emit('queue:join', payload));
     },
-    [adoptStream, refreshDevices, startAdBreak, setBackground],
+    [adoptStream, refreshDevices, startAdBreak, applyEffect],
   );
 
   /** "No face" screen: check again and carry on. */
@@ -1379,6 +1416,8 @@ export function useRandomCall() {
     sendReaction,
     togglePictureInPicture,
     background,
+    faceMask,
+    setFaceMask,
     backgroundBusy,
     setBackground,
     incomingCall,

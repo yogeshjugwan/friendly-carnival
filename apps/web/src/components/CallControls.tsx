@@ -6,6 +6,8 @@ import { BackIcon, ChatIcon, ChevronUpIcon, MicIcon, MicOffIcon, VideoIcon, Vide
 import { GiftButton } from './Coins';
 import { FriendButton } from './Friends';
 import { MoreMenu } from './MoreMenu';
+import { EffectsGrid } from './Effects';
+import { MASK_OPTIONS } from '@/lib/faceMask';
 import { useI18n } from '@/lib/i18n';
 
 /**
@@ -166,6 +168,7 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
           OffIcon={VideoOffIcon}
         />
       )}
+      {call.mode === 'video' && <MaskButton call={call} className={ctl(call.faceMask !== 'none' ? 'active' : 'normal', rail)} />}
       {!minimal && (
         <>
       <button
@@ -186,6 +189,33 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
       {matched && <FriendButton call={call} iconClass={ctl('normal', rail)} withLabel />}
       {matched && <GiftButton call={call} iconClass={ctl('normal', rail)} withLabel menuPos="!left-auto right-0 bottom-full mb-3" />}
       <MoreMenu call={call} className={ctl('normal', rail)} fit={fit} onToggleFit={onToggleFit} onToggleFullscreen={onToggleFullscreen} menuPos={menuPos} withLabel />
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Masks: face masks and backgrounds, one tap away (free for everyone). */
+function MaskButton({ call, className }: { call: RandomCall; className: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label="Face masks and backgrounds" title="Face masks" className={className}>
+        <span className="text-xl leading-none" aria-hidden>
+          {MASK_OPTIONS.find((m) => m.kind === call.faceMask && m.kind !== 'none')?.emoji ?? '🐵'}
+        </span>
+        <CtlLabel>Masks</CtlLabel>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
+          <div className="fixed inset-x-2 bottom-24 z-40 rounded-2xl border border-line-2 bg-card p-4 text-[#f4f5f7] shadow-2xl sm:absolute sm:inset-x-auto sm:bottom-full sm:left-1/2 sm:mb-3 sm:w-80 sm:-translate-x-1/2">
+            <div className="mb-3 flex items-center gap-2">
+              <p className="m-0 font-display font-bold">Face masks & backgrounds</p>
+              {call.backgroundBusy && <span className="ml-auto h-4 w-4 animate-spin rounded-full border-2 border-line-2 border-t-lime" aria-label="Loading" />}
+            </div>
+            <EffectsGrid call={call} />
+          </div>
         </>
       )}
     </div>

@@ -12,8 +12,8 @@ import { errorText, FormError, FormNote } from '@/components/forms/fields';
 import { api, useAuth } from '@/lib/auth';
 
 const PLAN_INFO: Record<PlusPlan, { name: string; label: string; tag?: string; fallback: PlanPrice }> = {
-  week: { name: '1 week', label: 'Weekly', fallback: { plan: 'week', amount: 799, currency: 'usd', interval: 'week', intervalCount: 1 } },
-  month: { name: '1 month', label: 'Monthly', tag: 'Popular', fallback: { plan: 'month', amount: 1999, currency: 'usd', interval: 'month', intervalCount: 1 } },
+  week: { name: '1 week', label: 'Weekly', fallback: { plan: 'week', amount: 299, currency: 'usd', interval: 'week', intervalCount: 1 } },
+  month: { name: '1 month', label: 'Monthly', tag: 'Popular', fallback: { plan: 'month', amount: 799, currency: 'usd', interval: 'month', intervalCount: 1 } },
   halfyear: { name: '6 months', label: '6 months', tag: 'Best value', fallback: { plan: 'halfyear', amount: 2990, currency: 'usd', interval: 'month', intervalCount: 6 } },
 };
 

@@ -209,7 +209,7 @@ function MaskButton({ call, className }: { call: RandomCall; className: string }
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
-          <div className="fixed inset-x-2 bottom-24 z-40 rounded-2xl border border-line-2 bg-card p-4 text-[#f4f5f7] shadow-2xl sm:absolute sm:inset-x-auto sm:bottom-full sm:left-1/2 sm:mb-3 sm:w-80 sm:-translate-x-1/2">
+          <div className="fixed inset-x-2 bottom-24 z-40 rounded-2xl border border-line-2 bg-card p-4 text-[#f4f5f7] shadow-2xl sm:absolute sm:inset-x-auto sm:bottom-full sm:right-0 sm:mb-3 sm:w-80 sm:max-w-[calc(100vw-2rem)]">
             <div className="mb-3 flex items-center gap-2">
               <p className="m-0 font-display font-bold">Face masks & backgrounds</p>
               {call.backgroundBusy && <span className="ml-auto h-4 w-4 animate-spin rounded-full border-2 border-line-2 border-t-lime" aria-label="Loading" />}

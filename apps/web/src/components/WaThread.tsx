@@ -208,7 +208,7 @@ export function WaThread({
     <section className={`@container flex min-h-0 flex-col bg-night text-[#F4F5F7] ${className}`} aria-label={`Chat with ${contact.name}`}>
       <div className="flex h-[72px] shrink-0 items-center gap-2.5 border-b border-[#1a1422] px-3 @2xl:h-[76px] @2xl:gap-3 @2xl:px-6">
         {onBack && (
-          <button type="button" onClick={onBack} aria-label="Back" className={`grid h-11 w-11 shrink-0 place-items-center rounded-full text-[#F4F5F7] hover:bg-card-2 ${backClassName}`}>
+          <button type="button" onClick={onBack} aria-label="Back to messages" className={`grid h-11 w-11 shrink-0 place-items-center rounded-full text-[#F4F5F7] hover:bg-card-2 ${backClassName}`}>
             {icon(<path d="M15 6l-6 6 6 6" />)}
           </button>
         )}
@@ -293,7 +293,7 @@ export function WaThread({
             maxLength={MAX_MESSAGE_LENGTH}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="Message…"
-            className="h-12 min-w-0 flex-1 rounded-3xl border border-line-2 bg-card px-4 text-[15px] text-[#F4F5F7] placeholder:text-faint focus:border-lime/60 focus:outline-none @2xl:h-[52px] @2xl:rounded-[14px]"
+            className="h-12 min-w-0 flex-1 rounded-3xl border border-[#6B5D84] bg-card px-4 text-[15px] text-[#F4F5F7] placeholder:text-faint focus:border-lime/60 focus:outline-none @2xl:h-[52px] @2xl:rounded-[14px]"
           />
         </label>
         <button

@@ -31,8 +31,8 @@ const No = () => (
   </span>
 );
 const Ok = () => (
-  <span aria-hidden className="mt-0.5 grid h-5 w-5 flex-none place-items-center rounded-full bg-pick">
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FF6FAE" strokeWidth={3}>
+  <span aria-hidden className="mt-0.5 grid h-5 w-5 flex-none place-items-center rounded-full bg-pick shadow-[inset_0_0_0_1.5px_#FF6FAE]">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#F4F5F7" strokeWidth={3}>
       <path d="M5 12l5 5 9-10" />
     </svg>
   </span>

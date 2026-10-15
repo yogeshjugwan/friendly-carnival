@@ -152,7 +152,7 @@ function WidenSearch() {
       <p className="m-0 font-display text-lg font-bold text-[#f4f5f7]">No one found yet</p>
       <p className="m-0 text-sm leading-normal text-mute">Fewer people match your filters right now. Widen them or keep searching.</p>
       <button
-        className="flex h-11 w-full items-center justify-center rounded-[14px] border-[1.5px] border-[#4a3f5c] text-sm font-semibold text-[#e6e8ec] hover:border-[#5a4f6c]"
+        className="flex h-11 w-full items-center justify-center rounded-[14px] border-[1.5px] border-[#6b5d84] text-sm font-semibold text-[#e6e8ec] hover:border-[#8a7aa6]"
         onClick={() => void saveSettings({ ...loadSettings(), filters: { ...NO_FILTERS } })}
       >
         Connect to anyone instead
@@ -364,7 +364,7 @@ function MatchPanel({ call, onPlus }: { call: RandomCall; onPlus: () => void }) 
           </svg>
         </span>
       </div>
-      <h1 className="m-0 font-display text-[26px] font-bold sm:text-[34px]" role="status">
+      <h1 className="m-0 font-display text-2xl font-bold sm:text-[34px]" role="status">
         {call.status === 'connecting' ? 'Connecting…' : 'Finding someone…'}
       </h1>
       <p className="m-0 text-sm text-mute sm:text-[15px]">
@@ -424,46 +424,6 @@ function SelfTile({ call, className = '', controls = false }: { call: RandomCall
         </div>
       )}
     </div>
-  );
-}
-
-/** The first call ever: two tips pointing at Report and Next. */
-function FirstCallTips() {
-  const [show, setShow] = useState(false);
-  useEffect(() => {
-    try {
-      setShow(window.localStorage.getItem('rc.tipsDone') !== '1');
-    } catch {
-      /* ignore */
-    }
-  }, []);
-  if (!show) return null;
-  const done = () => {
-    setShow(false);
-    try {
-      window.localStorage.setItem('rc.tipsDone', '1');
-    } catch {
-      /* ignore */
-    }
-  };
-  const tip = 'fixed z-[46] w-[260px] rounded-2xl bg-[#f4f5f7] px-4 py-3.5 text-[13px] font-medium leading-[1.45] text-night shadow-[0_20px_50px_rgba(0,0,0,.5)]';
-  return (
-    <>
-      <div aria-hidden className="fixed inset-0 z-[45] bg-[rgba(11,8,17,.6)]" onClick={done} />
-      <div className={`${tip} right-4 top-[74px] sm:right-[52%] sm:top-[92px]`} role="note">
-        <b className="mb-0.5 block font-display text-[15px]">Report is right here</b>One tap hides their video and ends the call.
-      </div>
-      <div className={`${tip} bottom-[104px] right-4 sm:left-[100px] sm:right-auto`} role="note">
-        <b className="mb-0.5 block font-display text-[15px]">Press Next anytime</b>Not a match? Skip — you never owe anyone a chat.
-      </div>
-      <button
-        type="button"
-        onClick={done}
-        className="fixed left-1/2 top-[44%] z-[46] h-[52px] -translate-x-1/2 rounded-[14px] bg-lime px-8 font-display text-base font-bold text-night sm:top-1/2"
-      >
-        Got it
-      </button>
-    </>
   );
 }
 
@@ -528,6 +488,9 @@ export function ChatScreen({ call }: { call: RandomCall }) {
   const stopRef = useRef(call.stop);
   stopRef.current = call.stop;
   const [reportOpen, setReportOpen] = useState(false);
+  /** "Tap to reveal" asks once more before showing a hidden video. */
+  const [revealAsk, setRevealAsk] = useState(false);
+  useEffect(() => setRevealAsk(false), [call.partner]);
   const [plusOpen, setPlusOpen] = useState(false);
   // Report abuse in the more menu opens the same dialog.
   useEffect(() => {
@@ -765,9 +728,9 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                     <div className="mt-1 flex flex-col gap-2.5">
                       <button
                         onClick={() => setReportOpen(true)}
-                        className="flex h-12 w-full items-center justify-center rounded-[14px] bg-[#FF5A5A] font-display text-base font-bold text-white sm:h-[52px]"
+                        className="flex h-12 w-full items-center justify-center rounded-[14px] bg-[#D93A4A] font-display text-base font-bold text-white sm:h-[52px]"
                       >
-                        Report &amp; next
+                        Report &amp; find next
                       </button>
                       <button
                         onClick={call.next}
@@ -775,9 +738,31 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                       >
                         Next
                       </button>
-                      <button onClick={call.togglePartnerHidden} className="flex h-11 w-full items-center justify-center text-sm font-semibold text-mute underline hover:text-white">
-                        Tap to reveal (18+)
-                      </button>
+                      {revealAsk ? (
+                        <div role="alertdialog" aria-label="Reveal video?" className="flex flex-col gap-2.5 rounded-[14px] border border-[#4A2424] bg-[#2A1616] p-3.5 text-left">
+                          <b className="text-[#FFD3CE]">Show this video anyway?</b>
+                          <span className="text-[13px] text-[#FFD3CE]">It may contain nudity. You can report it at any time.</span>
+                          <div className="flex gap-2">
+                            <button type="button" autoFocus onClick={() => setRevealAsk(false)} className="h-11 flex-1 rounded-xl border-[1.5px] border-[#6b5d84] text-sm font-semibold text-[#e6e8ec]">
+                              Keep hidden
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRevealAsk(false);
+                                call.togglePartnerHidden();
+                              }}
+                              className="h-11 flex-1 rounded-xl bg-[#3A2A33] text-sm font-semibold text-[#FFD3CE]"
+                            >
+                              Show anyway
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button onClick={() => setRevealAsk(true)} className="flex h-11 w-full items-center justify-center text-sm font-semibold text-mute underline hover:text-white">
+                          Tap to reveal (18+)
+                        </button>
+                      )}
                     </div>
                   </section>
                 </div>
@@ -899,7 +884,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
                 onToggleFullscreen={toggleFullscreen}
               />
             </div>
-            <span className="whitespace-nowrap text-[13px] text-[#8a8f99] max-sm:hidden">{matched ? 'Esc to stop · → for next' : 'Esc to cancel'}</span>
+            <span className="whitespace-nowrap text-[13px] text-[#8a8f99] max-lg:hidden">{matched ? 'Esc to stop · → for next' : 'Esc to cancel'}</span>
             {matched || call.status === 'browsing' ? (
               <StopNext call={call} wide />
             ) : (
@@ -918,7 +903,6 @@ export function ChatScreen({ call }: { call: RandomCall }) {
         )}
         {reportOpen && <ReportDialog call={call} onClose={() => setReportOpen(false)} />}
         {plusOpen && <PlusModal onClose={() => setPlusOpen(false)} />}
-        {matched && !isText && <FirstCallTips />}
       </div>
     </main>
   );

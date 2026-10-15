@@ -20,10 +20,10 @@ const card = 'flex flex-col gap-3.5 rounded-[18px] border border-line bg-card p-
 /** Phone list group (MeMobile `.grp`). */
 const group = 'overflow-hidden rounded-2xl border border-line bg-card';
 const input =
-  'h-[46px] w-full min-w-0 rounded-xl border border-line-2 bg-[#120D18] px-3.5 text-[15px] text-[#f4f5f7] outline-none placeholder:text-faint focus:border-lime';
+  'h-[46px] w-full min-w-0 rounded-xl border border-[#6b5d84] bg-[#120D18] px-3.5 text-[15px] text-[#f4f5f7] outline-none placeholder:text-faint focus:border-lime';
 const label = 'flex flex-col gap-1.5 text-[13px] text-mute';
 const ghost =
-  'inline-flex h-11 flex-none items-center justify-center rounded-xl border border-line-2 bg-transparent px-4 text-sm font-semibold text-[#e6e8ec] hover:border-[#4a3f5c] disabled:opacity-50';
+  'inline-flex h-11 flex-none items-center justify-center rounded-xl border border-[#6b5d84] bg-transparent px-4 text-sm font-semibold text-[#e6e8ec] hover:border-[#4a3f5c] disabled:opacity-50';
 const primary =
   'h-[54px] w-full rounded-[14px] bg-lime font-display text-[17px] font-bold text-night disabled:opacity-50 lg:h-[46px] lg:w-auto lg:self-end lg:rounded-xl lg:px-6 lg:text-[15px]';
 const cardTitle = 'm-0 font-display text-[17px] font-bold';
@@ -83,9 +83,11 @@ function SwitchRow({
         aria-describedby={detail ? `${id}-d` : undefined}
         disabled={disabled}
         onClick={() => onChange(!checked)}
-        className={`flex h-8 w-[52px] flex-none rounded-full p-[3px] transition-colors disabled:opacity-50 ${checked ? 'justify-end bg-lime' : 'justify-start bg-line-2'}`}
+        className="grid h-11 w-[60px] flex-none place-items-center bg-transparent p-0 disabled:opacity-50"
       >
-        <span className={`h-[26px] w-[26px] rounded-full ${checked ? 'bg-[#0b0d10]' : 'bg-[#8a8f99]'}`} />
+        <span className={`flex h-8 w-[52px] rounded-full p-[3px] transition-colors ${checked ? 'justify-end bg-lime' : 'justify-start bg-line-2'}`}>
+          <span className={`h-[26px] w-[26px] rounded-full ${checked ? 'bg-[#0b0d10]' : 'bg-[#8a8f99]'}`} />
+        </span>
       </button>
     </div>
   );
@@ -100,7 +102,7 @@ function PhoneBack({ title, onBack }: { title: string; onBack: () => void }) {
           <path d="M15 6l-6 6 6 6" />
         </svg>
       </button>
-      <h2 className="m-0 font-display text-[22px] font-bold">{title}</h2>
+      <h2 className="m-0 font-display text-[24px] font-bold">{title}</h2>
     </div>
   );
 }
@@ -233,9 +235,9 @@ export default function SettingsPage() {
             <ProfileAvatar settings={settings} size="sm" />
             <div className="min-w-0 flex-1">
               <strong className="block truncate font-display text-lg font-bold">{settings.name?.trim() || (user ? user.email.split('@')[0] : 'Guest')}</strong>
-              <p className="m-0 mt-0.5 truncate text-xs text-mute">Partners see: {profilePreview(settings)}</p>
+              <p className="m-0 mt-0.5 truncate text-xs text-mute">People you meet see: {profilePreview(settings)}</p>
             </div>
-            <button type="button" onClick={() => go('profile')} className="flex h-11 flex-none items-center rounded-xl border border-line-2 px-3.5 text-[13px] font-semibold text-[#e6e8ec]">
+            <button type="button" onClick={() => go('profile')} className="flex h-11 flex-none items-center rounded-xl border border-[#6b5d84] px-3.5 text-[13px] font-semibold text-[#e6e8ec]">
               Edit
             </button>
           </div>
@@ -243,10 +245,10 @@ export default function SettingsPage() {
           {/* Phone "Me": Plus banner */}
           <Link href="/plus" className={`flex items-center justify-between gap-3 rounded-2xl border border-[#4a3f17] bg-gold-bg p-3.5 text-gold ${phoneMain}`}>
             <span className="min-w-0">
-              <strong className="block font-display text-[15px] font-bold">{user?.plus.active ? 'Plus active' : 'Get Plus'}</strong>
-              <span className="block text-xs text-[#cdb766]">{user?.plus.active ? plusText(user) : 'Gender & country filters, unlimited matches'}</span>
+              <strong className="block font-display text-[15px] font-bold">{user?.plus.active ? 'Plus active ✓' : 'Get Plus'}</strong>
+              <span className="block text-xs text-[#cdb766]">{user?.plus.active ? 'Filters & online list unlocked' : 'Gender & country filters & more'}</span>
             </span>
-            <span className="flex-none text-[13px]">{user?.plus.active ? 'Manage ›' : 'Upgrade ›'}</span>
+            <span className="flex-none text-[13px]">{user?.plus.active ? 'Manage ›' : 'Get Plus ›'}</span>
           </Link>
 
           <section id="profile" aria-labelledby="profile-h" className={`flex scroll-mt-6 flex-col gap-3.5 ${onPhone('profile')}`}>
@@ -430,7 +432,7 @@ export default function SettingsPage() {
                   </Link>
                 )}
                 <button type="button" onClick={() => go('account')} className={listRow}>
-                  <span>Account</span>
+                  <span>Account &amp; privacy</span>
                   <span className="text-faint" aria-hidden>
                     ›
                   </span>
@@ -438,7 +440,7 @@ export default function SettingsPage() {
               </>
             )}
             <button type="button" onClick={() => go('privacy')} className={listRow}>
-              <span>Privacy &amp; blocked people</span>
+              <span>Blocked people</span>
               <span className="text-faint" aria-hidden>
                 ›
               </span>
@@ -531,9 +533,13 @@ function AccountCard({ user, token, onLogout, onDelete }: { user: PublicUser; to
       </div>
 
       <div className={`${row} flex-wrap`}>
-        <a href="#privacy" className="text-[15px] text-[#e6e8ec] underline max-lg:hidden">
+        <button
+          type="button"
+          onClick={() => document.getElementById('privacy')?.scrollIntoView({ behavior: 'smooth' })}
+          className="min-h-11 bg-transparent p-0 text-[15px] text-[#e6e8ec] underline max-lg:hidden"
+        >
           Privacy &amp; blocked people
-        </a>
+        </button>
         <span className="flex flex-wrap gap-2">
           <button type="button" onClick={onLogout} className={`${ghost} max-lg:hidden`}>
             Log out

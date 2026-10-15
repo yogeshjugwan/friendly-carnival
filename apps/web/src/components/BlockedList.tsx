@@ -67,7 +67,7 @@ export function BlockedList({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
               className={`text-sm font-semibold disabled:opacity-50 ${
                 dark
                   ? 'rounded-full bg-white/10 px-3 py-1.5 text-lime hover:bg-white/20'
-                  : 'h-11 flex-none rounded-xl border border-line-2 bg-transparent px-4 text-[#e6e8ec] hover:border-[#4a3f5c]'
+                  : 'h-11 flex-none rounded-xl border border-[#6b5d84] bg-transparent px-4 text-[#e6e8ec] hover:border-[#4a3f5c]'
               }`}
             >
               {busy === b.id ? 'Unblocking…' : 'Unblock'}

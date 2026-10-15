@@ -72,7 +72,7 @@ export function GoogleSignIn({ agreed, onNeedAgreement, next }: { agreed: boolea
           setGoing(true);
           markGoogleStart();
         }}
-        className={`mt-4 flex w-full items-center justify-center gap-3 rounded-full border border-slate-300 bg-white py-3 text-base font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 ${going ? 'pointer-events-none opacity-70' : ''}`}
+        className={`mt-4 flex h-[50px] w-full items-center justify-center gap-2.5 rounded-xl bg-white text-[15px] font-semibold text-[#1a1a1a] transition hover:bg-[#f1f1f1] ${going ? 'pointer-events-none opacity-70' : ''}`}
       >
         {going ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-brand" aria-hidden /> : <GoogleLogo />}
         {going ? 'Connecting to Google…' : 'Continue with Google'}
@@ -113,12 +113,12 @@ export function Agreement({
       className={`mt-4 rounded-xl text-[13px] text-mute transition ${missing ? 'bg-stop p-3 ring-2 ring-stop-text' : ''}`}
     >
       <legend className="mb-2">By creating an account or logging in, you certify that</legend>
-      <label className="flex items-start gap-2">
-        <input type="checkbox" checked={adult} onChange={(e) => onAdult(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-lime" />
+      <label className="flex min-h-11 items-center gap-2.5">
+        <input type="checkbox" checked={adult} onChange={(e) => onAdult(e.target.checked)} className="h-[22px] w-[22px] shrink-0 accent-lime" />
         <span>I am at least 18 years old.</span>
       </label>
-      <label className="mt-2 flex items-start gap-2">
-        <input type="checkbox" checked={terms} onChange={(e) => onTerms(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-lime" />
+      <label className="flex min-h-11 items-center gap-2.5">
+        <input type="checkbox" checked={terms} onChange={(e) => onTerms(e.target.checked)} className="h-[22px] w-[22px] shrink-0 accent-lime" />
         <span>
           I have read and agree to the{' '}
           <Link href="/terms" className="text-lime underline">

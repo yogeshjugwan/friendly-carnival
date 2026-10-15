@@ -8,7 +8,7 @@ export function Field(props: React.InputHTMLAttributes<HTMLInputElement> & { lab
       <input
         id={id}
         {...rest}
-        className="mt-1.5 h-[46px] w-full rounded-xl border border-line-2 bg-card-2 px-3.5 text-[15px] text-[#f4f5f7] [color-scheme:dark] placeholder:text-faint focus:outline-2 focus:outline-offset-1 focus:outline-lime"
+        className="mt-1.5 h-[46px] w-full rounded-xl border border-[#6b5d84] bg-card-2 px-3.5 text-[15px] text-[#f4f5f7] [color-scheme:dark] placeholder:text-faint focus:outline-2 focus:outline-offset-1 focus:outline-lime"
       />
     </label>
   );
@@ -28,7 +28,7 @@ export function Submit({ busy, children }: { busy: boolean; children: React.Reac
 
 export function FormError({ error }: { error: string | null }) {
   return error ? (
-    <p role="alert" className="mt-3 rounded-xl bg-stop px-3 py-2 text-sm text-stop-text">
+    <p role="alert" className="mt-3 rounded-xl border border-[#4a2424] bg-[#2a1616] px-3 py-2.5 text-[13px] text-[#ffb3ac]">
       {error}
     </p>
   ) : null;

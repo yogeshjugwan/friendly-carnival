@@ -139,7 +139,7 @@ export function ChatPanel({
     emojiBox: 'border-line bg-card-2',
     emojiBtn: 'hover:bg-white/10',
     input:
-      'min-w-0 flex-1 rounded-full border border-line-2 bg-night px-4 py-2.5 text-base text-[#f4f5f7] placeholder:text-faint focus:border-lime focus:outline-none disabled:opacity-50',
+      'min-w-0 flex-1 rounded-full border border-[#6b5d84] bg-night px-4 py-2.5 text-base text-[#f4f5f7] placeholder:text-faint focus:border-lime focus:outline-none disabled:opacity-50',
     icon: 'text-mute hover:bg-white/10',
   };
 
@@ -165,7 +165,7 @@ export function ChatPanel({
               </button>
             )}
             {onClose && (
-              <button onClick={onClose} aria-label="Close chat" className="rounded-full p-2 text-mute hover:bg-white/10 hover:text-white">
+              <button onClick={onClose} aria-label="Close chat" className="grid h-11 w-11 place-items-center rounded-full bg-[#271f33] text-[#e6e8ec] hover:text-white">
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
                   <path d="M18 6 6 18M6 6l12 12" />
                 </svg>

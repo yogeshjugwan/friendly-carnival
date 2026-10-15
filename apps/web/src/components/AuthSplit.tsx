@@ -14,6 +14,9 @@ export function AuthSplit({ title, accent, children }: { title: string; accent: 
       <section aria-label="Sample profiles" className="relative m-4 hidden min-h-[420px] overflow-hidden rounded-[28px] lg:block">
         <SampleWall cols={3} tileH={260} />
         <div aria-hidden className="absolute inset-0 bg-[linear-gradient(180deg,rgba(11,8,17,0)_40%,rgba(11,8,17,.92))]" />
+        <span className="absolute right-4 top-4 z-[3] flex h-[26px] items-center rounded-full bg-[rgba(11,8,17,.75)] px-2.5 text-[11px] font-medium text-[#c9cdd4]">
+          Sample profiles · illustration
+        </span>
         <div className="absolute left-6 top-6 rounded-xl bg-[rgba(11,8,17,.6)] py-1.5 pl-1.5 pr-3.5">
           <Brand />
         </div>

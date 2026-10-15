@@ -108,7 +108,7 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
             type="search"
             defaultValue={q}
             placeholder="Search: camera, sound, report…"
-            className="h-12 min-w-0 flex-1 rounded-[14px] border border-line-2 bg-card pl-[42px] pr-3.5 text-[15px] text-[#f4f5f7] outline-none placeholder:text-faint focus:border-lime lg:h-[52px] lg:pl-11 lg:pr-4"
+            className="h-12 min-w-0 flex-1 rounded-[14px] border border-[#6b5d84] bg-card pl-[42px] pr-3.5 text-[15px] text-[#f4f5f7] outline-none placeholder:text-faint focus:border-lime lg:h-[52px] lg:pl-11 lg:pr-4"
           />
         </form>
       </div>

@@ -93,13 +93,22 @@ export function RandomCall() {
     return (
       <main className="h-full">
         <StateCard icon="camOff" tone="danger" title={t('perm.blocked')} body="randomCall needs your camera and microphone for video chat.">
-          <ol className="m-0 pl-5 text-left text-sm leading-[1.8] text-[#c9cdd4]">
+          <ol className="m-0 pl-5 text-left text-sm leading-[1.8] text-[#c9cdd4] max-sm:hidden">
             <li>Click the lock icon in the address bar</li>
             <li>
               Set <b>Camera</b> and <b>Microphone</b> to Allow
             </li>
             <li>Press Try again</li>
           </ol>
+          {/* Phones: the steps for the two common mobile browsers. */}
+          <div className="flex flex-col gap-2 text-left text-sm leading-normal text-[#c9cdd4] sm:hidden">
+            <div className="rounded-xl bg-card-2 px-3.5 py-3">
+              <b className="block text-[#f4f5f7]">iPhone · Safari</b>Tap <b>aA</b> in the address bar › Website Settings › set Camera and Microphone to <b>Allow</b>
+            </div>
+            <div className="rounded-xl bg-card-2 px-3.5 py-3">
+              <b className="block text-[#f4f5f7]">Android · Chrome</b>Tap the lock icon › Permissions › turn on Camera and Microphone
+            </div>
+          </div>
           <StateActions
             actions={[
               { label: 'Try again', kind: 'primary', onClick: () => void call.start(lastJoin.current, call.mode) },

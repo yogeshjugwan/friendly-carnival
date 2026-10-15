@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { MAX_NAME, MAX_PROFILE_AGE, MIN_PROFILE_AGE, NO_FILTERS, type ChatMode, type Gender, type JoinPayload, type MatchFilters } from '@rc/shared';
-import { useAuth } from '@/lib/auth';
+import { MAX_NAME, MAX_PROFILE_AGE, MIN_PROFILE_AGE, NO_FILTERS, type ChatMode, type Gender, type JoinPayload, type MatchFilters, type PlanPrice } from '@rc/shared';
+import { api, useAuth } from '@/lib/auth';
 import { loadSettings, onSettingsChange } from '@/lib/settings';
 import { LANGS, useI18n, type Lang } from '@/lib/i18n';
 import { AgeHoldNotice } from './AgeGate';
@@ -111,7 +111,7 @@ function LanguageMenu({ open, onToggle, onClose }: { open: boolean; onToggle: ()
         aria-label="Language"
         aria-expanded={open}
         onClick={onToggle}
-        className="flex h-11 items-center gap-2 rounded-xl border border-line-2 px-3 text-sm font-medium text-[#e6e8ec] max-sm:h-10 max-sm:bg-card max-sm:font-semibold"
+        className="flex h-11 items-center gap-2 rounded-xl border border-[#6b5d84] px-3 text-sm font-medium text-[#e6e8ec] max-sm:bg-card max-sm:font-semibold"
       >
         <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
           <circle cx="12" cy="12" r="9" />
@@ -141,7 +141,7 @@ function LanguageMenu({ open, onToggle, onClose }: { open: boolean; onToggle: ()
                     setLang(l.code);
                     onClose();
                   }}
-                  className={`h-10 w-full rounded-[10px] px-3 text-left text-sm font-medium ${l.code === lang ? 'bg-pick text-lime' : 'text-[#e6e8ec] hover:bg-card-2'}`}
+                  className={`h-11 w-full rounded-[10px] px-3 text-left text-sm font-medium ${l.code === lang ? 'bg-pick text-lime' : 'text-[#e6e8ec] hover:bg-card-2'}`}
                 >
                   {l.name}
                 </button>
@@ -193,7 +193,7 @@ function InstallPopover({ open, onToggle, onClose }: { open: boolean; onToggle: 
           </ul>
           {state === 'ios' && <p className="m-0 text-[13px] text-mute">In Safari, tap Share ⬆ then “Add to Home Screen”.</p>}
           <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="h-11 flex-1 rounded-xl border border-line-2 text-sm font-semibold text-[#e6e8ec]">
+            <button type="button" onClick={onClose} className="h-11 flex-1 rounded-xl border border-[#6b5d84] text-sm font-semibold text-[#e6e8ec]">
               Not now
             </button>
             {state === 'prompt' && (
@@ -224,7 +224,7 @@ function InstallBanner() {
   if (state === 'hidden' || dismissed) return null;
   return (
     <>
-      <div className="absolute inset-x-4 top-3 z-10 flex items-center gap-2.5 rounded-[14px] border border-divider bg-[rgba(18,20,26,.92)] py-2 pl-2.5 pr-2">
+      <div className="absolute inset-x-4 top-3 z-10 flex items-center gap-2.5 rounded-[14px] border border-divider bg-[rgba(23,18,31,.92)] py-2 pl-2.5 pr-2">
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-lime">
           <CameraIcon className="h-4 w-4" color="#0b0d10" strokeWidth={2.4} />
         </span>
@@ -232,10 +232,10 @@ function InstallBanner() {
           <strong className="block text-[13px] font-semibold">Get the app</strong>
           <span className="text-mute">Add to home screen · free</span>
         </span>
-        <button type="button" onClick={() => setSheet(true)} className="h-9 rounded-[10px] bg-lime px-3 text-[13px] font-bold text-night">
+        <button type="button" onClick={() => setSheet(true)} className="h-11 rounded-[10px] bg-lime px-3 text-[13px] font-bold text-night">
           Install
         </button>
-        <button type="button" aria-label="Dismiss" onClick={() => setDismissed(true)} className="h-9 w-9 text-lg text-mute">
+        <button type="button" aria-label="Dismiss" onClick={() => setDismissed(true)} className="h-11 w-11 text-lg text-mute">
           ×
         </button>
       </div>
@@ -262,7 +262,7 @@ function InstallBanner() {
               </div>
             </div>
             <div className="flex gap-2">
-              <button type="button" onClick={() => setSheet(false)} className="h-[52px] flex-1 rounded-[14px] border border-line-2 text-[15px] font-semibold text-[#e6e8ec]">
+              <button type="button" onClick={() => setSheet(false)} className="h-[52px] flex-1 rounded-[14px] border border-[#6b5d84] text-[15px] font-semibold text-[#e6e8ec]">
                 Not now
               </button>
               <button
@@ -336,7 +336,7 @@ export function FilterChip<T extends string>({
         onClick={onOpen}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex h-11 items-center gap-2 rounded-xl border border-line-2 bg-card px-3.5 text-sm font-medium text-[#e6e8ec]"
+        className="flex h-11 items-center gap-2 rounded-xl border border-[#6b5d84] bg-card px-3.5 text-sm font-medium text-[#e6e8ec]"
       >
         {label}: {shown} {locked && <Lock />}
       </button>
@@ -353,7 +353,7 @@ export function FilterChip<T extends string>({
                 role="option"
                 aria-selected={v === value}
                 onClick={() => onPick(v)}
-                className={`h-10 w-full rounded-[10px] px-3 text-left text-sm font-medium ${v === value ? 'bg-pick text-lime' : 'text-[#e6e8ec] hover:bg-card-2'}`}
+                className={`h-11 w-full rounded-[10px] px-3 text-left text-sm font-medium ${v === value ? 'bg-pick text-lime' : 'text-[#e6e8ec] hover:bg-card-2'}`}
               >
                 {text}
               </button>
@@ -373,19 +373,87 @@ const MODES: [ChatMode, string][] = [
   ['text', 'Text'],
 ];
 
+const ME_OPTS: [Gender, string][] = [
+  ['female', 'Woman'],
+  ['male', 'Man'],
+];
+
+const money = (amount: number, currency: string) => new Intl.NumberFormat(undefined, { style: 'currency', currency: currency.toUpperCase(), maximumFractionDigits: amount % 100 ? 2 : 0 }).format(amount / 100);
+
+/** "Check camera & mic": asks the browser once, then shows it's ready. */
+function CamCheck({ mode, className = '' }: { mode: ChatMode; className?: string }) {
+  const [state, setState] = useState<'idle' | 'ok' | 'denied'>('idle');
+  const voice = mode === 'voice';
+  const test = async () => {
+    try {
+      const s = await navigator.mediaDevices.getUserMedia(voice ? { audio: true } : { audio: true, video: true });
+      s.getTracks().forEach((t) => t.stop());
+      setState('ok');
+    } catch {
+      setState('denied');
+    }
+  };
+  const ok = state === 'ok';
+  const title = ok ? (voice ? 'Mic ready ✓' : 'Camera & mic ready ✓') : voice ? 'Check your mic' : 'Check camera & mic';
+  const sub = ok ? (voice ? 'Sound level looks good' : 'You look good · tap to test again') : state === 'denied' ? 'Blocked — allow it in your browser settings' : 'Your browser asks once';
+  return (
+    <button
+      type="button"
+      onClick={() => void test()}
+      aria-label={title}
+      className={`flex h-[52px] w-full items-center gap-2.5 rounded-[14px] border bg-card px-1.5 text-left ${ok ? 'border-[#2e5a3c]' : 'border-[#6b5d84]'} ${className}`}
+    >
+      <span
+        className={`grid h-10 w-10 shrink-0 place-items-center rounded-[10px] text-[#e6e8ec] ${ok && !voice ? 'bg-[radial-gradient(circle_at_50%_42%,#c68b5e_0_22%,transparent_23%),radial-gradient(ellipse_60%_36%_at_50%_100%,#2a3550_0_98%,transparent_100%),linear-gradient(165deg,#3a4a6e,#1a2033)]' : 'bg-card-2'}`}
+      >
+        {!(ok && !voice) && (
+          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+            {voice ? (
+              <>
+                <rect x="9" y="2" width="6" height="12" rx="3" />
+                <path d="M5 11a7 7 0 0 0 14 0M12 18v4" />
+              </>
+            ) : (
+              <>
+                <rect x="2" y="6" width="14" height="12" rx="2" />
+                <path d="M16 10l6-3v10l-6-3" />
+              </>
+            )}
+          </svg>
+        )}
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-px">
+        <b className="text-sm font-semibold text-[#f4f5f7]">{title}</b>
+        <span className="truncate text-xs text-mute">{sub}</span>
+      </span>
+      {!ok && <span className="px-2 text-[13px] font-semibold text-lime">Test</span>}
+    </button>
+  );
+}
+
+const TABS: [string, string][] = [
+  ['/', 'Chat'],
+  ['/messages', 'People'],
+  ['/coins', 'Coins'],
+  ['/settings', 'Me'],
+];
+
 export function Landing({ online, onStart }: Props) {
   const { saveSettings, user } = useAuth();
   const isPlus = !!user?.plus.active;
-  const [gender, setGender] = useState<Gender>('male');
+  const [gender, setGender] = useState<Gender | null>(null);
   const [name, setName] = useState('');
   const [ageText, setAgeText] = useState('');
   const [mode, setMode] = useState<ChatMode>('video');
   const [filters, setFilters] = useState<MatchFilters>(NO_FILTERS);
   const [menu, setMenu] = useState<'lang' | 'install' | 'g' | 'c' | null>(null);
   const [plusOpen, setPlusOpen] = useState(false);
+  const [plusPrice, setPlusPrice] = useState<string | null>(null);
   // The 18+ box is remembered, so coming back is one click.
   const [agreed, setAgreedState] = useState(false);
-  const [nudge, setNudge] = useState(false);
+  // A complete saved profile shows as a "returning" card with Edit.
+  const [saved, setSaved] = useState(false);
+  const [editing, setEditing] = useState(false);
   useEffect(() => {
     try {
       setAgreedState(window.localStorage.getItem(AGREED_KEY) === '1');
@@ -395,7 +463,6 @@ export function Landing({ online, onStart }: Props) {
   }, []);
   const setAgreed = (v: boolean) => {
     setAgreedState(v);
-    if (v) setNudge(false);
     try {
       if (v) window.localStorage.setItem(AGREED_KEY, '1');
       else window.localStorage.removeItem(AGREED_KEY);
@@ -411,37 +478,44 @@ export function Landing({ online, onStart }: Props) {
   useEffect(() => {
     const apply = () => {
       const s = loadSettings();
-      if (s.gender) setGender(s.gender);
+      setGender(s.gender === 'male' || s.gender === 'female' ? s.gender : null);
       setName(s.name ?? '');
       setAgeText(s.age ? String(s.age) : '');
       setFilters(s.filters ?? NO_FILTERS);
+      setSaved(!!(s.name?.trim() && s.age && (s.gender === 'male' || s.gender === 'female')));
     };
     apply();
     return onSettingsChange(apply);
   }, []);
 
+  // Monthly Plus price for the "Get Plus" button (real Stripe price).
+  useEffect(() => {
+    if (isPlus) return;
+    api<{ enabled: boolean; plans: PlanPrice[] }>('/billing/plans')
+      .then((r) => {
+        const m = r.enabled ? r.plans.find((p) => p.plan === 'month') : undefined;
+        setPlusPrice(m ? `${money(m.amount, m.currency)}/mo` : null);
+      })
+      .catch(() => setPlusPrice(null));
+  }, [isPlus]);
+
   const ageNum = Number(ageText);
   const age = Number.isInteger(ageNum) && ageNum >= MIN_PROFILE_AGE && ageNum <= MAX_PROFILE_AGE ? ageNum : null;
+  const returning = saved && agreed && !editing;
+  const nameOk = name.trim().length > 0;
+  const ok = nameOk && age !== null && !!gender && agreed;
+  const hint = !nameOk
+    ? 'Add your name to start'
+    : age === null
+      ? `Enter your age (${MIN_PROFILE_AGE}+) to start`
+      : !gender
+        ? 'Choose Woman or Man to start'
+        : 'Tick “I agree to the Terms” to start';
+  const meLabel = ME_OPTS.find(([g]) => g === gender)?.[1] ?? '';
 
-  const [missing, setMissing] = useState<'name' | 'age' | null>(null);
   const begin = (m: ChatMode, browse: false | 'online' | 'friends' = false) => {
-    // Name and age are shown to the people you meet, so both are required.
-    if (!name.trim()) {
-      setMissing('name');
-      document.getElementById('home-name')?.focus();
-      return;
-    }
-    if (age === null) {
-      setMissing('age');
-      document.getElementById('home-age')?.focus();
-      return;
-    }
-    setMissing(null);
-    if (!agreed) {
-      setNudge(true);
-      document.getElementById('agree18')?.focus();
-      return;
-    }
+    // Name, age and gender are shown to the people you meet, so all are required.
+    if (!ok || !gender || age === null) return;
     // Remember the choices for next time; don't block the chat on the network.
     void saveSettings({ ...loadSettings(), gender, interests: [], name: name.trim(), age, filters }).catch(() => undefined);
     onStart({ gender, interests: [], topic: null }, m, browse);
@@ -455,12 +529,16 @@ export function Landing({ online, onStart }: Props) {
   };
   const chipOpen = (which: 'g' | 'c') => (isPlus ? setMenu(menu === which ? null : which) : setPlusOpen(true));
   const modeLabel = MODES.find(([m]) => m === mode)![1].toLowerCase();
+  const needsCam = mode !== 'text';
 
   const field =
-    'h-12 w-full rounded-xl border border-line-2 bg-card px-3.5 text-base font-medium text-[#f4f5f7] placeholder:text-[#6b6478] focus:outline-2 focus:outline-offset-1 focus:outline-lime aria-[invalid=true]:border-stop-text max-sm:px-3';
+    'h-12 w-full rounded-xl border border-[#6b5d84] bg-card px-3.5 text-base font-medium text-[#f4f5f7] placeholder:text-[#6b6478] focus:outline-2 focus:outline-offset-1 focus:outline-lime aria-[invalid=true]:border-stop-text max-sm:px-3';
+  const termsLink = '-my-3.5 inline-block px-0.5 py-3.5 text-lime';
 
   return (
-    <main className="relative flex min-h-dvh flex-col bg-night text-[#f4f5f7] sm:bg-[radial-gradient(ellipse_60%_70%_at_78%_45%,#1e0f2a_0%,#0b0811_60%)]">
+    <main
+      className={`relative flex min-h-dvh flex-col bg-night text-[#f4f5f7] sm:bg-[radial-gradient(ellipse_60%_70%_at_78%_45%,#1e0f2a_0%,#0b0811_60%)] ${user ? 'max-sm:pb-[76px]' : ''}`}
+    >
       {/* Header */}
       <header className="flex h-[60px] shrink-0 items-center justify-between gap-4 border-b border-[#1a1422] px-4 sm:h-auto sm:flex-wrap sm:border-0 sm:px-12 sm:py-4">
         <Link href="/" className="flex items-center gap-2 font-display text-lg font-bold sm:gap-2.5 sm:text-xl" aria-label="randomCall home">
@@ -483,7 +561,7 @@ export function Landing({ online, onStart }: Props) {
           ) : (
             <Link
               href="/login"
-              className="flex h-11 items-center rounded-xl border border-line-2 px-[18px] text-[#e6e8ec] max-sm:h-10 max-sm:border-0 max-sm:bg-[#f4f5f7] max-sm:px-4 max-sm:font-bold max-sm:text-night"
+              className="flex h-11 items-center rounded-xl border border-[#6b5d84] px-[18px] text-[#e6e8ec] max-sm:border-0 max-sm:bg-[#f4f5f7] max-sm:px-4 max-sm:font-bold max-sm:text-night"
             >
               Log in
             </Link>
@@ -493,7 +571,7 @@ export function Landing({ online, onStart }: Props) {
 
       <div className="mx-auto flex w-full max-w-[1360px] flex-1 flex-col gap-0 sm:flex-row sm:flex-wrap sm:items-center sm:gap-14 sm:px-12 sm:pb-4 sm:pt-2">
         {/* Phones: the sample wall comes first, under the header. */}
-        <div aria-label="Sample profiles" className="relative h-[290px] shrink-0 overflow-hidden sm:hidden">
+        <div aria-label="Sample profiles" className={`relative shrink-0 overflow-hidden sm:hidden ${user ? 'h-[156px]' : returning ? 'h-[240px]' : 'h-[176px]'}`}>
           <SampleWall cols={3} tileH={170} compact />
           <span className="absolute bottom-2 right-2.5 z-[2] flex h-6 items-center rounded-full bg-[rgba(11,8,17,.75)] px-2.5 text-[11px] font-medium text-[#c9cdd4]">
             Sample profiles · illustration
@@ -502,7 +580,7 @@ export function Landing({ online, onStart }: Props) {
           <InstallBanner />
         </div>
 
-        <section className="flex flex-1 flex-col gap-3.5 px-5 pb-6 pt-1 sm:max-w-[480px] sm:flex-[1_1_440px] sm:gap-4 sm:p-0">
+        <section className={`flex flex-1 flex-col gap-3.5 px-5 pt-1 sm:max-w-[480px] sm:flex-[1_1_440px] sm:gap-4 sm:p-0 ${user ? 'pb-4' : 'pb-6'}`}>
           {online !== null && (
             <span className="flex items-center gap-1.5 text-[13px] text-mute sm:hidden">
               <i className="rc-blink h-[7px] w-[7px] rounded-full bg-lime" aria-hidden />
@@ -512,37 +590,77 @@ export function Landing({ online, onStart }: Props) {
           <h1 className="m-0 font-display text-[34px] font-bold leading-[1.05] tracking-[-1px] sm:text-[52px] sm:leading-[1.02] sm:tracking-[-1.5px]">
             Meet someone new <span className="text-lime">in 3 seconds.</span>
           </h1>
-          <p className="m-0 text-base leading-snug text-mute max-sm:hidden">Free video chat in your browser. Your name and age are shown to people you meet.</p>
+          <p className="m-0 text-base leading-snug text-mute max-sm:hidden">Free video chat in your browser. People you meet see your name, age, gender and country.</p>
+          <p className="-mt-2 mb-0 text-xs text-mute sm:hidden">People you meet see your name, age, gender and country.</p>
 
           <AgeHoldNotice />
           {user && friendOnline && <p className="m-0 text-sm font-medium text-lime">A friend is online — open Friends in the call to ring them.</p>}
 
-          <div className="grid grid-cols-[minmax(0,1fr)_92px] gap-2 sm:grid-cols-[minmax(0,1fr)_120px]">
-            <label className="flex flex-col gap-1 text-xs text-mute sm:gap-1.5 sm:text-[13px]">
-              Your name
-              <input id="home-name" required aria-invalid={missing === 'name'} value={name} maxLength={MAX_NAME} onChange={(e) => setName(e.target.value)} placeholder="e.g. Alex" autoComplete="given-name" className={field} />
-            </label>
-            <label className="flex flex-col gap-1 text-xs text-mute sm:gap-1.5 sm:text-[13px]">
-              Age
-              <input
-                id="home-age"
-                required
-                aria-invalid={missing === 'age'}
-                type="number"
-                min={MIN_PROFILE_AGE}
-                max={MAX_PROFILE_AGE}
-                inputMode="numeric"
-                placeholder="18+"
-                value={ageText}
-                onChange={(e) => setAgeText(e.target.value.slice(0, 2))}
-                className={field}
-              />
-            </label>
-          </div>
-          {missing && (
-            <p role="alert" className="-mt-1.5 m-0 text-[13px] font-medium text-stop-text">
-              {missing === 'name' ? 'Enter your name to start.' : `Enter your age (${MIN_PROFILE_AGE}–${MAX_PROFILE_AGE}) to start.`}
-            </p>
+          {returning ? (
+            <div className="flex items-center gap-3 rounded-[14px] border border-divider bg-card py-2 pl-3 pr-2">
+              <span aria-hidden className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-lime font-display text-[17px] font-bold text-night">
+                {(name.trim().charAt(0) || '?').toUpperCase()}
+              </span>
+              <span className="min-w-0 flex-1">
+                <strong className="block truncate text-[15px] font-semibold">
+                  {name.trim()}, {ageText} · {meLabel}
+                </strong>
+                <span className="text-xs text-mute">{user ? 'From your profile' : 'Saved on this device'}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                aria-label="Edit your name, age and gender"
+                className="h-11 rounded-[10px] border border-[#6b5d84] px-3.5 text-[13px] font-semibold text-[#e6e8ec]"
+              >
+                Edit
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              <div className="grid grid-cols-[minmax(0,1fr)_92px] gap-2 sm:grid-cols-[minmax(0,1fr)_120px]">
+                <label className="flex flex-col gap-1 text-xs text-mute sm:gap-1.5 sm:text-[13px]">
+                  Your name
+                  <input id="home-name" required value={name} maxLength={MAX_NAME} onChange={(e) => setName(e.target.value)} placeholder="e.g. Alex" autoComplete="given-name" className={field} />
+                </label>
+                <label className="flex flex-col gap-1 text-xs text-mute sm:gap-1.5 sm:text-[13px]">
+                  Age
+                  <input
+                    id="home-age"
+                    required
+                    aria-invalid={!!ageText && age === null}
+                    type="number"
+                    min={MIN_PROFILE_AGE}
+                    max={MAX_PROFILE_AGE}
+                    inputMode="numeric"
+                    placeholder="18+"
+                    value={ageText}
+                    onChange={(e) => setAgeText(e.target.value.slice(0, 2))}
+                    className={field}
+                  />
+                </label>
+              </div>
+              {!!ageText && age === null && ageText.length >= 2 && (
+                <p role="alert" className="m-0 mt-1 text-xs text-stop-text">
+                  You must be {MIN_PROFILE_AGE} or older to use randomCall.
+                </p>
+              )}
+              <div role="radiogroup" aria-label="I am" className="flex items-center gap-2">
+                <span className="w-10 shrink-0 text-[13px] text-mute sm:w-12">I am</span>
+                {ME_OPTS.map(([g, label]) => (
+                  <button
+                    key={g}
+                    type="button"
+                    role="radio"
+                    aria-checked={g === gender}
+                    onClick={() => setGender(g)}
+                    className={`h-11 flex-1 rounded-full px-2.5 text-sm font-semibold ${g === gender ? 'border-[1.5px] border-lime bg-pick text-[#f4f5f7]' : 'border border-[#6b5d84] bg-card text-[#e6e8ec]'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
 
           <div role="radiogroup" aria-label="Chat type" className="grid grid-cols-3 gap-1 rounded-[14px] border border-divider bg-card p-1">
@@ -553,7 +671,7 @@ export function Landing({ online, onStart }: Props) {
                 role="radio"
                 aria-checked={m === mode}
                 onClick={() => setMode(m)}
-                className={`h-11 rounded-[10px] text-sm font-semibold sm:text-[15px] ${m === mode ? 'bg-lime text-night' : 'text-mute hover:text-[#e6e8ec]'}`}
+                className={`h-11 rounded-[10px] text-sm font-semibold sm:text-[15px] ${m === mode ? 'bg-pick text-[#f4f5f7] shadow-[inset_0_0_0_1.5px_#ff6fae]' : 'text-mute hover:text-[#e6e8ec]'}`}
               >
                 {label}
               </button>
@@ -573,16 +691,46 @@ export function Landing({ online, onStart }: Props) {
             </Link>
           )}
 
+          {/* Phones: camera check sits at the bottom, above the terms box. */}
+          {needsCam ? <CamCheck mode={mode} className="mt-auto sm:hidden" /> : <div className="mt-auto sm:hidden" />}
+
+          {!returning && (
+            <label className="flex min-h-11 items-center gap-2 text-xs text-mute sm:gap-2.5 sm:text-[13px]">
+              <input id="agree18" type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="m-0 h-[18px] w-[18px] shrink-0 accent-lime" />
+              <span>
+                I agree to the{' '}
+                <Link href="/terms" target="_blank" className={termsLink}>
+                  Terms
+                </Link>{' '}
+                &amp;{' '}
+                <Link href="/guidelines" target="_blank" className={termsLink}>
+                  Guidelines
+                </Link>
+              </span>
+            </label>
+          )}
+
+          {needsCam && <CamCheck mode={mode} className="max-sm:hidden" />}
+
           <button
             type="button"
             onClick={() => begin(mode)}
-            className="flex h-[58px] items-center justify-center gap-2 rounded-2xl bg-lime font-display text-[19px] font-bold text-night shadow-[0_12px_40px_rgba(255,111,174,.25)] max-sm:mt-auto sm:gap-2.5 sm:text-xl"
+            disabled={!ok}
+            aria-describedby={ok ? undefined : 'start-hint'}
+            className="flex h-[58px] w-full items-center justify-center gap-2 rounded-2xl bg-lime font-display text-[19px] font-bold text-night shadow-[0_12px_40px_rgba(255,111,174,.25)] disabled:cursor-not-allowed disabled:bg-none disabled:bg-[#271f33] disabled:text-[#8a8f99] sm:gap-2.5 sm:text-xl"
           >
             Start {modeLabel} chat
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2.4} aria-hidden>
-              <path d="M5 12h14M13 6l6 6-6 6" />
-            </svg>
+            {ok && (
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2.4} aria-hidden>
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+            )}
           </button>
+          {!ok && (
+            <p id="start-hint" role="status" className="-mt-1.5 mb-0 text-center text-[13px] text-[#ffb3c9]">
+              {hint}
+            </p>
+          )}
 
           <div className="flex flex-wrap gap-2 max-sm:hidden">
             <FilterChip
@@ -611,31 +759,24 @@ export function Landing({ online, onStart }: Props) {
                 onClick={() => setPlusOpen(true)}
                 className="flex h-11 items-center rounded-xl border border-[#4a3f17] bg-gold-bg px-3.5 text-sm font-semibold text-gold"
               >
-                Get Plus
+                Get Plus{plusPrice ? ` · ${plusPrice}` : ''}
               </button>
             )}
           </div>
 
-          <label className={`flex items-center gap-2 text-xs max-sm:justify-center sm:gap-2.5 sm:text-[13px] ${nudge ? 'font-semibold text-stop-text' : 'text-mute'}`}>
-            <input
-              id="agree18"
-              type="checkbox"
-              checked={agreed}
-              onChange={(e) => setAgreed(e.target.checked)}
-              className={`m-0 h-[18px] w-[18px] shrink-0 accent-lime ${nudge ? 'outline outline-2 outline-offset-2 outline-stop-text' : ''}`}
-            />
-            <span>
-              {nudge ? 'Tick to start · ' : ''}I&apos;m 18+ <span className="max-sm:hidden">and</span>
-              <span className="sm:hidden">·</span> agree to the{' '}
-              <Link href="/terms" target="_blank" className="text-lime">
-                Terms
-              </Link>{' '}
-              &amp;{' '}
-              <Link href="/guidelines" target="_blank" className="text-lime">
-                Guidelines
-              </Link>
-            </span>
-          </label>
+          <p className="-mb-3 -mt-2.5 text-center text-xs sm:hidden">
+            <Link href="/help" className="inline-flex min-h-11 items-center px-2.5 text-mute">
+              Help
+            </Link>
+            ·
+            <Link href="/privacy" className="inline-flex min-h-11 items-center px-2.5 text-mute">
+              Privacy
+            </Link>
+            ·
+            <Link href="/guidelines" className="inline-flex min-h-11 items-center px-2.5 text-mute">
+              Guidelines
+            </Link>
+          </p>
         </section>
 
         {/* Larger screens: the sample wall on the right. */}
@@ -660,6 +801,26 @@ export function Landing({ online, onStart }: Props) {
           Help
         </Link>
       </footer>
+
+      {/* Phones, logged in: the app's bottom tabs. */}
+      {user && (
+        <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-20 grid h-[76px] grid-cols-4 border-t border-[#1a1422] bg-[#0e0a13] px-2 pb-3 sm:hidden">
+          {TABS.map(([href, label]) => {
+            const on = href === '/';
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-current={on ? 'page' : undefined}
+                className={`flex flex-col items-center justify-center gap-1.5 text-xs font-semibold ${on ? 'text-lime' : 'text-[#8a8f99]'}`}
+              >
+                <span aria-hidden className={`h-[3px] w-5 rounded-sm ${on ? 'bg-lime' : 'bg-transparent'}`} />
+                {label}
+              </Link>
+            );
+          })}
+        </nav>
+      )}
 
       {plusOpen && <PlusModal onClose={() => setPlusOpen(false)} />}
     </main>

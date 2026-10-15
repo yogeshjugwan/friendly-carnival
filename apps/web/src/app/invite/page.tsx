@@ -45,7 +45,7 @@ export default function InvitePage() {
 
   const days = `${REFERRAL.plusDays} day${REFERRAL.plusDays > 1 ? 's' : ''} of Plus.`;
   const shareBtn =
-    'flex h-[46px] flex-1 items-center justify-center rounded-xl border border-line-2 bg-card-2 text-[13px] font-semibold text-[#e6e8ec] hover:border-[#4a3f5c] lg:h-12 lg:flex-none lg:px-[18px] lg:text-sm';
+    'flex h-[46px] flex-1 items-center justify-center rounded-xl border border-[#6B5D84] bg-card-2 text-[13px] font-semibold text-[#e6e8ec] hover:border-lime lg:h-12 lg:flex-none lg:px-[18px] lg:text-sm';
   const card = 'rounded-2xl border border-line bg-card p-3.5 lg:rounded-[20px] lg:p-5';
   const note = 'once your friend confirms their email and has a first chat with someone else.';
 
@@ -62,7 +62,7 @@ export default function InvitePage() {
               <path d="M15 6l-6 6 6 6" />
             </svg>
           </Link>
-          <span className="max-lg:text-[22px]">Invite friends</span>
+          <span className="max-lg:text-[24px]">Invite friends</span>
         </span>
       }
     >
@@ -103,7 +103,7 @@ export default function InvitePage() {
                     readOnly
                     value={link || 'Loading…'}
                     onFocus={(e) => e.currentTarget.select()}
-                    className="h-12 min-w-0 rounded-xl border border-line-2 bg-[#120d18] px-3 text-sm font-medium text-[#f4f5f7] outline-none focus:border-lime lg:h-[52px] lg:px-3.5 lg:text-[15px]"
+                    className="h-12 min-w-0 rounded-xl border border-[#6B5D84] bg-[#120d18] px-3 text-sm font-medium text-[#f4f5f7] outline-none focus:border-lime lg:h-[52px] lg:px-3.5 lg:text-[15px]"
                   />
                 </label>
                 <button

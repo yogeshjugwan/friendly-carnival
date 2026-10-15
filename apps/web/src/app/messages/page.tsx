@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import type { DmThread } from '@rc/shared';
-import { AppShell, ShellActions } from '@/components/AppShell';
+import { AppShell, PeopleNav, ShellActions } from '@/components/AppShell';
 import { ThreadRow, WaThread, type WaContact } from '@/components/WaThread';
 import { useAuth } from '@/lib/auth';
 import { getSocket } from '@/lib/socket';
@@ -73,7 +73,8 @@ export default function MessagesPage() {
 
   if (!loading && !user) {
     return (
-      <AppShell title="Messages">
+      <AppShell title={<><span className="lg:hidden">People</span><span className="max-lg:hidden">Messages</span></>}>
+        <PeopleNav className="-mt-2" />
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
           <span className="grid h-14 w-14 place-items-center rounded-2xl bg-card-2 text-lime">
             <ChatIcon />
@@ -95,7 +96,12 @@ export default function MessagesPage() {
 
   return (
     <AppShell
-      title={<span className="lg:sr-only">Messages</span>}
+      title={
+        <>
+          <span className="lg:hidden">People</span>
+          <span className="sr-only">Messages</span>
+        </>
+      }
       actions={
         <div className="lg:hidden">
           <ShellActions />
@@ -108,7 +114,8 @@ export default function MessagesPage() {
           <h2 aria-hidden className="mx-2 font-display text-[26px] font-bold max-lg:hidden">
             Messages
           </h2>
-          <div role="tablist" aria-label="Show" className="grid grid-cols-2 gap-1 rounded-xl bg-card p-1">
+          <PeopleNav className="-mt-2" />
+          <div role="tablist" aria-label="Messages" className="grid grid-cols-2 gap-1 rounded-xl border border-divider bg-card p-1">
             {(['chats', 'requests'] as const).map((t) => (
               <button
                 key={t}
@@ -116,11 +123,11 @@ export default function MessagesPage() {
                 role="tab"
                 aria-selected={tab === t}
                 onClick={() => setTab(t)}
-                className={`relative h-[38px] rounded-[9px] text-sm font-semibold before:absolute before:inset-x-0 before:-inset-y-1 ${
-                  tab === t ? 'bg-line text-[#F4F5F7]' : 'text-mute hover:text-[#F4F5F7]'
+                className={`h-11 rounded-[9px] text-sm font-semibold ${
+                  tab === t ? 'bg-pick text-[#F4F5F7] shadow-[inset_0_0_0_1.5px_#FF6FAE]' : 'text-mute hover:text-[#F4F5F7]'
                 }`}
               >
-                {t === 'chats' ? 'Chats' : `Requests${requests ? ` · ${requests}` : ''}`}
+                {t === 'chats' ? 'Chats' : `Requests · ${requests}`}
               </button>
             ))}
           </div>
@@ -129,7 +136,7 @@ export default function MessagesPage() {
             {threads && shown.length === 0 && (
               <li className="px-6 py-10 text-center text-sm text-dim">
                 {tab === 'requests' ? (
-                  'No message requests.'
+                  'No new requests'
                 ) : (
                   <>
                     <span className="mb-1 block font-semibold text-[#F4F5F7]">No chats yet</span>

@@ -70,9 +70,12 @@ export default function ForgotPage() {
               type="button"
               disabled={wait > 0 || busy}
               onClick={() => void send()}
-              className="h-11 text-sm font-semibold text-lime disabled:text-mute"
+              className="h-11 text-sm font-semibold text-lime disabled:cursor-not-allowed disabled:text-[#8a8f99]"
             >
-              Didn’t get it? Resend{wait > 0 ? ` (in 0:${String(wait).padStart(2, '0')})` : ''}
+              Didn’t get it? Resend{wait > 0 ? ` in 0:${String(wait).padStart(2, '0')}` : ''}
+            </button>
+            <button type="button" onClick={() => { setSent(false); setError(null); }} className="h-11 text-sm font-semibold text-lime">
+              Use a different email
             </button>
           </>
         ) : (
@@ -95,7 +98,7 @@ export default function ForgotPage() {
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-[50px] rounded-xl border border-line-2 bg-card px-3.5 text-[15px] text-[#f4f5f7] outline-none placeholder:text-faint focus:border-lime"
+                className="h-[50px] rounded-xl border border-[#6b5d84] bg-night px-3.5 text-[15px] text-[#f4f5f7] outline-none placeholder:text-faint focus:border-lime"
               />
             </label>
             {error && (

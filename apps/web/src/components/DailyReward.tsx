@@ -60,12 +60,14 @@ export function DailyRewardCard({ className = '' }: { className?: string }) {
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="m-0 font-display text-[15px] font-bold text-[#f4f5f7] lg:text-[17px]">
-            Daily streak{status.streak > 0 && <span className="font-medium text-mute"> · day {status.streak}</span>}
+            Daily streak<span className="max-lg:hidden"> · Day {Math.min(day, STREAK_REWARDS.length)}</span>
           </h2>
           <p className="m-0 mt-0.5 text-xs text-mute lg:text-[13px]" aria-live="polite">
             {hint.startsWith('chat:') ? (
               <>
-                <span className="lg:hidden">One chat today unlocks {status.reward}</span>
+                <span className="lg:hidden">
+                  Day {Math.min(day, STREAK_REWARDS.length)} · one chat today unlocks {status.reward}
+                </span>
                 <span className="max-lg:hidden">Have one chat today to unlock {status.reward} coins</span>
               </>
             ) : (
@@ -74,7 +76,7 @@ export function DailyRewardCard({ className = '' }: { className?: string }) {
           </p>
         </div>
         {status.claimedToday ? (
-          <span className="flex h-10 shrink-0 items-center rounded-[10px] border border-line px-3 text-[13px] font-semibold text-lime lg:h-11 lg:rounded-xl lg:px-[18px] lg:text-sm">
+          <span className="flex h-11 shrink-0 items-center rounded-[10px] border border-line px-3 text-[13px] font-semibold text-lime lg:h-11 lg:rounded-xl lg:px-[18px] lg:text-sm">
             Claimed ✓
           </span>
         ) : (
@@ -90,7 +92,7 @@ export function DailyRewardCard({ className = '' }: { className?: string }) {
               'Claiming…'
             ) : (
               <>
-                Claim<span className="max-lg:hidden"> {status.reward}</span>
+                Claim {status.reward}
               </>
             )}
           </button>
@@ -106,15 +108,15 @@ export function DailyRewardCard({ className = '' }: { className?: string }) {
               key={n}
               aria-current={today ? 'step' : undefined}
               className={`flex flex-col items-center gap-0.5 rounded-[10px] border py-1.5 lg:rounded-xl lg:px-1.5 lg:py-2.5 ${
-                today ? 'border-lime bg-pick' : done ? 'border-[#5a2a48] bg-pick' : 'border-divider bg-card-2'
+                today ? 'border-lime bg-pick' : done ? 'border-[#2E5A3C] bg-[#16301F]' : 'border-divider bg-card-2'
               }`}
             >
-              <span className="text-[10px] text-mute lg:text-[11px]">
+              <span className="text-[11px] text-mute">
                 <span className="max-lg:hidden">Day </span>
                 <span className="lg:hidden">D</span>
                 {n}
               </span>
-              <strong className={`font-display text-[13px] font-bold lg:text-base ${done ? 'text-lime' : 'text-[#f4f5f7]'}`}>
+              <strong className={`font-display text-[13px] font-bold lg:text-base text-[#f4f5f7]`}>
                 <span className="max-lg:hidden">+</span>
                 {coins}
               </strong>

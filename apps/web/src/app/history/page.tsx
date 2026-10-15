@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import type { HistoryPerson, HistoryResult } from '@rc/shared';
-import { AppShell } from '@/components/AppShell';
+import { AppShell, PeopleNav } from '@/components/AppShell';
 import { useAuth } from '@/lib/auth';
 import { countryName, flagEmoji, GENDER_ICON } from '@/lib/format';
 import { getSocket } from '@/lib/socket';
@@ -22,16 +22,16 @@ const ago = (at: number) => {
 const label = (p: HistoryPerson) => p.name || (p.hasAccount ? 'Stranger' : 'Guest');
 const messageHref = (id: string, name: string) => `/messages?with=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}`;
 
-/** Filter pill (40px desktop, 38px phone; the ::before pads the hit area to 44px). */
+/** Filter pill. */
 const tabCls = (on: boolean) =>
-  `relative h-[38px] shrink-0 rounded-full px-3.5 text-[13px] font-semibold transition-colors before:absolute before:inset-x-0 before:-inset-y-1 lg:h-10 lg:px-4 lg:text-sm ${
-    on ? 'bg-[#F4F5F7] text-night' : 'border border-line-2 bg-transparent text-mute hover:text-[#F4F5F7]'
+  `h-11 shrink-0 rounded-full px-3.5 text-[13px] font-semibold transition-colors lg:px-4 lg:text-sm ${
+    on ? 'border-[1.5px] border-lime bg-pick text-[#F4F5F7]' : 'border border-[#6B5D84] bg-transparent text-mute hover:text-[#F4F5F7]'
   }`;
 
 const HUES = ['#8A5FC2', '#3FA08A', '#E08A4F', '#5878D8', '#D06483'];
 const hue = (id: string) => HUES[[...id].reduce((n, c) => n + c.charCodeAt(0), 0) % HUES.length];
 
-function PersonAvatar({ p }: { p: HistoryPerson }) {
+function PersonAvatar({ p, showOnline }: { p: HistoryPerson; showOnline: boolean }) {
   return (
     <span
       className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-2xl"
@@ -39,7 +39,7 @@ function PersonAvatar({ p }: { p: HistoryPerson }) {
       aria-hidden
     >
       {p.avatar ?? (p.gender ? GENDER_ICON[p.gender] : '')}
-      {p.online && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-night bg-lime lg:border-card" />}
+      {showOnline && p.online && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-night bg-lime lg:border-card" />}
     </span>
   );
 }
@@ -113,7 +113,7 @@ function Profile({ p, onClose, onChanged }: { p: HistoryPerson; onClose: () => v
                   });
               }}
               className={`h-[50px] rounded-[14px] border-[1.5px] font-semibold transition-colors disabled:opacity-50 ${
-                following ? 'border-[#4a3f5c] text-mute hover:text-[#F4F5F7]' : 'border-[#4a3f5c] text-[#e6e8ec] hover:border-lime'
+                following ? 'border-[#6B5D84] text-mute hover:text-[#F4F5F7]' : 'border-[#6B5D84] text-[#e6e8ec] hover:border-lime'
               }`}
             >
               {following ? '✓ Following' : 'Follow'}
@@ -181,17 +181,18 @@ export default function HistoryPage() {
     <AppShell
       title={
         <span className="flex flex-col">
-          History
+          <span className="lg:hidden">People</span>
+          <span className="max-lg:hidden">History</span>
+          <span className="mt-1 font-sans text-[13px] font-normal text-mute lg:hidden">Everyone you’ve met · only you see this</span>
           {user && (
-            <span className="mt-1 font-sans text-[13px] font-normal text-mute lg:text-sm">
-              {data?.recent ?? '—'} chats this week<span className="max-lg:hidden"> · {data?.people.length ?? '—'} people</span> ·{' '}
-              <span className="lg:hidden">only you see this</span>
-              <span className="max-lg:hidden">only you can see this</span>
+            <span className="mt-1 font-sans text-sm font-normal text-mute max-lg:hidden">
+              {data?.recent ?? '—'} chats this week · {data?.people.length ?? '—'} people · only you can see this
             </span>
           )}
         </span>
       }
     >
+      <PeopleNav className="-mt-2" />
       {loading ? null : !user ? (
         <p className="m-0 rounded-[18px] border border-line bg-card p-5 text-center text-mute lg:rounded-[20px]">
           <Link href="/login?next=/history" className="font-semibold text-lime underline-offset-2 hover:underline">
@@ -205,16 +206,14 @@ export default function HistoryPage() {
             {(['all', 'online', 'following'] as const).map((f) =>
               f === 'online' && !plus ? (
                 <Link key={f} href="/plus" className={`${tabCls(false)} flex items-center`}>
-                  Online<span className="max-lg:hidden"> now</span> · Plus
+                  Online now · Plus
                 </Link>
               ) : (
                 <button key={f} type="button" onClick={() => setFilter(f)} aria-pressed={filter === f} className={tabCls(filter === f)}>
                   {f === 'all' ? (
                     'All'
                   ) : f === 'online' ? (
-                    <>
-                      Online<span className="max-lg:hidden"> now</span>
-                    </>
+                    'Online now'
                   ) : (
                     'Following'
                   )}
@@ -240,7 +239,7 @@ export default function HistoryPage() {
                     className="flex min-w-0 flex-1 items-center gap-3 py-2.5 text-left lg:gap-3.5 lg:py-3.5"
                     aria-haspopup="dialog"
                   >
-                    <PersonAvatar p={p} />
+                    <PersonAvatar p={p} showOnline={plus} />
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                       <span className="flex items-center gap-1.5 text-[15px] font-semibold">
                         <span className="truncate">{label(p)}</span>
@@ -258,13 +257,13 @@ export default function HistoryPage() {
                     </span>
                   </button>
                   {!p.hasAccount ? (
-                    <span className="flex h-10 shrink-0 items-center rounded-xl border border-divider px-3.5 text-[13px] font-semibold text-[#8a8f99] lg:px-4 lg:text-sm" title="Guests can't be messaged">
+                    <span className="flex h-11 shrink-0 items-center rounded-xl border border-divider px-3.5 text-[13px] font-semibold text-[#8a8f99] lg:px-4 lg:text-sm" title="Guests can't be messaged">
                       Guest
                     </span>
                   ) : canMessage ? (
                     <Link
                       href={messageHref(p.id, label(p))}
-                      className="flex h-11 shrink-0 items-center rounded-xl bg-lime px-3.5 text-[13px] font-semibold text-night lg:h-10 lg:px-4 lg:text-sm"
+                      className="flex h-11 shrink-0 items-center rounded-xl bg-lime px-3.5 text-[13px] font-semibold text-night lg:px-4 lg:text-sm"
                       aria-label={`Message ${label(p)}`}
                     >
                       Message
@@ -273,7 +272,7 @@ export default function HistoryPage() {
                     <button
                       type="button"
                       onClick={() => follow(p)}
-                      className="flex h-11 shrink-0 items-center rounded-xl border border-line-2 px-3.5 text-[13px] font-semibold text-[#e6e8ec] hover:border-lime lg:h-10 lg:px-4 lg:text-sm"
+                      className="flex h-11 shrink-0 items-center rounded-xl border border-[#6B5D84] px-3.5 text-[13px] font-semibold text-[#e6e8ec] hover:border-lime lg:px-4 lg:text-sm"
                       aria-label={`Follow ${label(p)}`}
                     >
                       Follow

@@ -14,19 +14,20 @@ import {
 } from '@rc/shared';
 
 const input =
-  'h-12 w-full min-w-0 rounded-xl border border-line-2 bg-card px-3.5 text-[15px] text-[#f4f5f7] outline-none placeholder:text-faint focus:border-lime lg:h-[46px] lg:bg-[#120D18]';
+  'h-12 w-full min-w-0 rounded-xl border border-[#6b5d84] bg-card px-3.5 text-[15px] text-[#f4f5f7] outline-none placeholder:text-faint focus:border-lime lg:h-[46px] lg:bg-[#120D18]';
 const label = 'flex min-w-0 flex-col gap-1.5 text-[13px] text-mute';
 const ghost =
-  'inline-flex h-10 flex-none items-center rounded-xl border border-line-2 px-3.5 text-[13px] font-semibold text-[#e6e8ec] hover:border-[#4a3f5c] lg:h-11 lg:px-4 lg:text-sm';
+  'inline-flex h-11 flex-none items-center rounded-xl border border-[#6b5d84] px-3.5 text-[13px] font-semibold text-[#e6e8ec] hover:border-[#4a3f5c] lg:h-11 lg:px-4 lg:text-sm';
 
 /** Suggested interests on the phone chip picker (custom ones the user already has are shown too). */
 const SUGGESTED = ['Music', 'Travel', 'Gaming', 'Movies', 'Sports', 'Food', 'Tech', 'Art'];
 
 /** "Priya · 24 · bio" — what partners see. */
 export function profilePreview(s: UserSettings) {
-  const parts = [s.name?.trim() || 'Stranger'];
-  if (s.age) parts.push(ageLabel(s.age));
-  parts.push(s.bio?.trim() || (s.interests.length ? s.interests.slice(0, 3).join(', ') : 'no bio yet'));
+  const name = s.name?.trim() || 'Stranger';
+  const parts = [s.age ? `${name}, ${ageLabel(s.age)}` : name];
+  if (s.interests.length) parts.push(s.interests.slice(0, 3).join(', '));
+  else if (s.bio?.trim()) parts.push(s.bio.trim());
   return parts.join(' · ');
 }
 
@@ -69,7 +70,7 @@ export function ProfileEditor({ settings, onChange }: { settings: UserSettings; 
         <ProfileAvatar settings={settings} size="md" />
         <div className="min-w-0 flex-1">
           <strong className="block truncate font-display text-lg font-bold">{name.trim() || 'Your name'}</strong>
-          <p className="m-0 mt-0.5 truncate text-[13px] text-mute">Partners see: {profilePreview(settings)}</p>
+          <p className="m-0 mt-0.5 truncate text-[13px] text-mute">People you meet see: {profilePreview(settings)}</p>
         </div>
         {photoButton}
       </div>
@@ -109,7 +110,7 @@ export function ProfileEditor({ settings, onChange }: { settings: UserSettings; 
       )}
 
       <div className="rounded-[14px] border border-line bg-card px-3.5 py-3 text-[13px] text-mute lg:hidden">
-        Partners see: <strong className="break-words text-[#f4f5f7]">{profilePreview(settings)}</strong>
+        People you meet see: <strong className="break-words text-[#f4f5f7]">{profilePreview(settings)}</strong>
       </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)_96px] gap-2.5">
@@ -180,7 +181,7 @@ export function ProfileEditor({ settings, onChange }: { settings: UserSettings; 
               type="button"
               aria-pressed={has(c)}
               onClick={() => toggleChip(c)}
-              className={`h-10 rounded-full border px-3.5 text-[13px] font-semibold ${has(c) ? 'border-lime bg-lime text-night' : 'border-line-2 bg-card text-[#e6e8ec]'}`}
+              className={`h-11 rounded-full px-3.5 text-[13px] font-semibold ${has(c) ? 'border-[1.5px] border-lime bg-pick text-[#f4f5f7]' : 'border border-[#6b5d84] bg-card text-[#e6e8ec]'}`}
             >
               {c}
             </button>

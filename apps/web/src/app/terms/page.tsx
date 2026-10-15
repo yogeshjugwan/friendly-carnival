@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { CONTACT_EMAIL, ghostLink, LegalPage, primaryLink, TermsTabs } from '@/components/LegalPage';
+import { CONTACT_EMAIL, ghostLink, LegalPage, primaryLink } from '@/components/LegalPage';
 
 export const metadata: Metadata = { title: 'Terms of Use — randomCall' };
 
@@ -15,7 +15,11 @@ export default function TermsPage() {
       }
       phoneTitle="Terms & Guidelines"
       subtitle="By using randomCall you agree to these terms. If you do not agree, do not use the service."
-      aside={<TermsTabs current="terms" />}
+      aside={
+        <Link href="/guidelines" className="flex h-11 items-center justify-center gap-1.5 rounded-xl border border-[#6b5d84] px-4 text-sm font-semibold text-[#e6e8ec]">
+          Community Guidelines →
+        </Link>
+      }
       sections={[
         {
           title: '1. Eligibility',

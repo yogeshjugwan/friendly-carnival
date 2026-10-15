@@ -42,14 +42,14 @@ export function CoinChip({ call, className = '' }: { call?: RandomCall; classNam
 }
 
 /** 🎁 on the video: pick a gift for the partner. */
-export function GiftButton({ call, up, iconClass, menuPos }: { call: RandomCall; up?: boolean; iconClass?: string; menuPos?: string }) {
+export function GiftButton({ call, up, iconClass, menuPos, withLabel = false }: { call: RandomCall; up?: boolean; iconClass?: string; menuPos?: string; withLabel?: boolean }) {
   const wallet = useWallet(call);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div className="relative">
+    <div className={`relative ${withLabel ? 'flex min-w-0 max-w-[62px] flex-1 sm:max-w-none sm:flex-none [&>button]:max-w-none' : ''}`}>
       <button
         onClick={() => {
           setOpen((o) => !o);
@@ -68,6 +68,7 @@ export function GiftButton({ call, up, iconClass, menuPos }: { call: RandomCall;
         ) : (
           '🎁 Gift'
         )}
+        {iconClass && withLabel && <span className="max-w-full truncate px-0.5 text-gold">Gift</span>}
       </button>
       {open && (
         <>
@@ -109,6 +110,23 @@ export function GiftButton({ call, up, iconClass, menuPos }: { call: RandomCall;
               ))}
             </div>
             {error && <p className="mt-2 text-xs text-red-300">{error}</p>}
+            {!wallet ? (
+              <div className="mt-2 flex flex-col gap-2">
+                <span className="text-[13px] text-mute">Log in to buy coins and send gifts. You’ll come back to this call.</span>
+                <Link href="/login" target="_blank" className="flex h-11 items-center justify-center rounded-[14px] bg-lime font-display text-sm font-bold text-night">
+                  Log in to send a gift
+                </Link>
+              </div>
+            ) : (
+              wallet.coins < Math.min(...availableGifts().map((g) => g.coins)) && (
+                <div className="mt-2 flex flex-col gap-2">
+                  <span className="text-[13px] text-stop-text">Not enough coins — top up without leaving the call:</span>
+                  <Link href="/coins" target="_blank" className="flex h-11 items-center justify-center rounded-xl border border-[#4a3f17] bg-gold-bg font-display text-sm font-bold text-gold">
+                    Buy coins
+                  </Link>
+                </div>
+              )
+            )}
             <p className="mt-2 text-[11px] text-dim">
               They get half as coins.{' '}
               <Link href="/coins" target="_blank" className="text-lime underline">

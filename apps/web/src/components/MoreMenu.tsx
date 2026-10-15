@@ -89,10 +89,12 @@ interface Props {
   onToggleFullscreen: () => void;
   /** Where the menu opens, relative to the button. */
   menuPos?: string;
+  /** Show "More" under the icon (call controls). */
+  withLabel?: boolean;
 }
 
 /** The ⋮ "More options" menu, laid out like Google Meet's. */
-export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen, menuPos = 'absolute bottom-full right-0 mb-3 sm:-right-20' }: Props) {
+export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen, menuPos = 'absolute bottom-full right-0 mb-3 sm:-right-20', withLabel = false }: Props) {
   const pos = menuPos;
   const [view, setView] = useState<'closed' | 'menu' | 'settings' | 'effects' | 'blocked' | 'boost' | 'games'>('closed');
   const [fullscreen, setFullscreen] = useState(false);
@@ -119,7 +121,7 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
   );
 
   return (
-    <div className="relative">
+    <div className={`relative ${withLabel ? 'flex min-w-0 max-w-[62px] flex-1 sm:max-w-none sm:flex-none [&>button]:max-w-none' : ''}`}>
       <button
         onClick={() => setView((v) => (v === 'closed' ? 'menu' : 'closed'))}
         aria-label="More options"
@@ -129,6 +131,7 @@ export function MoreMenu({ call, className, fit, onToggleFit, onToggleFullscreen
         className={className}
       >
         <MoreVerticalIcon />
+        {withLabel && <span className="max-w-full truncate px-0.5">More</span>}
       </button>
 
       {view !== 'closed' && (

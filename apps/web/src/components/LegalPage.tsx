@@ -24,7 +24,7 @@ export function LegalFrame({ current, phoneTitle, phoneSub, children }: { curren
         <ShellLogo />
         <nav aria-label="Legal and help" className="flex items-center gap-2">
           {PAGES.filter(([p]) => p !== current).map(([p, label, href]) => (
-            <Link key={p} href={href} className="flex h-11 items-center rounded-[14px] border border-line-2 px-[18px] text-sm font-semibold text-[#e6e8ec] hover:border-[#4a3f5c]">
+            <Link key={p} href={href} className="flex h-11 items-center rounded-[14px] border border-[#6b5d84] px-[18px] text-sm font-semibold text-[#e6e8ec] hover:border-[#4a3f5c]">
               {label}
             </Link>
           ))}
@@ -42,7 +42,7 @@ export function LegalFrame({ current, phoneTitle, phoneSub, children }: { curren
           </svg>
         </Link>
         <div className="min-w-0">
-          <p className="m-0 font-display text-[20px] font-bold" aria-hidden>
+          <p className="m-0 font-display text-[24px] font-bold" aria-hidden>
             {phoneTitle}
           </p>
           {phoneSub && <p className="m-0 text-[11px] text-mute">{phoneSub}</p>}
@@ -91,7 +91,7 @@ export function LegalSections({ sections, cols = 4 }: { sections: LegalSection[]
 
 export const primaryLink = 'flex h-[54px] items-center justify-center rounded-[14px] bg-lime px-7 font-display text-[17px] font-bold text-night lg:h-[52px]';
 export const ghostLink =
-  'flex h-[52px] items-center justify-center rounded-[14px] border border-line-2 px-5 text-[15px] font-semibold text-[#e6e8ec] hover:border-[#4a3f5c]';
+  'flex h-[52px] items-center justify-center rounded-[14px] border border-[#6b5d84] px-5 text-[15px] font-semibold text-[#e6e8ec] hover:border-[#4a3f5c]';
 
 /** A legal page: big title, subtitle, optional extras on the right, the sections, then a footer line and actions. */
 export function LegalPage({
@@ -144,7 +144,7 @@ export function TermsTabs({ current }: { current: 'terms' | 'guidelines' }) {
     <Link
       href={`/${p}`}
       aria-current={current === p ? 'page' : undefined}
-      className={`flex h-10 items-center justify-center rounded-[9px] px-4 text-sm font-semibold ${current === p ? 'bg-line text-[#f4f5f7]' : 'text-mute hover:text-[#f4f5f7]'}`}
+      className={`flex h-11 items-center justify-center rounded-[9px] px-4 text-sm font-semibold ${current === p ? 'bg-pick text-[#f4f5f7] shadow-[inset_0_0_0_1.5px_#FF6FAE]' : 'text-mute hover:text-[#f4f5f7]'}`}
     >
       {label}
     </Link>

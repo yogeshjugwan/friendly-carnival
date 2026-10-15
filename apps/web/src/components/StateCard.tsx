@@ -92,8 +92,8 @@ export function StateCard({
 const BTN = 'flex h-[52px] w-full items-center justify-center rounded-[14px] font-display text-base font-bold disabled:opacity-50';
 const KIND = {
   primary: `${BTN} bg-lime text-night`,
-  outline: `${BTN} border-[1.5px] border-[#4a3f5c] bg-transparent font-sans font-semibold text-[#e6e8ec] hover:border-[#5a4f6c]`,
-  danger: `${BTN} bg-[#FF5A5A] text-white`,
+  outline: `${BTN} border-[1.5px] border-[#6b5d84] bg-transparent font-sans font-semibold text-[#e6e8ec] hover:border-[#8a7aa6]`,
+  danger: `${BTN} bg-[#D93A4A] text-white`,
   gold: `${BTN} bg-gold text-[#1A1404] hover:brightness-110`,
   link: 'flex h-11 w-full items-center justify-center text-sm font-semibold text-mute underline hover:text-white',
 } as const;

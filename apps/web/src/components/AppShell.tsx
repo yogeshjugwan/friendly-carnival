@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { loadSettings } from '@/lib/settings';
@@ -27,15 +27,50 @@ const NAV: [string, string, React.ReactNode][] = [
       d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1c.6.5 1.3.9 2 1.2L10 21h4l.5-2.6c.7-.3 1.4-.7 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z"
     />,
   ],
+  [
+    '/help',
+    'Help',
+    <path key="hp" d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9.5 9a2.5 2.5 0 0 1 5 .5c0 1.5-2.5 2-2.5 3.5M12 17h.01" />,
+  ],
+  ['/privacy', 'Privacy', <path key="pv" d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />],
 ];
 
-const TABS: [string, string][] = [
-  ['/', 'Chat'],
-  ['/history', 'History'],
-  ['/messages', 'Messages'],
-  ['/coins', 'Coins'],
-  ['/settings', 'Me'],
+/** Phone tabs. "People" is the inbox and Recent (history), switched with <PeopleNav>. */
+const TABS: [string, string, string[]][] = [
+  ['/', 'Chat', ['/']],
+  ['/messages', 'People', ['/messages', '/history']],
+  ['/coins', 'Coins', ['/coins']],
+  ['/settings', 'Me', ['/settings']],
 ];
+
+/** Phones: "Messages | Recent" switch at the top of the People tab. */
+export function PeopleNav({ className = '' }: { className?: string }) {
+  const path = usePathname();
+  return (
+    <nav aria-label="People" className={`grid grid-cols-2 gap-1 rounded-[14px] border border-divider bg-card p-1 lg:hidden ${className}`}>
+      {(
+        [
+          ['/messages', 'Messages'],
+          ['/history', 'Recent'],
+        ] as const
+      ).map(([href, label]) => {
+        const on = path === href;
+        return (
+          <Link
+            key={href}
+            href={href}
+            aria-current={on ? 'page' : undefined}
+            className={`flex h-11 items-center justify-center rounded-[10px] text-sm font-semibold ${
+              on ? 'bg-pick text-[#f4f5f7] shadow-[inset_0_0_0_1.5px_#FF6FAE]' : 'text-mute hover:text-[#f4f5f7]'
+            }`}
+          >
+            {label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
 
 export function ShellLogo() {
   return (
@@ -78,7 +113,6 @@ export function ShellActions() {
 
 export function AppShell({ title, actions, children }: { title: React.ReactNode; actions?: React.ReactNode; children: React.ReactNode }) {
   const path = usePathname();
-  const router = useRouter();
   const [plusOpen, setPlusOpen] = useState(false);
   const { user } = useAuth();
   const plusUntil = user?.plus.active && user.plus.until ? new Date(user.plus.until).toLocaleDateString() : null;
@@ -107,28 +141,39 @@ export function AppShell({ title, actions, children }: { title: React.ReactNode;
             </Link>
           );
         })}
-        <button
-          type="button"
-          onClick={() => (user?.plus.active ? router.push('/plus') : setPlusOpen(true))}
-          className="mt-auto flex flex-col gap-1 rounded-2xl border border-[#4a3f17] bg-gold-bg p-3.5 text-left text-gold"
-        >
-          <strong className="font-display text-[15px]">{user?.plus.active ? 'Plus active' : 'Get Plus'}</strong>
-          <span className="text-xs text-[#cdb766]">{plusUntil ? `Until ${plusUntil}` : 'Gender & country filters'}</span>
-        </button>
+        {user?.plus.active ? (
+          <Link
+            href="/plus"
+            className="mt-auto flex flex-col gap-1 rounded-2xl border border-[#4a3f17] bg-gold-bg p-3.5 text-left text-gold"
+            aria-label={`Plus active${plusUntil ? ` until ${plusUntil}` : ''}`}
+          >
+            <strong className="font-display text-[15px]">Plus active ✓</strong>
+            <span className="text-xs text-[#cdb766]">Filters &amp; online list unlocked</span>
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setPlusOpen(true)}
+            className="mt-auto flex flex-col gap-1 rounded-2xl border border-[#4a3f17] bg-gold-bg p-3.5 text-left text-gold"
+          >
+            <strong className="font-display text-[15px]">Get Plus</strong>
+            <span className="text-xs text-[#cdb766]">Gender &amp; country filters</span>
+          </button>
+        )}
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col gap-5 px-4 pb-[100px] pt-5 sm:px-10 sm:pt-6 lg:pb-8">
         <header className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="m-0 font-display text-[26px] font-bold sm:text-[30px]">{title}</h1>
+          <h1 className="m-0 font-display text-[24px] font-bold sm:text-[30px]">{title}</h1>
           {actions ?? <ShellActions />}
         </header>
         {children}
       </main>
 
       {/* Phones and tablets: text tabs with a lime bar over the current one. */}
-      <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-30 grid h-[76px] grid-cols-5 border-t border-[#1a1422] bg-[#0e0a13] px-2 pb-3 lg:hidden">
-        {TABS.map(([href, label]) => {
-          const on = path === href;
+      <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-30 grid h-[76px] grid-cols-4 border-t border-[#1a1422] bg-[#0e0a13] px-2 pb-3 lg:hidden">
+        {TABS.map(([href, label, paths]) => {
+          const on = paths.includes(path);
           return (
             <Link
               key={href}

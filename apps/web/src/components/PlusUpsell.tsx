@@ -46,7 +46,7 @@ export function PlusUpsell({ onClose, reason, body }: { onClose: () => void; rea
     >
       <StateActions
         actions={[
-          { label: 'Try Plus', kind: 'gold', onClick: () => setPlusOpen(true) },
+          { label: 'Get Plus', kind: 'gold', onClick: () => setPlusOpen(true) },
           { label: 'Keep matching', kind: 'outline', onClick: onClose },
         ]}
       />

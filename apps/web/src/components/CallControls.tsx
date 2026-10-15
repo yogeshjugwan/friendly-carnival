@@ -8,9 +8,14 @@ import { FriendButton } from './Friends';
 import { MoreMenu } from './MoreMenu';
 import { useI18n } from '@/lib/i18n';
 
-/** Control button: dark tile, white when switched off (muted / camera off), gradient when open. Rail = the round phone buttons. */
+/**
+ * Control tile: icon over a small label. Dark tile, white when switched off (muted / camera off), gradient when open.
+ * Rail = the phone row (tiles share the width, 62×60 max); larger screens get 68×58 tiles.
+ */
 const ctl = (state: 'normal' | 'off' | 'active' = 'normal', rail = false) =>
-  `relative flex h-12 w-12 shrink-0 items-center justify-center transition ${rail ? 'rounded-full sm:rounded-[14px]' : 'rounded-[14px]'} ${
+  `relative flex shrink-0 flex-col items-center justify-center gap-1 p-0 text-[11px] font-semibold leading-none transition [&_svg]:h-5 [&_svg]:w-5 ${
+    rail ? 'h-[60px] min-w-0 max-w-[62px] flex-1 rounded-2xl sm:h-[58px] sm:w-[68px] sm:max-w-none sm:flex-none sm:rounded-[14px]' : 'h-[58px] w-[68px] rounded-[14px]'
+  } ${
     state === 'off'
       ? 'bg-[#f4f5f7] text-night'
       : state === 'active'
@@ -20,6 +25,9 @@ const ctl = (state: 'normal' | 'off' | 'active' = 'normal', rail = false) =>
           : 'bg-card-2 text-[#e6e8ec] hover:bg-[#2a2236]'
   }`;
 
+/** The small label under a control icon. */
+export const CtlLabel = ({ children }: { children: React.ReactNode }) => <span className="max-w-full truncate px-0.5">{children}</span>;
+
 /** Mic / camera button with a small ^ that opens a device list (Meet style). */
 function DeviceButton({
   on,
@@ -28,6 +36,8 @@ function DeviceButton({
   currentId,
   onPick,
   label,
+  onText,
+  offText,
   OnIcon,
   OffIcon,
   rail,
@@ -38,13 +48,15 @@ function DeviceButton({
   currentId: string | null;
   onPick: (id: string) => void;
   label: string;
+  onText: string;
+  offText: string;
   OnIcon: (p: { className?: string }) => React.ReactElement;
   OffIcon: (p: { className?: string }) => React.ReactElement;
   rail: boolean;
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="relative flex items-center">
+    <div className={`relative flex items-center ${rail ? 'min-w-0 max-w-[62px] flex-1 sm:max-w-none sm:flex-none [&>button]:max-w-none' : ''}`}>
       <button
         onClick={onToggle}
         aria-label={on ? `Turn ${label.toLowerCase()} off` : `Turn ${label.toLowerCase()} on`}
@@ -53,6 +65,7 @@ function DeviceButton({
         className={ctl(on ? 'normal' : 'off', rail)}
       >
         {on ? <OnIcon /> : <OffIcon />}
+        <CtlLabel>{on ? onText : offText}</CtlLabel>
       </button>
       {/* Pick another mic/camera: a small badge on the button's corner, like Meet. */}
       {devices.length > 1 && !rail && (
@@ -118,15 +131,18 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
   const menuPos = rail ? 'absolute bottom-full right-0 mb-3' : 'absolute bottom-full right-0 mb-3';
 
   return (
-    <div className={`relative flex items-center gap-2 ${rail ? 'w-full justify-between sm:w-auto sm:justify-start' : ''}`}>
+    <div className={`relative flex items-center gap-2 ${rail ? 'w-full justify-between max-sm:gap-1.5 sm:w-auto sm:justify-start' : ''}`}>
       {call.canGoBack && !rail && (
         <button onClick={call.back} aria-label={t('call.back')} title={t('call.back')} className={ctl()}>
           <BackIcon />
+          <CtlLabel>Back</CtlLabel>
         </button>
       )}
       <DeviceButton
         rail={rail}
         label={t('call.mic')}
+        onText="Mute"
+        offText="Unmute"
         on={call.micOn}
         onToggle={call.toggleMic}
         devices={call.mics}
@@ -139,6 +155,8 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
         <DeviceButton
           rail={rail}
           label={t('call.camera')}
+          onText="Cam off"
+          offText="Cam on"
           on={call.cameraOn}
           onToggle={call.toggleCamera}
           devices={call.cameras}
@@ -158,15 +176,16 @@ export function CallControls({ call, matched, chatOpen, onToggleChat, unread, fi
         className={ctl(chatOpen ? 'active' : 'normal', rail)}
       >
         <ChatIcon />
+        <CtlLabel>Chat</CtlLabel>
         {unread > 0 && !chatOpen && (
           <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-bold text-white">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
       </button>
-      {matched && <FriendButton call={call} iconClass={ctl('normal', rail)} />}
-      {matched && <GiftButton call={call} iconClass={ctl('normal', rail)} menuPos="!left-auto right-0 bottom-full mb-3" />}
-      <MoreMenu call={call} className={ctl('normal', rail)} fit={fit} onToggleFit={onToggleFit} onToggleFullscreen={onToggleFullscreen} menuPos={menuPos} />
+      {matched && <FriendButton call={call} iconClass={ctl('normal', rail)} withLabel />}
+      {matched && <GiftButton call={call} iconClass={ctl('normal', rail)} withLabel menuPos="!left-auto right-0 bottom-full mb-3" />}
+      <MoreMenu call={call} className={ctl('normal', rail)} fit={fit} onToggleFit={onToggleFit} onToggleFullscreen={onToggleFullscreen} menuPos={menuPos} withLabel />
         </>
       )}
     </div>
@@ -179,7 +198,7 @@ export function CancelButton({ call, wide = false }: { call: RandomCall; wide?: 
     <button
       onClick={call.stop}
       aria-keyshortcuts="Escape"
-      className={`h-14 rounded-2xl border-[1.5px] border-[#4a3f5c] px-8 text-base font-semibold text-[#e6e8ec] transition hover:bg-white/5 ${wide ? 'max-sm:flex-1' : ''}`}
+      className={`h-14 rounded-2xl border-[1.5px] border-[#6b5d84] px-8 text-base font-semibold text-[#e6e8ec] transition hover:bg-white/5 ${wide ? 'max-sm:flex-1' : ''}`}
     >
       Cancel
     </button>
@@ -197,7 +216,7 @@ export function StopNext({ call, wide = false, compact = false }: { call: Random
         aria-label={t('call.end')}
         title={t('call.end')}
         aria-keyshortcuts="Escape"
-        className={`${h} rounded-2xl border-[1.5px] border-[#4a3f5c] px-6 text-base font-semibold text-[#e6e8ec] transition hover:bg-white/5 ${wide ? 'max-sm:w-24 max-sm:px-0' : ''}`}
+        className={`${h} rounded-2xl border-[1.5px] border-[#6b5d84] px-6 text-base font-semibold text-[#e6e8ec] transition hover:bg-white/5 ${wide ? 'max-sm:w-24 max-sm:px-0' : ''}`}
       >
         {t('call.stop')}
       </button>

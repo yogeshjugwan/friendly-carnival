@@ -61,7 +61,7 @@ export function AgeGate() {
 
 /** Why this account can't chat right now (shown on the home page). */
 export function AgeHoldNotice() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   if (!user?.ageHold) return null;
   const under = user.ageHold === 'under-18';
   return (
@@ -91,6 +91,9 @@ export function AgeHoldNotice() {
           >
             Take selfie
           </Link>
+          <button type="button" onClick={() => void logout()} className="flex h-11 w-full items-center justify-center text-sm font-semibold text-mute hover:text-white">
+            Log out
+          </button>
         </>
       )}
     </section>

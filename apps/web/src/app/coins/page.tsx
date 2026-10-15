@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useId, useState } from 'react';
-import { availableGifts, BOOST, COIN_PACKS, INR_COIN_PRICES, inr, MATCHES_FOR_COINS, type CoinPackId, type SpendResult } from '@rc/shared';
+import { availableGifts, BOOST, COIN_PACKS, INR_COIN_PRICES, inr, type CoinPackId, type SpendResult } from '@rc/shared';
 import { payWithRazorpay, razorpayEnabled } from '@/lib/razorpay';
 import { spendError, useWallet } from '@/components/Coins';
 import { AppShell, ShellActions } from '@/components/AppShell';
@@ -83,37 +83,31 @@ export default function CoinsPage() {
         }),
     );
 
-  const buyMatches = () =>
-    new Promise<SpendResult>((resolve) =>
-      getSocket()
-        .timeout(8_000)
-        .emit('limit:buy', (err, r) => {
-          const res: SpendResult = err ? { ok: false, reason: 'invalid' } : r;
-          if (res.ok) void refresh();
-          resolve(res);
-        }),
-    );
-
   const [picked, setPicked] = useState<CoinPackId>('medium');
-  const [confirm, setConfirm] = useState<'boost' | 'matches' | null>(null);
+  const [confirm, setConfirm] = useState<'boost' | null>(null);
+  const [buyOpen, setBuyOpen] = useState(false);
   const pack = COIN_PACKS.find((p) => p.id === picked)!;
   const gifts = availableGifts();
   const card = 'rounded-[18px] border border-line bg-card p-4 lg:rounded-[20px] lg:p-5';
   const coins = user?.wallet.coins ?? 0;
-  const ask = (what: 'boost' | 'matches') => (user ? setConfirm(what) : router.push('/login?next=/coins'));
+  const ask = (what: 'boost') => (user ? setConfirm(what) : router.push('/login?next=/coins'));
+  const askBuy = () => (user && token ? setBuyOpen(true) : router.push('/signup?next=/coins'));
 
   return (
     <AppShell
       title="Coins"
       actions={
         <div className="flex items-center">
-          <Link
-            href="/plus"
-            className="flex h-8 items-center rounded-full border border-[#4a3f17] bg-gold-bg px-2.5 text-xs font-semibold text-gold lg:hidden"
-            aria-label="randomCall Plus"
-          >
-            PLUS
-          </Link>
+          {user?.plus.active ? (
+            <span className="flex h-11 items-center rounded-full border border-[#4a3f17] bg-gold-bg px-3 text-xs font-semibold text-gold lg:hidden">Plus ✓</span>
+          ) : (
+            <Link
+              href="/plus"
+              className="flex h-11 items-center rounded-full border border-[#4a3f17] bg-gold-bg px-2.5 text-xs font-semibold text-gold lg:hidden"
+            >
+              Get Plus
+            </Link>
+          )}
           <div className="max-lg:hidden">
             <ShellActions />
           </div>
@@ -145,7 +139,7 @@ export default function CoinsPage() {
                 <span className="max-lg:hidden">Your balance</span>
               </span>
               <strong className="font-display text-[36px] font-bold leading-none text-gold lg:text-5xl">{coins.toLocaleString()}</strong>
-              <span className="text-[13px] text-mute max-lg:hidden">Use for gifts, Boost and extra matches</span>
+              <span className="text-[13px] text-mute max-lg:hidden">Use for gifts and Boost</span>
             </div>
             <div className="lg:hidden">
               <BoostButton onAsk={() => ask('boost')} compact />
@@ -201,56 +195,27 @@ export default function CoinsPage() {
           </div>
           <div className="flex flex-col gap-2 lg:flex-row-reverse lg:justify-start">
             <button
-              onClick={() => void buy(pack.id)}
+              type="button"
+              onClick={askBuy}
               disabled={busy !== null}
+              aria-haspopup="dialog"
               className="h-[52px] rounded-[14px] bg-lime px-8 font-display text-base font-bold text-night transition hover:bg-lime-hover disabled:opacity-50 lg:text-[17px]"
             >
-              {busy === pack.id ? 'Opening…' : `Buy ${pack.coins.toLocaleString()} coins`}
+              {busy ? 'Opening…' : `Buy ${pack.coins.toLocaleString()} coins`}
             </button>
-            {upi && (
-              <button
-                onClick={() => void buyUpi(pack.id)}
-                disabled={busy !== null}
-                aria-label={`Buy ${pack.coins} coins for ${inr(INR_COIN_PRICES[pack.id])} with UPI or card`}
-                className="h-[52px] rounded-[14px] border-[1.5px] border-[#4a3f5c] px-6 text-sm font-semibold text-[#e6e8ec] transition hover:border-lime hover:text-lime disabled:opacity-50"
-              >
-                {busy === `upi:${pack.id}` ? 'Opening…' : `Pay ${inr(INR_COIN_PRICES[pack.id])} with UPI / card`}
-              </button>
-            )}
           </div>
           <Link href="/invite" className="flex min-h-11 items-center justify-center text-sm text-lime lg:hidden">
             Or invite a friend for free Plus →
           </Link>
         </section>
 
-        {/* Desktop: Boost and extra matches */}
-        <div className="grid grid-cols-2 gap-4 max-lg:hidden">
-          <div className={`flex items-center justify-between gap-3 ${card}`}>
-            <div>
-              <strong className="font-display text-base font-bold">Boost · {BOOST.minutes} min</strong>
-              <p className="m-0 mt-0.5 text-[13px] text-mute">Get matched first</p>
-            </div>
-            <BoostButton onAsk={() => ask('boost')} />
+        {/* Desktop: Boost */}
+        <div className={`flex items-center justify-between gap-3 max-lg:hidden ${card}`}>
+          <div>
+            <strong className="font-display text-base font-bold">Boost · {BOOST.minutes} min</strong>
+            <p className="m-0 mt-0.5 text-[13px] text-mute">Get matched first</p>
           </div>
-          <div className={`flex items-center justify-between gap-3 ${card}`}>
-            <div>
-              <strong className="font-display text-base font-bold">{MATCHES_FOR_COINS.matches} more matches today</strong>
-              <p className="m-0 mt-0.5 text-[13px] text-mute">When free matches run out</p>
-            </div>
-            <button onClick={() => ask('matches')} className={goldBtn}>
-              {MATCHES_FOR_COINS.coins} coins
-            </button>
-          </div>
-        </div>
-        {/* Phones: extra matches */}
-        <div className={`flex items-center justify-between gap-3 lg:hidden ${card}`}>
-          <div className="min-w-0">
-            <strong className="font-display text-[15px] font-bold">{MATCHES_FOR_COINS.matches} more matches today</strong>
-            <p className="m-0 mt-0.5 text-xs text-mute">When free matches run out</p>
-          </div>
-          <button onClick={() => ask('matches')} className={goldBtn}>
-            {MATCHES_FOR_COINS.coins} coins
-          </button>
+          <BoostButton onAsk={() => ask('boost')} />
         </div>
 
         {/* What coins buy */}
@@ -289,26 +254,33 @@ export default function CoinsPage() {
       {confirm && (
         <ConfirmSpend
           balance={coins}
-          cost={confirm === 'boost' ? BOOST.coins : MATCHES_FOR_COINS.coins}
-          title={
-            confirm === 'boost'
-              ? `Use ${BOOST.coins} coins for Boost?`
-              : `Use ${MATCHES_FOR_COINS.coins} coins for ${MATCHES_FOR_COINS.matches} more matches?`
-          }
-          body={
-            confirm === 'boost'
-              ? `You will be matched first for the next ${BOOST.minutes} minutes.`
-              : `Adds ${MATCHES_FOR_COINS.matches} matches for today. Resets at midnight.`
-          }
-          run={confirm === 'boost' ? boost : buyMatches}
-          done={confirm === 'boost' ? `Boost on for ${BOOST.minutes} minutes 🚀` : `+${MATCHES_FOR_COINS.matches} matches added`}
+          cost={BOOST.coins}
+          title={`Use ${BOOST.coins} coins for Boost?`}
+          body={`You will be matched first for the next ${BOOST.minutes} minutes.`}
+          run={boost}
+          done={`Boost on ✓ · you’re first in line for ${BOOST.minutes}:00`}
           onDone={(msg) => {
             setConfirm(null);
             if (msg) setNotice(msg);
           }}
           onBuy={() => {
             setConfirm(null);
-            document.getElementById('buy')?.scrollIntoView({ behavior: 'smooth' });
+            setBuyOpen(true);
+          }}
+        />
+      )}
+      {buyOpen && (
+        <BuyDialog
+          coins={pack.coins}
+          price={money(pack.cents)}
+          inrPrice={upi ? inr(INR_COIN_PRICES[pack.id]) : null}
+          balance={coins}
+          busy={busy !== null}
+          onClose={() => setBuyOpen(false)}
+          onStripe={() => void buy(pack.id)}
+          onUpi={() => {
+            setBuyOpen(false);
+            void buyUpi(pack.id);
           }}
         />
       )}
@@ -319,6 +291,15 @@ export default function CoinsPage() {
 const timeLeft = (until: number) => {
   const m = Math.max(0, Math.round((until - Date.now()) / 60_000));
   return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`;
+};
+
+/** "29:59" until Boost ends (h:mm:ss past an hour). */
+const clock = (until: number) => {
+  const s = Math.max(0, Math.round((until - Date.now()) / 1000));
+  const h = Math.floor(s / 3600);
+  const mm = String(Math.floor((s % 3600) / 60)).padStart(h ? 2 : 1, '0');
+  const ss = String(s % 60).padStart(2, '0');
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 };
 
 const goldBtn =
@@ -334,6 +315,12 @@ function BoostButton({ onAsk, compact = false }: { onAsk: () => void; compact?: 
     return () => window.clearInterval(t);
   }, []);
   const active = wallet?.boostUntil && wallet.boostUntil > Date.now() ? wallet.boostUntil : null;
+  // Tick every second while Boost runs, for the mm:ss countdown.
+  useEffect(() => {
+    if (!active) return;
+    const t = window.setInterval(() => tick((n) => n + 1), 1_000);
+    return () => window.clearInterval(t);
+  }, [active]);
   if (!wallet) {
     return (
       <Link href="/login?next=/coins" className={goldBtn}>
@@ -349,11 +336,11 @@ function BoostButton({ onAsk, compact = false }: { onAsk: () => void; compact?: 
         onClick={onAsk}
         className={goldBtn}
       >
-        {compact ? `${active ? 'Add' : 'Boost'} · ${BOOST.coins}` : `${active ? 'Add · ' : ''}${BOOST.coins} coins`}
+        {active ? `Boost on · ${clock(active)}` : compact ? `Boost · ${BOOST.coins}` : `Boost · ${BOOST.coins}`}
       </button>
       {active && (
-        <p id={noteId} className="m-0 max-w-[200px] text-[11px] text-dim">
-          Boost on · {timeLeft(active)} left
+        <p id={noteId} className="sr-only">
+          Boost on · {timeLeft(active)} left. Tap to add more time.
         </p>
       )}
     </div>
@@ -361,7 +348,7 @@ function BoostButton({ onAsk, compact = false }: { onAsk: () => void; compact?: 
 }
 
 const ghostBtn =
-  'h-[50px] flex-1 rounded-[14px] border-[1.5px] border-[#4a3f5c] bg-transparent text-[15px] font-semibold text-[#e6e8ec] transition hover:border-[#5a4d70]';
+  'h-[50px] flex-1 rounded-[14px] border-[1.5px] border-[#6B5D84] bg-transparent text-[15px] font-semibold text-[#e6e8ec] transition hover:border-[#5a4d70]';
 const primaryBtn =
   'h-[50px] flex-[1.3] rounded-[14px] bg-lime font-display text-[15px] font-bold text-night transition hover:bg-lime-hover disabled:opacity-50';
 
@@ -449,6 +436,95 @@ function ConfirmSpend({
             </button>
           )}
         </div>
+      </section>
+    </div>
+  );
+}
+
+/** "Buy N coins?" — confirms the pack before handing off to the real checkout (Stripe, or Razorpay for UPI). */
+function BuyDialog({
+  coins,
+  price,
+  inrPrice,
+  balance,
+  busy,
+  onClose,
+  onStripe,
+  onUpi,
+}: {
+  coins: number;
+  price: string;
+  inrPrice: string | null;
+  balance: number;
+  busy: boolean;
+  onClose: () => void;
+  onStripe: () => void;
+  onUpi: () => void;
+}) {
+  const titleId = useId();
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  const row = 'flex justify-between gap-3 rounded-xl bg-card-2 px-3.5 py-3 text-sm';
+  return (
+    <div className="fixed inset-0 z-50">
+      <div aria-hidden className="absolute inset-0 bg-[rgba(11,8,17,.72)]" onClick={onClose} />
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="absolute inset-x-0 bottom-0 flex flex-col gap-3 rounded-t-3xl border-t border-divider bg-card px-5 pb-6 pt-2.5 lg:bottom-auto lg:left-1/2 lg:top-1/2 lg:w-[440px] lg:max-w-[calc(100%-32px)] lg:-translate-x-1/2 lg:-translate-y-1/2 lg:rounded-[22px] lg:border lg:p-6 lg:shadow-[0_30px_80px_rgba(0,0,0,.6)]"
+      >
+        <span aria-hidden className="h-1 w-10 self-center rounded-sm bg-line-2 lg:hidden" />
+        <h2 id={titleId} className="m-0 font-display text-[22px] font-bold">
+          Buy {coins.toLocaleString()} coins?
+        </h2>
+        <div className={row}>
+          <span>Price</span>
+          <b>
+            {price}
+            {inrPrice && <span className="font-normal text-mute"> · {inrPrice}</span>}
+          </b>
+        </div>
+        <div className={row}>
+          <span>Pay with</span>
+          <b className="text-right">{inrPrice ? 'Card (Stripe) or UPI' : 'Card · Stripe checkout'}</b>
+        </div>
+        <div className={row}>
+          <span>Balance</span>
+          <b className="text-gold">
+            {balance.toLocaleString()} → {(balance + coins).toLocaleString()} coins
+          </b>
+        </div>
+        <p className="m-0 text-xs text-mute">Secure payment by Stripe. Coins have no cash value and can’t be refunded once used.</p>
+        <div className="flex gap-2.5">
+          <button type="button" onClick={onClose} className="h-[52px] flex-1 rounded-[14px] border-[1.5px] border-[#6B5D84] text-[15px] font-semibold text-[#e6e8ec] transition hover:border-lime">
+            Cancel
+          </button>
+          <button
+            type="button"
+            autoFocus
+            disabled={busy}
+            onClick={onStripe}
+            className="h-[52px] flex-[1.4] rounded-[14px] bg-lime font-display text-base font-bold text-night transition hover:bg-lime-hover disabled:opacity-50"
+          >
+            {busy ? 'Opening…' : `Pay ${price}`}
+          </button>
+        </div>
+        {inrPrice && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onUpi}
+            className="h-11 rounded-[14px] text-sm font-semibold text-lime underline-offset-2 hover:underline disabled:opacity-50"
+          >
+            Pay {inrPrice} with UPI / card instead
+          </button>
+        )}
       </section>
     </div>
   );

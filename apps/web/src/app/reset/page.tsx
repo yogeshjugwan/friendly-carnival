@@ -73,7 +73,7 @@ export default function ResetPage() {
                 minLength={MIN_PASSWORD_LENGTH}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="h-[50px] rounded-xl border border-line-2 bg-card px-3.5 text-[15px] text-[#f4f5f7] outline-none placeholder:text-faint focus:border-lime"
+                className="h-[50px] rounded-xl border border-[#6b5d84] bg-night px-3.5 text-[15px] text-[#f4f5f7] outline-none placeholder:text-faint focus:border-lime"
               />
             </label>
             {error && (

@@ -7,6 +7,8 @@ import { api, useAuth } from '@/lib/auth';
 import { loadSettings, onSettingsChange } from '@/lib/settings';
 import { LANGS, useI18n, type Lang } from '@/lib/i18n';
 import { AgeHoldNotice } from './AgeGate';
+import { HOME_FAQ } from '@/lib/seo';
+import { COUNTRY_PAGES } from '@/lib/countryPages';
 import { PlusModal } from './PlusModal';
 import { useInstall } from './Pwa';
 import { AccountMenu } from './SiteHeader';
@@ -790,6 +792,42 @@ export function Landing({ online, onStart }: Props) {
           </span>
         </section>
       </div>
+
+      {/* About + FAQ: plain text people (and search engines) can read, below the first screen. */}
+      <section aria-labelledby="about-h" className="mx-auto w-full max-w-[1100px] px-5 pb-16 pt-10 sm:px-12">
+        <h2 id="about-h" className="m-0 font-display text-[26px] font-bold sm:text-[34px]">
+          Free random video chat with strangers
+        </h2>
+        <p className="mb-0 mt-3 max-w-[760px] text-[15px] leading-relaxed text-mute">
+          randomCall connects you with a random person for a one-on-one video chat in about 3 seconds — no download, no sign-up. Press Next to
+          meet someone new, switch to voice or text chat, add a face mask, send gifts and follow the people you click with. It&apos;s a simple,
+          safer Omegle and Chatroulette alternative that works in your browser on phone and computer.
+        </p>
+        <div className="mt-8 grid gap-3 sm:grid-cols-2">
+          {HOME_FAQ.map(([q, a]) => (
+            <details key={q} className="group rounded-2xl border border-line bg-card p-4">
+              <summary className="cursor-pointer list-none font-display text-base font-bold marker:hidden">
+                {q}
+                <span className="float-right text-lime transition group-open:rotate-45" aria-hidden>
+                  +
+                </span>
+              </summary>
+              <p className="mb-0 mt-2 text-sm leading-relaxed text-mute">{a}</p>
+            </details>
+          ))}
+        </div>
+        <p className="mb-0 mt-8 text-sm text-mute">
+          Chat by country:{' '}
+          {COUNTRY_PAGES.slice(0, 12).map((c, i) => (
+            <span key={c.slug}>
+              {i > 0 && ' · '}
+              <Link href={`/chat/${c.slug}`} className="text-lime hover:underline">
+                {c.name.replace(/^the /, '')}
+              </Link>
+            </span>
+          ))}
+        </p>
+      </section>
 
       <footer className="flex justify-center gap-5 pb-4 text-xs text-[#8a8f99] max-sm:hidden">
         <span>Auto nudity screening</span>

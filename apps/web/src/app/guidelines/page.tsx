@@ -2,7 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { CONTACT_EMAIL, LegalFrame, primaryLink, TermsTabs, UPDATED } from '@/components/LegalPage';
 
-export const metadata: Metadata = { title: 'Community Guidelines — randomCall' };
+export const metadata: Metadata = {
+  title: 'Community Guidelines',
+  description: "What is and isn't allowed on randomCall random video chat, and how we keep people safe.",
+  alternates: { canonical: '/guidelines' },
+};
 
 const col = 'flex flex-col gap-3 rounded-[18px] border border-line bg-card p-4 lg:rounded-[20px] lg:p-5';
 const colTitle = 'm-0 font-display text-lg font-bold lg:text-xl';

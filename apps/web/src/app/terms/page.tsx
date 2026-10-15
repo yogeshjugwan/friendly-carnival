@@ -2,7 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { CONTACT_EMAIL, ghostLink, LegalPage, primaryLink } from '@/components/LegalPage';
 
-export const metadata: Metadata = { title: 'Terms of Use — randomCall' };
+export const metadata: Metadata = {
+  title: 'Terms of Use',
+  description: 'The terms for using randomCall, the free random video chat service.',
+  alternates: { canonical: '/terms' },
+};
 
 export default function TermsPage() {
   return (

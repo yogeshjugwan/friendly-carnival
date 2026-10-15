@@ -2,7 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { CONTACT_EMAIL, ghostLink, LegalPage, primaryLink } from '@/components/LegalPage';
 
-export const metadata: Metadata = { title: 'Privacy Policy — randomCall' };
+export const metadata: Metadata = {
+  title: 'Privacy Policy',
+  description: 'How randomCall handles your data: what we collect, what we never collect, and your rights.',
+  alternates: { canonical: '/privacy' },
+};
 
 const chip = 'flex h-9 items-center rounded-full bg-pick px-3 text-[13px] font-semibold text-lime';
 

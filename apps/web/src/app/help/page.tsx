@@ -2,7 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { CONTACT_EMAIL, LegalFrame } from '@/components/LegalPage';
 
-export const metadata: Metadata = { title: 'Troubleshooting & help — randomCall' };
+export const metadata: Metadata = {
+  title: 'Help & Troubleshooting',
+  description: 'Fix camera, microphone and connection problems on randomCall and get answers to common questions.',
+  alternates: { canonical: '/help' },
+};
 
 /** `k`: extra search words. */
 const FAQ: { q: string; k: string; a: React.ReactNode }[] = [

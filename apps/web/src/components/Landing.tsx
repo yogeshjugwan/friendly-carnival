@@ -64,7 +64,7 @@ export function SampleWall({ cols, tileH, compact = false }: { cols: number; til
         ? { backgroundPosition: 'center 30%', backgroundSize: 'cover', animationDelay: `-${i % 12}s` }
         : { backgroundPosition: POS[i % 6], backgroundSize: SIZE[(i * 5) % 6], filter: FILTER[(i * 3) % 7], animationDelay: `-${i % 12}s` },
       mirror: !faces.length && i % 2 === 1,
-      label: `${NAMES[i % NAMES.length]}, ${19 + ((i * 7) % 11)} · ${PLACES[(i * 5) % PLACES.length]}`,
+      label: `${NAMES[i % NAMES.length]}, ${20 + ((i * 7) % 21)} · ${PLACES[(i * 5) % PLACES.length]}`,
     };
   };
   // Enough tiles per column that every photo appears once.

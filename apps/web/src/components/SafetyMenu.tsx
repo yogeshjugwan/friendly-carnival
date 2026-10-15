@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { MAX_REPORT_NOTE_LENGTH, type ReportReason } from '@rc/shared';
 import type { RandomCall } from '@/lib/useRandomCall';
 import { ShieldIcon } from './icons';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 
 const REASONS: { value: ReportReason; label: string }[] = [
   { value: 'nudity', label: 'Nudity or sexual content' },
@@ -18,6 +19,7 @@ type Step = 'closed' | 'menu' | 'target' | 'reason' | 'done';
 
 /** Shield button on the partner's video: hide video, block, report. */
 export function SafetyMenu({ call }: { call: RandomCall }) {
+  const trap = useFocusTrap();
   const [step, setStep] = useState<Step>('closed');
   const [target, setTarget] = useState<'current' | 'previous'>('current');
   const [reason, setReason] = useState<ReportReason | null>(null);
@@ -96,7 +98,7 @@ export function SafetyMenu({ call }: { call: RandomCall }) {
       )}
 
       {(step === 'target' || step === 'reason' || step === 'done') && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="Report user">
+        <div ref={trap} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="Report user">
           <div className="w-full max-w-md rounded-2xl bg-card p-5 text-[#f4f5f7] shadow-2xl">
             {step === 'target' && (
               <>

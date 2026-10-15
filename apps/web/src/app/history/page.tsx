@@ -8,6 +8,7 @@ import { AppShell, PeopleNav } from '@/components/AppShell';
 import { useAuth } from '@/lib/auth';
 import { countryName, flagEmoji, GENDER_ICON } from '@/lib/format';
 import { getSocket } from '@/lib/socket';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 
 const ago = (at: number) => {
   const s = Math.max(1, Math.round((Date.now() - at) / 1000));
@@ -46,6 +47,7 @@ function PersonAvatar({ p, showOnline }: { p: HistoryPerson; showOnline: boolean
 
 /** A person's card: who they are, how often you met, and what you can do. */
 function Profile({ p, onClose, onChanged }: { p: HistoryPerson; onClose: () => void; onChanged: () => void }) {
+  const trap = useFocusTrap();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [following, setFollowing] = useState(p.following);
@@ -58,7 +60,7 @@ function Profile({ p, onClose, onChanged }: { p: HistoryPerson; onClose: () => v
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(11,8,17,.72)] lg:items-center sm:p-4" onClick={onClose}>
-      <section
+      <section ref={trap}
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}

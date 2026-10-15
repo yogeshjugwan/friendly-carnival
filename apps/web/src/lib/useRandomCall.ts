@@ -45,65 +45,31 @@ import { loadSettings, onSettingsChange } from './settings';
 import { getSocket } from './socket';
 import { checkCamera, problemOf, sampleFrame, type CameraProblem } from './cameraCheck';
 
-export type CallStatus =
-  | 'idle' // landing screen
-  | 'requesting-media' // waiting on the camera/mic prompt
-  | 'media-denied' // user blocked the camera or mic
-  | 'searching' // in the match queue
-  | 'connecting' // matched, WebRTC negotiating
-  | 'in-call' // media flowing (or text chat open)
-  | 'limited' // free matches used up for today
-  | 'browsing' // Plus: online and picking someone from the Online list
-  | 'face-check' // looking for a face in the camera before matching
-  | 'no-face' // no face seen: asked to look at the camera
-  | 'banned'; // device is banned; can appeal
+import {
+  BACK_TEXT,
+  BLUR_MS,
+  CALL_ANSWER_TEXT,
+  CONNECT_TIMEOUT_MS,
+  DISCONNECT_GRACE_MS,
+  FILTER_PATIENCE_MS,
+  FORCE_RELAY,
+  LEFT_TEXT,
+  MAX_RECONNECTS,
+  SCREEN_EVERY_MS,
+  SCREEN_HITS,
+  SCREEN_THRESHOLD,
+  TYPING_IDLE_MS,
+  chatRejectText,
+  sameFilters,
+  type CallStatus,
+  type ChatLine,
+} from './call/constants';
+import { candidateType, planSignal, selectedPath } from './call/signalling';
+import { disposePeer, isCurrentPeer } from './call/peerConnection';
+import { useMediaDevices } from './call/useMediaDevices';
 
-export interface ChatLine {
-  id: number;
-  from: 'me' | 'them' | 'system';
-  text: string;
-  at: number;
-}
-
-export interface MediaDeviceOption {
-  deviceId: string;
-  label: string;
-}
-
-/** Give up on a match that has not connected after this long. */
-const CONNECT_TIMEOUT_MS = 15_000;
-/** How long a dropped connection may try to recover before we move on. */
-const DISCONNECT_GRACE_MS = 6_000;
-/** Partner video stays blurred this long after connecting. */
-const BLUR_MS = 2_500;
-const TYPING_IDLE_MS = 2_000;
-/** On-device nudity screening of the partner's video. */
-const SCREEN_EVERY_MS = 3_000;
-const SCREEN_THRESHOLD = 0.85;
-/** Consecutive flagged frames before acting, to avoid one-frame false positives. */
-const SCREEN_HITS = 2;
-/** With filters on, offer to widen the search after this long. */
-const FILTER_PATIENCE_MS = 15_000;
-
-const FORCE_RELAY = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('relay');
-
-const sameFilters = (a: MatchFilters | undefined, b: MatchFilters | undefined) =>
-  (a?.gender ?? 'any') === (b?.gender ?? 'any') &&
-  (a?.country ?? 'any') === (b?.country ?? 'any') &&
-  !!a?.verifiedOnly === !!b?.verifiedOnly;
-
-const BACK_TEXT: Record<BackUnavailableReason, string> = {
-  'no-previous': 'There is no previous partner to go back to.',
-  gone: 'Your previous partner has left randomCall.',
-  busy: 'Your previous partner is not available right now.',
-  declined: 'Your previous partner has turned off reconnects.',
-};
-
-const LEFT_TEXT: Record<PartnerLeftReason, string> = {
-  next: 'Stranger skipped to someone new.',
-  stop: 'Stranger stopped chatting.',
-  disconnect: 'Stranger disconnected.',
-};
+export { MAX_RECONNECTS } from './call/constants';
+export type { CallStatus, ChatLine, MediaDeviceOption } from './call/constants';
 
 export function useRandomCall() {
   const [status, setStatus] = useState<CallStatus>('idle');
@@ -121,10 +87,7 @@ export function useRandomCall() {
   const [hasPrevious, setHasPrevious] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [allowReconnect, setAllowReconnectState] = useState(true);
-  const [cameras, setCameras] = useState<MediaDeviceOption[]>([]);
-  const [mics, setMics] = useState<MediaDeviceOption[]>([]);
-  const [cameraId, setCameraId] = useState<string | null>(null);
-  const [micId, setMicId] = useState<string | null>(null);
+  const { cameras, mics, cameraId, micId, setCameraId, setMicId, refreshDevices } = useMediaDevices();
   const [ban, setBan] = useState<BanInfo | null>(null);
   /** The user chose to hide the partner's video. */
   const [partnerHidden, setPartnerHidden] = useState(false);
@@ -190,6 +153,10 @@ export function useRandomCall() {
   /** Socket.IO video fallback for this match, when WebRTC could not connect. */
   const relay = useRef<{ sender?: RelaySender; receiver?: RelayReceiver; active: boolean }>({ active: false });
   const [relayActive, setRelayActive] = useState(false);
+  /** Mid-call drop: which ICE-restart attempt is running (0 = none). */
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
+  /** Starts the next reconnect attempt now (set while a call is live). */
+  const reconnectRef = useRef<(() => void) | null>(null);
   /** Candidate kinds seen in the current attempt, for diagnostics. */
   const candidates = useRef<{ local: Set<CandidateType>; remote: Set<CandidateType> }>({ local: new Set(), remote: new Set() });
   const timers = useRef<{
@@ -274,6 +241,8 @@ export function useRandomCall() {
     relay.current.receiver?.stop();
     relay.current = { active: false };
     setRelayActive(false);
+    setReconnectAttempt(0);
+    reconnectRef.current = null;
     matchRef.current = null;
     clearTimer('connect');
     clearTimer('disconnect');
@@ -281,12 +250,7 @@ export function useRandomCall() {
     const pc = pcRef.current;
     pcRef.current = null;
     pendingIce.current = [];
-    if (pc) {
-      pc.onicecandidate = null;
-      pc.ontrack = null;
-      pc.onconnectionstatechange = null;
-      pc.close();
-    }
+    disposePeer(pc);
     if (snapshots.current.current) snapshots.current = { previous: snapshots.current.current };
     aiReported.current = false;
     setRemoteStream(null);
@@ -366,6 +330,9 @@ export function useRandomCall() {
 
       const socket = getSocket();
       const pc = new RTCPeerConnection({ iceServers: match.iceServers });
+      const matchId = match.matchId;
+      /** False once Next / a new match replaced this connection: its late callbacks are ignored. */
+      const live = () => isCurrentPeer(pc, matchId, pcRef.current, matchRef.current?.id);
       // No direct or relayed path (or it dropped for good): count it, then move on.
       const giveUp = (outcome: CallDiagnostics['outcome']) => {
         reportResult(false, outcome);
@@ -387,6 +354,7 @@ export function useRandomCall() {
       const remote = new MediaStream();
       setRemoteStream(remote);
       pc.ontrack = (event) => {
+        if (!live()) return;
         const tracks = event.streams[0]?.getTracks() ?? [event.track];
         tracks.forEach((t) => {
           if (!remote.getTracks().includes(t)) remote.addTrack(t);
@@ -394,33 +362,81 @@ export function useRandomCall() {
       };
 
       pc.onicecandidate = (event) => {
-        if (!event.candidate) return;
+        if (!event.candidate || !live()) return;
         const type = candidateType(event.candidate.candidate);
         if (type) candidates.current.local.add(type);
         socket.emit('signal', { kind: 'ice', candidate: event.candidate.toJSON() });
       };
 
+      // After the call has been live, a drop triggers ICE restarts (up to
+      // MAX_RECONNECTS) before giving up and finding someone new.
+      let wasConnected = false;
+      let attempts = 0;
+      const reconnect = () => {
+        if (!live() || !activeRef.current) return;
+        if (attempts >= MAX_RECONNECTS) {
+          reconnectRef.current = null;
+          setReconnectAttempt(0);
+          next();
+          return;
+        }
+        attempts += 1;
+        setReconnectAttempt(attempts);
+        // Only the side that made the first offer renegotiates, so offers never collide.
+        if (match.initiator) {
+          void pc
+            .createOffer({ iceRestart: true })
+            .then(async (offer) => {
+              if (!live()) return;
+              await pc.setLocalDescription(offer);
+              socket.emit('signal', { kind: 'offer', sdp: offer.sdp ?? '' });
+            })
+            .catch(() => undefined);
+        }
+        clearTimer('disconnect');
+        timers.current.disconnect = window.setTimeout(() => {
+          if (live() && pc.connectionState !== 'connected') reconnect();
+        }, DISCONNECT_GRACE_MS);
+      };
+
       pc.onconnectionstatechange = () => {
-        if (pcRef.current !== pc) return;
+        if (!live()) return;
         const state = pc.connectionState;
-        if (state === 'connected') markConnected();
-        else if (state === 'failed') giveUp('failed');
+        if (state === 'connected') {
+          if (wasConnected) {
+            clearTimer('disconnect');
+            attempts = 0;
+            reconnectRef.current = null;
+            setReconnectAttempt(0);
+          } else {
+            wasConnected = true;
+            markConnected();
+          }
+        } else if (wasConnected && (state === 'failed' || state === 'disconnected')) {
+          if (attempts > 0) return; // already reconnecting
+          reconnectRef.current = reconnect;
+          clearTimer('disconnect');
+          // 'disconnected' often recovers by itself; 'failed' never does.
+          timers.current.disconnect = window.setTimeout(reconnect, state === 'failed' ? 0 : 2_000);
+        } else if (state === 'failed') giveUp('failed');
         else if (state === 'disconnected') {
           // Often recovers on its own (network blip); give it a moment first.
           clearTimer('disconnect');
           timers.current.disconnect = window.setTimeout(() => {
-            if (pcRef.current === pc && pc.connectionState !== 'connected') giveUp('dropped');
+            if (live() && pc.connectionState !== 'connected') giveUp('dropped');
           }, DISCONNECT_GRACE_MS);
         }
       };
 
       timers.current.connect = window.setTimeout(() => {
-        if (pcRef.current === pc && pc.connectionState !== 'connected') giveUp('timeout');
+        if (live() && pc.connectionState !== 'connected') giveUp('timeout');
       }, CONNECT_TIMEOUT_MS);
 
       if (match.initiator) {
         const offer = await pc.createOffer();
+        if (!live()) return;
         await pc.setLocalDescription(offer);
+        if (!live()) return;
         socket.emit('signal', { kind: 'offer', sdp: offer.sdp ?? '' });
       }
     },
@@ -430,24 +446,27 @@ export function useRandomCall() {
   const handleSignal = useCallback(async (msg: SignalMessage) => {
     const pc = pcRef.current;
     if (!pc) return;
+    // A signal handled across awaits must not touch a connection that Next replaced.
+    const live = () => pcRef.current === pc;
     const socket = getSocket();
+    const plan = planSignal(msg, !!pc.remoteDescription);
 
-    if (msg.kind === 'offer') {
-      await pc.setRemoteDescription({ type: 'offer', sdp: msg.sdp });
+    if (plan.action === 'answer-offer') {
+      await pc.setRemoteDescription({ type: 'offer', sdp: plan.sdp });
+      if (!live()) return;
       const answer = await pc.createAnswer();
+      if (!live()) return;
       await pc.setLocalDescription(answer);
+      if (!live()) return;
       socket.emit('signal', { kind: 'answer', sdp: answer.sdp ?? '' });
-    } else if (msg.kind === 'answer') {
-      await pc.setRemoteDescription({ type: 'answer', sdp: msg.sdp });
+    } else if (plan.action === 'set-answer') {
+      await pc.setRemoteDescription({ type: 'answer', sdp: plan.sdp });
+      if (!live()) return;
     } else {
-      const candidate = msg.candidate as RTCIceCandidateInit;
-      const type = candidateType(candidate.candidate ?? '');
+      const type = candidateType(plan.candidate.candidate ?? '');
       if (type) candidates.current.remote.add(type);
-      if (!pc.remoteDescription) {
-        pendingIce.current.push(candidate);
-        return;
-      }
-      await pc.addIceCandidate(candidate).catch(() => undefined);
+      if (plan.action === 'queue-ice') pendingIce.current.push(plan.candidate);
+      else await pc.addIceCandidate(plan.candidate).catch(() => undefined);
       return;
     }
 
@@ -502,16 +521,7 @@ export function useRandomCall() {
       addLine('them', msg.text, msg.at);
     };
     const onTyping = (typing: boolean) => setPartnerTyping(typing);
-    const onRejected = (reason: ChatRejectReason) =>
-      flash(
-        reason === 'rate-limited'
-          ? 'Slow down a little — too many messages.'
-          : reason === 'link'
-            ? "Links and social handles can't be shared with strangers — add them as a friend first."
-            : reason === 'spam'
-              ? "You've sent that already."
-              : 'That message could not be sent.',
-      );
+    const onRejected = (reason: ChatRejectReason) => flash(chatRejectText(reason));
     const onSlowDown = ({ reason, retryAfterMs }: { reason: 'skipping' | 'flood'; retryAfterMs: number }) => {
       const secs = Math.ceil(retryAfterMs / 1000);
       if (reason === 'flood') {
@@ -704,15 +714,6 @@ export function useRandomCall() {
     };
   }, []);
 
-  const refreshDevices = useCallback(async () => {
-    const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
-    const pick = (kind: MediaDeviceKind, fallback: string) =>
-      devices
-        .filter((d) => d.kind === kind && d.deviceId)
-        .map((d, i) => ({ deviceId: d.deviceId, label: d.label || `${fallback} ${i + 1}` }));
-    setCameras(pick('videoinput', 'Camera'));
-    setMics(pick('audioinput', 'Microphone'));
-  }, []);
 
   /** Background effect (blur / virtual background) and the real camera track behind it. */
   /** Hidden video used to float my own camera when nobody else is on screen. */
@@ -771,7 +772,8 @@ export function useRandomCall() {
           return;
         }
         if (!backgroundEffectsSupported()) throw new Error('unsupported');
-        const raw = local.getVideoTracks()[0]!;
+        const raw = local.getVideoTracks()[0];
+        if (!raw) throw new Error('no camera track');
         const effect = new BackgroundEffect(mode, mask);
         try {
           const processed = await effect.start(raw);
@@ -1203,7 +1205,8 @@ export function useRandomCall() {
         if (self.readyState < 1) await new Promise((r) => self.addEventListener('loadedmetadata', r, { once: true }));
         target = self;
       }
-      await target!.requestPictureInPicture();
+      if (!target) return;
+      await target.requestPictureInPicture();
     } catch {
       flash('This browser could not open picture-in-picture. Click the button again, or try Chrome.');
     }
@@ -1402,6 +1405,8 @@ export function useRandomCall() {
     adBreak,
     adKey,
     relayActive,
+    reconnectAttempt,
+    reconnectNow: () => reconnectRef.current?.(),
     plusRequired,
     searchingLong,
     setAdFree,
@@ -1455,34 +1460,3 @@ export function useRandomCall() {
 }
 
 export type RandomCall = ReturnType<typeof useRandomCall>;
-
-const CALL_ANSWER_TEXT: Record<Extract<CallAnswer, { accepted: false }>['reason'], string> = {
-  declined: 'They said no this time. Try someone else!',
-  timeout: 'No answer. Try someone else!',
-  busy: 'They just started another chat.',
-  gone: 'They left before answering.',
-};
-
-/** 'host' | 'srflx' | 'prflx' | 'relay' from an ICE candidate line. */
-function candidateType(line: string): CandidateType | null {
-  const m = line.match(/ typ (host|srflx|prflx|relay)/);
-  return m ? (m[1] as CandidateType) : null;
-}
-
-/** Kinds of the candidate pair the browser selected, e.g. ['srflx', 'relay']. */
-async function selectedPath(pc: RTCPeerConnection): Promise<[CandidateType, CandidateType] | null> {
-  try {
-    const stats = await pc.getStats();
-    let pair: RTCIceCandidatePairStats | undefined;
-    stats.forEach((r) => {
-      if (r.type === 'transport' && r.selectedCandidatePairId) pair = stats.get(r.selectedCandidatePairId);
-    });
-    if (!pair) stats.forEach((r) => r.type === 'candidate-pair' && r.nominated && r.state === 'succeeded' && (pair ??= r));
-    if (!pair) return null;
-    const local = stats.get(pair.localCandidateId)?.candidateType as CandidateType | undefined;
-    const remote = stats.get(pair.remoteCandidateId)?.candidateType as CandidateType | undefined;
-    return local && remote ? [local, remote] : null;
-  } catch {
-    return null;
-  }
-}

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { LANDING_LINKS } from '@/lib/landingPages';
 import { useEffect, useState } from 'react';
 import { MAX_NAME, MAX_PROFILE_AGE, MIN_PROFILE_AGE, NO_FILTERS, type ChatMode, type Gender, type JoinPayload, type MatchFilters, type PlanPrice } from '@rc/shared';
 import { api, useAuth } from '@/lib/auth';
@@ -823,6 +824,17 @@ export function Landing({ online, onStart }: Props) {
               {i > 0 && ' · '}
               <Link href={`/chat/${c.slug}`} className="text-lime hover:underline">
                 {c.name.replace(/^the /, '')}
+              </Link>
+            </span>
+          ))}
+        </p>
+        <p className="mb-0 mt-3 text-sm text-mute">
+          Also see:{' '}
+          {LANDING_LINKS.map(([href, label], i) => (
+            <span key={href}>
+              {i > 0 && ' · '}
+              <Link href={href} className="text-lime hover:underline">
+                {label}
               </Link>
             </span>
           ))}

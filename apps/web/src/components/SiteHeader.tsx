@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { LANDING_LINKS } from '@/lib/landingPages';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -236,8 +237,14 @@ export function SiteFooter() {
               ['/privacy', t('footer.privacy')],
               ['/rooms', t('footer.rooms')],
               ['/help', t('footer.help')],
+              ['/chat', 'Chat by country'],
             ] as const
           ).map(([href, label]) => (
+            <Link key={href} href={href} className="text-dim hover:text-white">
+              {label}
+            </Link>
+          ))}
+          {LANDING_LINKS.map(([href, label]) => (
             <Link key={href} href={href} className="text-dim hover:text-white">
               {label}
             </Link>

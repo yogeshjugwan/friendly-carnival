@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Gender, ReportReason, RoomChat, RoomJoinResult, RoomMember, RTCIceServerLike, SignalMessage } from '@rc/shared';
+import type { ChatRejectReason, Gender, ReportReason, RoomChat, RoomJoinResult, RoomMember, RTCIceServerLike, SignalMessage } from '@rc/shared';
+import { chatRejectText } from './call/constants';
 import { getSocket } from './socket';
 
 type Phase = 'lobby' | 'joining' | 'in-room' | 'media-denied' | 'error';
@@ -18,6 +19,8 @@ interface Peer {
 export function useRoom() {
   const [phase, setPhase] = useState<Phase>('lobby');
   const [error, setError] = useState<string | null>(null);
+  /** Why the last chat message was refused (e.g. it had a link); clears itself. */
+  const [chatNotice, setChatNotice] = useState<string | null>(null);
   const [members, setMembers] = useState<RoomMember[]>([]);
   const [streams, setStreams] = useState<Record<string, MediaStream>>({});
   const [chat, setChat] = useState<(RoomChat & { mine: boolean })[]>([]);
@@ -112,11 +115,20 @@ export function useRoom() {
     socket.on('room:member-left', left);
     socket.on('room:signal', signal);
     socket.on('room:chat', message);
+    let noticeTimer: number | undefined;
+    const rejected = (reason: ChatRejectReason) => {
+      setChatNotice(chatRejectText(reason));
+      window.clearTimeout(noticeTimer);
+      noticeTimer = window.setTimeout(() => setChatNotice(null), 4_000);
+    };
+    socket.on('chat:rejected', rejected);
     return () => {
       socket.off('room:member-joined', joined);
       socket.off('room:member-left', left);
       socket.off('room:signal', signal);
       socket.off('room:chat', message);
+      socket.off('chat:rejected', rejected);
+      window.clearTimeout(noticeTimer);
     };
   }, [dropPeer, onSignal]);
 
@@ -211,7 +223,7 @@ export function useRoom() {
     [cleanup],
   );
 
-  return { phase, error, members, streams, chat, local, mode, micOn, cameraOn, topic, join, leave, toggleMic, toggleCamera, send, report };
+  return { phase, error, chatNotice, members, streams, chat, local, mode, micOn, cameraOn, topic, join, leave, toggleMic, toggleCamera, send, report };
 }
 
 export type RoomCall = ReturnType<typeof useRoom>;

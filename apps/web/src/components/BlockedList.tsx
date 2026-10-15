@@ -39,7 +39,13 @@ export function BlockedList({ tone = 'light' }: { tone?: 'light' | 'dark' }) {
 
   if (items === null) return <p className={`text-sm ${dark ? 'text-dim' : 'text-mute'}`}>Loading…</p>;
   if (items.length === 0) {
-    return <p className={`text-sm ${dark ? 'text-dim' : 'text-mute'}`}>You haven&apos;t blocked anyone.</p>;
+    return (
+      <div className="flex flex-col items-center gap-1 py-4 text-center">
+        <span aria-hidden className="text-2xl">🛡️</span>
+        <p className="m-0 text-sm font-semibold text-[#f4f5f7]">No one blocked</p>
+        <p className={`m-0 text-[13px] ${dark ? 'text-dim' : 'text-mute'}`}>People you block during a chat show up here. You can unblock them any time.</p>
+      </div>
+    );
   }
 
   return (

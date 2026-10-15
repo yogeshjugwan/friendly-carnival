@@ -16,10 +16,12 @@
   --color-pick: #2a1426;
   --color-lime-hover: #ff8cc0;
   --color-mute: #a9aeb8;
-  --color-dim: #7d828c;
+  /* Small secondary text: ≥4.5:1 on #0b0811 (design #8A8F99). */
+  --color-dim: #8a8f99;
   --color-gold: #f2c94c;
   --color-gold-bg: #1a1608;
-  --color-faint: #5e636d;
+  /* Lighter than the #6b5d84 border colour so small muted text stays ≥4.5:1. */
+  --color-faint: #8b8196;
   --color-divider: #2c2338;
   --color-tabbar: #0f0b16;
   --color-stop: #3a1e1e;
@@ -39,8 +41,14 @@ body {
 
 body {
   background: #0b0811;
-  color: #e8ebf2;
+  color: #f4f5f7;
   font-family: var(--font-sans);
+}
+
+/* Keyboard focus ring: 2px pink, offset 2px. */
+:focus-visible {
+  outline: 2px solid var(--color-lime);
+  outline-offset: 2px;
 }
 
 /* Reactions rising over the video, like Meet. */
@@ -148,3 +156,10 @@ input:-webkit-autofill:focus {
 @keyframes rc-ripple-sm { 0% { transform: scale(0.6); opacity: 0.8; } 100% { transform: scale(2.6); opacity: 0; } }
 .rc-ripple-sm { animation: rc-ripple-sm 3s ease-out infinite; }
 @media (prefers-reduced-motion: reduce) { .rc-ripple-sm { animation: none; opacity: 0.2; } }
+
+/* Reduced motion: no looping decoration anywhere (matching orbit/ripples are handled above too). */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse { animation: none; }
+  .rc-float-up, .rc-gift-pop { animation-duration: 0.01s; }
+  *, *::before, *::after { scroll-behavior: auto !important; }
+}

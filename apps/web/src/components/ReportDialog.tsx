@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { ReportReason } from '@rc/shared';
 import type { RandomCall } from '@/lib/useRandomCall';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 
 const REASONS: [ReportReason, string][] = [
   ['nudity', 'Nudity or sexual content'],
@@ -19,6 +20,7 @@ const REASONS: [ReportReason, string][] = [
  * the partner's video while this is open.
  */
 export function ReportDialog({ call, onClose }: { call: RandomCall; onClose: () => void }) {
+  const trap = useFocusTrap();
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [block, setBlock] = useState(true);
   const [note, setNote] = useState('');
@@ -44,7 +46,7 @@ export function ReportDialog({ call, onClose }: { call: RandomCall; onClose: () 
     <div className="fixed inset-0 z-[65] text-[#f4f5f7]">
       <div aria-hidden className="absolute inset-0 bg-[rgba(11,8,17,.65)]" onClick={onClose} />
       <p className="absolute inset-x-0 top-6 m-0 text-center text-[13px] text-[#e6e8ec] sm:hidden">Video hidden while you report</p>
-      <section
+      <section ref={trap}
         role="dialog"
         aria-modal="true"
         aria-label={sent ? 'Report sent' : 'Report this person'}

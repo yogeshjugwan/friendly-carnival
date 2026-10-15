@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { CONTACT_EMAIL, LegalFrame } from '@/components/LegalPage';
+import { ServiceStatus } from '@/components/ServiceStatus';
 
 export const metadata: Metadata = {
   title: 'Help & Troubleshooting',
@@ -149,6 +150,7 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
         <aside className="flex flex-col gap-3">
           <section className="flex flex-col gap-2.5 rounded-[18px] border border-line bg-card p-4 lg:rounded-[20px] lg:p-[18px]">
             <h2 className="m-0 mb-1 font-display text-lg font-bold">Still stuck?</h2>
+            <ServiceStatus />
             <a href={`mailto:${CONTACT_EMAIL}`} className={contact}>
               <span className={`${icon} bg-pick text-lime`}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
@@ -169,9 +171,21 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
               </span>
               <span className="min-w-0">
                 <strong className="block">Appeal a ban</strong>
-                <span className="block text-xs text-mute">Bans can be appealed from the ban screen</span>
+                <span className="block text-xs text-mute">Bans can be appealed from the ban screen · reviewed by a person</span>
               </span>
             </div>
+            <a href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('Coins or payment')}`} className={contact}>
+              <span className={`${icon} bg-pick text-lime`}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+                  <rect x="2" y="5" width="20" height="14" rx="2" />
+                  <path d="M2 10h20" />
+                </svg>
+              </span>
+              <span className="min-w-0">
+                <strong className="block">Coins or payment</strong>
+                <span className="block text-xs text-mute">Charged but no Plus or coins? Email us with the receipt · Plus can be managed on the Plus page</span>
+              </span>
+            </a>
           </section>
           <section className="rounded-[14px] border border-[#4a2424] bg-[#2a1616] px-3.5 py-3 text-xs leading-normal text-[#ffd3ce] lg:rounded-[20px] lg:px-[18px] lg:py-4 lg:text-[13px]">
             <strong className="block font-display text-[15px] text-stop-text">Safety emergency?</strong>

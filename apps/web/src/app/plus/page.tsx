@@ -48,6 +48,8 @@ export default function PlusPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [waiting, setWaiting] = useState(false);
+  /** Back from Stripe Checkout: the designed success / payment-failed states. */
+  const [result, setResult] = useState<'success' | 'failed' | null>(null);
   const [picked, setPicked] = useState<PlusPlan>('month');
 
   useEffect(() => {
@@ -62,7 +64,7 @@ export default function PlusPage() {
   // Back from Stripe Checkout: Plus turns on when Stripe's webhook arrives (usually seconds).
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.has('canceled')) setNotice('Checkout canceled — you were not charged.');
+    if (params.has('canceled')) setResult('failed');
     if (!params.has('success') || loading || !token) return;
     setWaiting(true);
     let tries = 0;
@@ -81,7 +83,7 @@ export default function PlusPage() {
   useEffect(() => {
     if (user?.plus.active && waiting) {
       setWaiting(false);
-      setNotice('Welcome to Plus! 👑 Your filters are unlocked and ads are gone.');
+      setResult('success');
     }
   }, [user, waiting]);
 
@@ -114,7 +116,7 @@ export default function PlusPage() {
   const shown = (['week', 'month', 'halfyear'] as PlusPlan[]).map((plan) => plans?.find((p) => p.plan === plan) ?? PLAN_INFO[plan].fallback);
   const plus = user?.plus;
 
-  const chosen = shown.find((p) => p.plan === picked)!;
+  const chosen = shown.find((p) => p.plan === picked) ?? shown[1] ?? shown[0];
   const card = 'rounded-[18px] border border-line bg-card p-4 sm:rounded-[20px] sm:p-6';
 
   return (
@@ -138,6 +140,30 @@ export default function PlusPage() {
 
         {/* Buy / manage */}
         <section aria-label="Plans" className="flex min-w-0 flex-col gap-4 lg:justify-end">
+          {result && (
+            <div
+              role="status"
+              className={`flex flex-col gap-2 rounded-[18px] border p-4 ${result === 'success' ? 'border-gold/40 bg-gold-bg' : 'border-red-400/40 bg-red-500/10'}`}
+            >
+              <strong className={`font-display text-lg ${result === 'success' ? 'text-gold' : 'text-red-200'}`}>
+                {result === 'success' ? "You're Plus ✓" : "Payment didn't go through"}
+              </strong>
+              <p className="m-0 text-sm text-mute">
+                {result === 'success'
+                  ? 'Gender and country filters are unlocked, and ads are gone.'
+                  : "You weren't charged. Try again, or pick a different payment method."}
+              </p>
+              {result === 'success' ? (
+                <Link href="/" className="mt-1 flex h-11 items-center justify-center rounded-full bg-gold px-5 font-semibold text-night">
+                  Start choosing who you meet
+                </Link>
+              ) : (
+                <button type="button" onClick={() => setResult(null)} className="mt-1 h-11 rounded-full border border-line-2 px-5 font-semibold hover:bg-white/5">
+                  Try again
+                </button>
+              )}
+            </div>
+          )}
           {(notice || waiting || error) && (
             <div className="flex flex-col gap-2 [&>p]:mt-0">
               {notice && <FormNote>{notice}</FormNote>}

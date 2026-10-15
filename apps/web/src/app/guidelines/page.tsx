@@ -21,6 +21,20 @@ const NOT_ALLOWED = [
   'Getting around a ban with a new device, account or network.',
 ];
 
+const DO = [
+  'Be friendly and respectful — say hi, and press Next if it is not a fit.',
+  'Keep your face in view and your clothes on in video chats.',
+  'Report anyone who breaks these rules; it is anonymous.',
+];
+
+/** What actually happens after a report (matches the server's automatic rules). */
+const NEXT_STEPS: [string, string][] = [
+  ['Report', 'You report from the 🛡 Safety menu. The other person is not told who reported them.'],
+  ['Review', 'A moderator looks at it, usually within 24 h.'],
+  ['Ban', 'Nudity caught on camera: 1 h. 3 people report you in a day: 24 h. Reported as under 18: 7 days pending review. Moderators can ban for longer or for good.'],
+  ['Appeal', 'Banned by mistake? Appeal from the ban screen — one appeal per ban.'],
+];
+
 const SAFE = [
   'Never share your full name, address, phone number, passwords or money.',
   'Treat every chat as if it could be recorded by the other person.',
@@ -60,9 +74,23 @@ export default function GuidelinesPage() {
       </div>
 
       <div className="grid flex-1 content-start gap-3.5 lg:grid-cols-3">
+        <section aria-labelledby="g-do" className={col}>
+          <h2 id="g-do" className={`${colTitle} text-lime`}>
+            Do
+          </h2>
+          <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
+            {DO.map((t) => (
+              <li key={t} className={item}>
+                <Ok />
+                {t}
+              </li>
+            ))}
+          </ul>
+        </section>
+
         <section aria-labelledby="g-no" className={col}>
           <h2 id="g-no" className={`${colTitle} text-stop-text`}>
-            Not allowed
+            Don&apos;t
           </h2>
           <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
             {NOT_ALLOWED.map((t) => (
@@ -72,6 +100,9 @@ export default function GuidelinesPage() {
               </li>
             ))}
           </ul>
+          <p className="m-0 rounded-xl border border-[#4a2424] bg-[#2a1616] p-3 text-[13px] leading-[1.45] text-[#ffd3ce]">
+            <strong>Zero tolerance:</strong> anything sexual involving minors is banned for good and reported to the authorities.
+          </p>
         </section>
 
         <div className="flex flex-col gap-3.5">
@@ -112,6 +143,28 @@ export default function GuidelinesPage() {
           </p>
         </section>
       </div>
+
+      <section aria-labelledby="g-next" className="flex flex-col gap-3">
+        <h2 id="g-next" className={colTitle}>
+          What happens next
+        </h2>
+        <ol className="m-0 grid list-none gap-2.5 p-0 sm:grid-cols-2 lg:grid-cols-4">
+          {NEXT_STEPS.map(([title, body], i) => (
+            <li key={title} className="flex flex-col gap-1 rounded-[16px] border border-line bg-card p-3.5">
+              <span className="text-xs font-semibold text-lime">Step {i + 1}</span>
+              <strong className="text-[15px]">{title}</strong>
+              <span className="text-[13px] leading-snug text-mute">{body}</span>
+            </li>
+          ))}
+        </ol>
+        <p className="m-0 text-[13px] text-mute">
+          See something wrong? Use the 🛡 Safety button during a chat, or email{' '}
+          <a href={`mailto:${CONTACT_EMAIL}`} className="text-lime">
+            {CONTACT_EMAIL}
+          </a>
+          .
+        </p>
+      </section>
 
       <footer className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5 max-lg:flex-col max-lg:items-stretch">
         <p className="m-0 text-[13px] text-mute max-lg:text-center max-lg:text-[11px]">

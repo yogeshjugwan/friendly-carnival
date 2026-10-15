@@ -5,19 +5,21 @@ import { useState } from 'react';
 import { MIN_AGE } from '@rc/shared';
 import { api, useAuth } from '@/lib/auth';
 import { errorText } from './forms/fields';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 
 /**
  * Accounts made without a birth date (Google sign-in, older accounts) give it
  * once before chatting. Mounted in the layout.
  */
 export function AgeGate() {
+  const trap = useFocusTrap();
   const { user, token, refresh } = useAuth();
   const [birthDate, setBirthDate] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (!user || !token || user.birthDateSet) return null;
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="age-title">
+    <div ref={trap} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="age-title">
       <form
         className="w-full max-w-sm rounded-2xl bg-card p-6 text-[#f4f5f7] shadow-2xl"
         onSubmit={async (e) => {

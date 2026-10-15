@@ -16,7 +16,9 @@ function snapshot(video: HTMLVideoElement): string {
   const w = Math.min(720, video.videoWidth || 640);
   canvas.width = w;
   canvas.height = Math.round((w * (video.videoHeight || 480)) / (video.videoWidth || 640));
-  canvas.getContext('2d')!.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('canvas unavailable');
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
   for (const q of [0.85, 0.7, 0.55, 0.4]) {
     const url = canvas.toDataURL('image/jpeg', q);
     if (url.length <= MAX_VERIFY_PHOTO) return url;

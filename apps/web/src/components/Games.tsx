@@ -163,7 +163,8 @@ function WouldYouRather({ view, call }: { view: Extract<GameView, { game: 'wyr' 
 export function GameCard({ call, className = '' }: { call: RandomCall; className?: string }) {
   const view = call.game;
   if (!view) return null;
-  const meta = GAMES.find((g) => g.id === view.game)!;
+  const meta = GAMES.find((g) => g.id === view.game);
+  if (!meta) return null;
   return (
     <section className={`w-[min(20rem,92vw)] rounded-[20px] border border-line bg-card/95 p-3 text-[#f4f5f7] shadow-2xl backdrop-blur ${className}`} aria-label={meta.name}>
       <div className="mb-2 flex items-center justify-between">

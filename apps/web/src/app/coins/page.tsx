@@ -11,6 +11,7 @@ import { errorText, FormError, FormNote } from '@/components/forms/fields';
 import { api, useAuth } from '@/lib/auth';
 import { getSocket } from '@/lib/socket';
 import { DailyRewardCard } from '@/components/DailyReward';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 
 const money = (cents: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
 
@@ -29,7 +30,7 @@ export default function CoinsPage() {
     setBusy(`upi:${pack}`);
     setError(null);
     try {
-      const done = await payWithRazorpay(`coins:${pack}`, token, { email: user.email }, `${COIN_PACKS.find((p) => p.id === pack)!.coins} coins`);
+      const done = await payWithRazorpay(`coins:${pack}`, token, { email: user.email }, `${COIN_PACKS.find((p) => p.id === pack)?.coins ?? ''} coins`.trim());
       if (done === 'paid') {
         await refresh();
         setNotice('Payment received — your coins are in! 🪙');
@@ -86,7 +87,8 @@ export default function CoinsPage() {
   const [picked, setPicked] = useState<CoinPackId>('medium');
   const [confirm, setConfirm] = useState<'boost' | null>(null);
   const [buyOpen, setBuyOpen] = useState(false);
-  const pack = COIN_PACKS.find((p) => p.id === picked)!;
+  // `picked` is always a pack id; fall back to the first pack rather than crash.
+  const pack = COIN_PACKS.find((p) => p.id === picked) ?? COIN_PACKS[0];
   const gifts = availableGifts();
   const card = 'rounded-[18px] border border-line bg-card p-4 lg:rounded-[20px] lg:p-5';
   const coins = user?.wallet.coins ?? 0;
@@ -239,8 +241,8 @@ export default function CoinsPage() {
               </li>
             ))}
           </ul>
-          {gifts.some((g) => g.season) && (
-            <p className="m-0 text-xs text-gold">{gifts.find((g) => g.season)!.season!.label} specials are here for a limited time.</p>
+          {gifts.find((g) => g.season)?.season && (
+            <p className="m-0 text-xs text-gold">{gifts.find((g) => g.season)?.season?.label} specials are here for a limited time.</p>
           )}
           <p className="m-0 text-[11px] leading-normal text-faint">
             They receive half as coins. Coins have no cash value and can&apos;t be refunded or transferred, except as gifts in calls. See the{' '}
@@ -372,6 +374,7 @@ function ConfirmSpend({
   onDone: (msg: string | null) => void;
   onBuy: () => void;
 }) {
+  const trap = useFocusTrap();
   const titleId = useId();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -386,7 +389,7 @@ function ConfirmSpend({
   return (
     <div className="fixed inset-0 z-50">
       <div aria-hidden className="absolute inset-0 bg-[rgba(11,8,17,.72)]" onClick={() => onDone(null)} />
-      <section
+      <section ref={trap}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -461,6 +464,7 @@ function BuyDialog({
   onStripe: () => void;
   onUpi: () => void;
 }) {
+  const trap = useFocusTrap();
   const titleId = useId();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -473,7 +477,7 @@ function BuyDialog({
   return (
     <div className="fixed inset-0 z-50">
       <div aria-hidden className="absolute inset-0 bg-[rgba(11,8,17,.72)]" onClick={onClose} />
-      <section
+      <section ref={trap}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

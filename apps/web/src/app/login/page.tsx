@@ -10,6 +10,7 @@ import { GoogleLogo, googleError, useGoogleEnabled } from '@/components/forms/so
 import { API_URL, useAuth } from '@/lib/auth';
 import { markGoogleStart } from '@/lib/googleReturn';
 import { pendingInviteCode } from '@/lib/referral';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 
 /** Only same-site paths, so ?next= can't send people to another website. */
 const safeNext = () => {
@@ -26,6 +27,7 @@ const lbl = 'flex flex-col gap-1.5 text-[13px] text-mute';
  * tabs, Continue with Google, email + password, one 18+ / terms box, then the guest way out.
  */
 export default function LoginPage() {
+  const trap = useFocusTrap();
   const { login, signup } = useAuth();
   const router = useRouter();
   const path = usePathname();
@@ -258,7 +260,7 @@ export default function LoginPage() {
       {gStep && (
         <div className="fixed inset-0 z-[60]">
           <div aria-hidden className="absolute inset-0 bg-[rgba(11,8,17,.78)]" onClick={() => setGStep(false)} />
-          <section
+          <section ref={trap}
             role="dialog"
             aria-modal="true"
             aria-label="One more step"

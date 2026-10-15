@@ -64,9 +64,9 @@ onmessage = (e) => {
 let workerUrl: string | null = null;
 
 export function solveChallenge({ challenge, bits }: GuardChallenge): Promise<string> {
-  workerUrl ??= URL.createObjectURL(new Blob([WORKER_SOURCE], { type: 'text/javascript' }));
+  const url = (workerUrl ??= URL.createObjectURL(new Blob([WORKER_SOURCE], { type: 'text/javascript' })));
   return new Promise((resolve, reject) => {
-    const worker = new Worker(workerUrl!);
+    const worker = new Worker(url);
     // Hard cap so a stuck worker can't hang the page forever.
     const timer = window.setTimeout(() => {
       worker.terminate();

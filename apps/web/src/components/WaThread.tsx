@@ -135,8 +135,11 @@ export function WaThread({
   onCall,
   className = '',
   backClassName = '',
+  onRemoved,
 }: {
   contact: WaContact;
+  /** Shows the thread menu ("Remove friend"); called after the server removed them. */
+  onRemoved?: () => void;
   onBack?: () => void;
   onCall?: () => void;
   className?: string;
@@ -233,6 +236,7 @@ export function WaThread({
             <span className="hidden @2xl:inline">Video call</span>
           </button>
         )}
+        {onRemoved && <ThreadMenu contact={contact} onRemoved={onRemoved} onError={setError} />}
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 @2xl:p-6">
@@ -307,5 +311,87 @@ export function WaThread({
         </button>
       </form>
     </section>
+  );
+}
+
+/**
+ * Thread "⋯" menu. The design also lists Mute notifications, Delete chat, Block
+ * and Send report; the server has no per-friend API for those yet (block/report
+ * only target the current or previous call partner), so they are not shown.
+ */
+function ThreadMenu({ contact, onRemoved, onError }: { contact: WaContact; onRemoved: () => void; onError: (e: string | null) => void }) {
+  const [open, setOpen] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (!wrap.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const remove = () => {
+    setBusy(true);
+    getSocket()
+      .timeout(8_000)
+      .emit('friends:remove', contact.id, (err: Error | null, ok: boolean) => {
+        setBusy(false);
+        setOpen(false);
+        setConfirm(false);
+        if (err || !ok) return onError("Couldn't remove them — try again.");
+        onRemoved();
+      });
+  };
+
+  return (
+    <div ref={wrap} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => {
+          setOpen((o) => !o);
+          setConfirm(false);
+        }}
+        aria-label={`More options for ${contact.name}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="grid h-11 w-11 place-items-center rounded-full text-[#F4F5F7] hover:bg-card-2"
+      >
+        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden>
+          <circle cx="12" cy="5" r="1.8" />
+          <circle cx="12" cy="12" r="1.8" />
+          <circle cx="12" cy="19" r="1.8" />
+        </svg>
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 top-full z-30 mt-1 w-60 overflow-hidden rounded-xl border border-line-2 bg-card-2 py-1 text-sm shadow-xl">
+          {confirm ? (
+            <div className="flex flex-col gap-2 px-3 py-2">
+              <p className="m-0 text-[13px] text-[#A9AEB8]">Remove {contact.name} from your friends? You won&apos;t be able to message each other.</p>
+              <div className="flex gap-2">
+                <button type="button" role="menuitem" onClick={() => setConfirm(false)} className="h-11 flex-1 rounded-lg bg-card hover:bg-white/10">
+                  Keep
+                </button>
+                <button type="button" role="menuitem" disabled={busy} onClick={remove} className="h-11 flex-1 rounded-lg bg-red-500/20 font-semibold text-red-200 hover:bg-red-500/30 disabled:opacity-50">
+                  {busy ? 'Removing…' : 'Remove'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button type="button" role="menuitem" autoFocus onClick={() => setConfirm(true)} className="flex h-11 w-full items-center px-4 text-left text-red-200 hover:bg-white/10">
+              Remove friend
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

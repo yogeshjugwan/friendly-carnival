@@ -17,7 +17,7 @@ export const LANGS = [
 ] as const;
 export type Lang = (typeof LANGS)[number]['code'];
 
-const EN = {
+export const EN = {
   'landing.title': 'Meet someone new in seconds.',
   'landing.subtitle': 'One click, one stranger, face to face. Free random video chat right in your browser — no download, no sign-up.',
   'landing.point1': '✓ Video, voice or text chat',
@@ -132,7 +132,7 @@ const EN = {
 } as const;
 export type TKey = keyof typeof EN;
 
-const DICT: Record<Exclude<Lang, 'en'>, Partial<Record<TKey, string>>> = {
+export const DICT: Record<Exclude<Lang, 'en'>, Partial<Record<TKey, string>>> = {
   hi: {
     'hero.a': 'किसी अजनबी से बात करें।',
     'hero.b': 'अभी।',

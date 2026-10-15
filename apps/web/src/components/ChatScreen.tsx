@@ -2,17 +2,15 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ageLabel, NO_FILTERS, PRIORITY_MATCH, TOPICS } from '@rc/shared';
 import { useAuth } from '@/lib/auth';
-import { countryName, flagEmoji, GENDER_ICON, GENDER_LABEL } from '@/lib/format';
-import { loadSettings } from '@/lib/settings';
-import type { RandomCall } from '@/lib/useRandomCall';
+import { GENDER_ICON } from '@/lib/format';
+import { type RandomCall } from '@/lib/useRandomCall';
 import { AdSlot } from './AdSlot';
-import { DraggablePip, type Corner } from './DraggablePip';
+import { type Corner } from './DraggablePip';
 import { CallControls, CancelButton, ReactionLayer, StopNext } from './CallControls';
 import { FilterBar } from './FilterBar';
 import { LimitModal } from './LimitModal';
-import { GiftButton, GiftLayer, spendError } from './Coins';
+import { GiftButton, GiftLayer } from './Coins';
 import { FriendButton, FriendsPanel } from './Friends';
 import { IncomingCallModal, OnlineUsersPanel } from './OnlineUsers';
 import { PlusUpsell } from './PlusUpsell';
@@ -20,412 +18,19 @@ import { ChatPanel } from './ChatPanel';
 import { SafetyMenu } from './SafetyMenu';
 import { ReportDialog } from './ReportDialog';
 import { PlusModal } from './PlusModal';
-import { COUNTRY_OPTS, FilterChip, GENDER_OPTS } from './Landing';
 import { AccountMenu, Brand } from './SiteHeader';
 import { SettingsMenu } from './SettingsMenu';
 import { VideoTile } from './VideoTile';
-import { VerifiedBadge } from './VerifiedBadge';
 import { VoiceStage } from './VoiceStage';
 import { GameCard, GamesButton } from './Games';
 import { DailyRewardChip } from './DailyReward';
-import { useI18n, type TKey } from '@/lib/i18n';
+import { useI18n } from '@/lib/i18n';
 import { CAMERA_PROBLEM } from '@/lib/cameraCheck';
 
-const STATUS_TEXT: Record<string, TKey> = {
-  searching: 'status.searching',
-  connecting: 'status.connecting',
-};
-
-function PartnerBadge({ call }: { call: RandomCall }) {
-  const { partner } = call;
-  if (!partner) return null;
-  return (
-    <div className="flex flex-col items-start gap-1">
-      <div className="flex max-w-[70vw] items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-xs text-white sm:max-w-none sm:gap-2 sm:px-3 sm:text-sm">
-        {partner.avatar && <span className="text-base sm:text-lg">{partner.avatar}</span>}
-        {partner.name && <span className="max-w-[8rem] truncate font-semibold">{partner.name}</span>}
-        {partner.age && <span className="text-white/75">{ageLabel(partner.age)}</span>}
-        <span title={GENDER_LABEL[partner.gender]}>{GENDER_ICON[partner.gender]}</span>
-        <span>{partner.locationHidden ? '📍' : flagEmoji(partner.country)}</span>
-        <span className="truncate">{partner.locationHidden ? 'Hidden' : countryName(partner.country)}</span>
-        {partner.verified && <VerifiedBadge />}
-        {partner.plus && (
-          <span title="Plus member" aria-label="Plus member">
-            👑
-          </span>
-        )}
-        {partner.isNew && (
-          <span title="Joined in the last day" className="rounded-full bg-amber-500/80 px-2 py-0.5 text-[11px] font-semibold text-black">
-            New
-          </span>
-        )}
-        {partner.topic && (
-          <span className="rounded-full bg-lime/80 px-2 py-0.5 text-[11px] font-semibold text-white">
-            {TOPICS.find((t) => t.id === partner.topic)?.emoji} #{TOPICS.find((t) => t.id === partner.topic)?.label}
-          </span>
-        )}
-        {partner.sharedInterests.length > 0 && (
-          <span className="hidden truncate text-mute md:inline">· likes {partner.sharedInterests.join(', ')}</span>
-        )}
-      </div>
-      {partner.bio && (
-        <p className="max-w-[70vw] truncate rounded-full bg-black/45 px-2.5 py-0.5 text-xs italic text-[#e6e8ec] sm:max-w-sm">“{partner.bio}”</p>
-      )}
-    </div>
-  );
-}
-
-function Searching({ call }: { call: RandomCall }) {
-  const { t } = useI18n();
-  if (call.status === 'browsing') {
-    return (
-      <p className="max-w-xs text-center text-sm text-mute sm:text-base">
-        Pick someone from <span className="font-semibold text-white">👥 Online</span> to call, or press{' '}
-        <span className="font-semibold text-white">Next</span> for a random stranger.
-      </p>
-    );
-  }
-  const overlayKey = STATUS_TEXT[call.status];
-  const overlay = overlayKey ? t(overlayKey) : null;
-  if (!overlay) return null;
-  return (
-    <div className="flex flex-col items-center gap-1 text-center">
-      <p className="flex items-center gap-2 text-sm text-mute sm:text-base">
-        <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-line-2 border-t-lime" />
-        {overlay}
-      </p>
-      {call.status === 'searching' && call.lastLeftReason && (
-        <p className="text-xs text-dim sm:text-sm">{t('status.partnerLeft')}</p>
-      )}
-      {call.searchingLong && <WidenSearch />}
-      {call.status === 'searching' && <PriorityButton call={call} />}
-    </div>
-  );
-}
-
-/** ⭐ Pay a few coins to meet a verified person next. */
-function PriorityButton({ call }: { call: RandomCall }) {
-  const { user } = useAuth();
-  const [error, setError] = useState<string | null>(null);
-  if (!user)
-    return (
-      <Link
-        href="/login?next=/"
-        target="_blank"
-        className="pointer-events-auto mt-1 flex h-11 items-center gap-2.5 rounded-xl border border-[#4a3f17] bg-gold-bg px-4 text-[13px] font-semibold text-gold transition hover:border-gold/60 sm:text-sm"
-      >
-        <span className="max-sm:hidden">Meet a verified person next</span>
-        <span className="sm:hidden">Verified person next</span> · {PRIORITY_MATCH.coins} coins
-      </Link>
-    );
-  if (call.priorityOn) return <p className="text-sm text-gold">Looking for a ✓ Verified person for you…</p>;
-  return (
-    <div className="pointer-events-auto mt-1 flex flex-col items-center">
-      <button
-        onClick={async () => {
-          setError(null);
-          const r = await call.buyPriority();
-          setError(spendError(r));
-        }}
-        className="flex h-11 items-center gap-2.5 rounded-xl border border-[#4a3f17] bg-gold-bg px-4 text-left text-gold transition hover:border-gold/60"
-      >
-        <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6z" />
-          <path d="M9 12l2 2 4-4" />
-        </svg>
-        <span className="text-[13px] font-semibold sm:text-sm">
-          <span className="max-sm:hidden">Meet a </span>
-          <span className="sm:hidden">V</span>
-          <span className="max-sm:hidden">v</span>erified person next · {PRIORITY_MATCH.coins} coins
-        </span>
-      </button>
-      {error && <p className="mt-1 text-xs text-red-300">{error}</p>}
-    </div>
-  );
-}
-
-/** Shown when filtered searching takes a while ("No one found yet"). */
-function WidenSearch() {
-  const { saveSettings } = useAuth();
-  return (
-    <div className="pointer-events-auto mt-2 flex w-full max-w-[360px] flex-col gap-2 rounded-[18px] border border-divider bg-[rgba(23,18,31,.94)] p-4 text-center">
-      <p className="m-0 font-display text-lg font-bold text-[#f4f5f7]">No one found yet</p>
-      <p className="m-0 text-sm leading-normal text-mute">Fewer people match your filters right now. Widen them or keep searching.</p>
-      <button
-        className="flex h-11 w-full items-center justify-center rounded-[14px] border-[1.5px] border-[#6b5d84] text-sm font-semibold text-[#e6e8ec] hover:border-[#8a7aa6]"
-        onClick={() => void saveSettings({ ...loadSettings(), filters: { ...NO_FILTERS } })}
-      >
-        Connect to anyone instead
-      </button>
-    </div>
-  );
-}
-
-/** "Finding someone for you…" on the video stage: pulse rings, what you're matching on, Priority. */
-function SearchingStage({ call }: { call: RandomCall }) {
-  const { t } = useI18n();
-  const { user } = useAuth();
-  const [matching, setMatching] = useState('');
-  useEffect(() => {
-    const s = loadSettings();
-    const f = user?.plus.active ? s.filters : NO_FILTERS;
-    let topic: string | null = null;
-    try {
-      topic = window.localStorage.getItem('rc.topic');
-    } catch {
-      /* ignore */
-    }
-    const who = f.gender === 'any' ? 'anyone' : f.gender === 'female' ? 'girls' : f.gender === 'male' ? 'boys' : 'couples';
-    const parts = [
-      f.verifiedOnly ? `✓ verified ${who}` : who,
-      f.country !== 'any' ? countryName(f.country) : null,
-      topic ? t(`topic.${topic}` as TKey) : null,
-    ].filter(Boolean);
-    setMatching(parts.join(' · '));
-  }, [user, call.status, t]);
-
-  if (call.status === 'browsing') {
-    return (
-      <p className="max-w-xs px-4 text-center text-sm text-mute sm:text-base">
-        Pick someone from <span className="font-semibold text-white">Online</span> or <span className="font-semibold text-white">Friends</span> to call,
-        or press <span className="font-semibold text-white">Next</span> for a random stranger.
-      </p>
-    );
-  }
-  if (call.status !== 'searching' && call.status !== 'connecting') return null;
-  const isPlus = !!user?.plus.active;
-  return (
-    // Starts below the top bar, and the orbit shrinks on short screens so it never runs into the filters.
-    <div className="flex flex-col items-center gap-6 px-4 pt-14 text-center sm:gap-8">
-      {/* You in the middle, people orbiting, ripples going out. */}
-      <div className="relative h-[min(300px,40dvh)] w-[min(300px,40dvh)] sm:h-[min(440px,46dvh)] sm:w-[min(440px,46dvh)]" aria-hidden>
-        {[0, 1, 2].map((i) => (
-          <span key={i} className="rc-ripple absolute inset-0 m-auto h-[130px] w-[130px] rounded-full border-2 border-lime sm:h-[200px] sm:w-[200px]" style={{ animationDelay: `${i}s` }} />
-        ))}
-        <div className="rc-orbit absolute inset-0">
-          {ORBIT.map((a, i) => {
-            const angle = (i / ORBIT.length) * Math.PI * 2;
-            return (
-              <span
-                key={i}
-                className="rc-counter absolute h-12 w-12 overflow-hidden rounded-full border-[3px] border-night sm:h-16 sm:w-16"
-                style={{ left: `${50 + 45 * Math.cos(angle)}%`, top: `${50 + 45 * Math.sin(angle)}%`, background: a.bg }}
-              >
-                <svg viewBox="0 0 40 40" className="h-full w-full">
-                  <circle cx="20" cy="16" r="8" fill={a.skin} />
-                  <path d="M6 40c2-10 7-14 14-14s12 4 14 14z" fill={a.fg} />
-                </svg>
-              </span>
-            );
-          })}
-        </div>
-        <span className="absolute inset-0 m-auto h-[110px] w-[110px] overflow-hidden rounded-full border-[3px] border-lime bg-[#1f2638] sm:h-[150px] sm:w-[150px]">
-          {call.localStream && call.cameraOn ? (
-            <VideoTile stream={call.localStream} muted mirrored className="h-full w-full rounded-none !bg-[#1f2638]" />
-          ) : (
-            <svg viewBox="0 0 40 40" className="h-full w-full">
-              <circle cx="20" cy="16" r="8" fill="#c68b5e" />
-              <path d="M6 40c2-10 7-14 14-14s12 4 14 14z" fill="#3a4a6e" />
-            </svg>
-          )}
-        </span>
-      </div>
-      <div className="flex flex-col items-center gap-2.5 sm:gap-3">
-        <h1 className="m-0 font-display text-[30px] font-bold text-[#f4f5f7] sm:text-[40px]" role="status">
-          {call.status === 'connecting' ? t('status.connecting') : t('status.searching').replace(/[.…]+$/, '')}
-          {call.status === 'searching' && (
-            <span aria-hidden>
-              <span className="rc-dot">.</span>
-              <span className="rc-dot [animation-delay:.2s]">.</span>
-              <span className="rc-dot [animation-delay:.4s]">.</span>
-            </span>
-          )}
-        </h1>
-        {call.status === 'searching' && call.lastLeftReason ? (
-          <p className="m-0 text-sm text-mute sm:text-[15px]">{t('status.partnerLeft')}</p>
-        ) : (
-          <p className="m-0 text-sm text-mute sm:text-[15px]">
-            {isPlus && call.online !== null ? `${Math.max(0, call.online - 1).toLocaleString()} people online · ` : ''}
-            {matching && matching !== 'anyone' ? `Matching ${matching} · ` : ''}usually under 5 seconds
-          </p>
-        )}
-      </div>
-      {call.searchingLong && <WidenSearch />}
-      {call.status === 'searching' && <PriorityButton call={call} />}
-    </div>
-  );
-}
-
-/** The people orbiting you while matching: [tile colour, skin, clothes]. */
-const ORBIT = [
-  { bg: '#ff8a9a', skin: '#f1c7a5', fg: '#5a1730' },
-  { bg: '#7fd6c2', skin: '#8d5a3b', fg: '#0f3d35' },
-  { bg: '#ffc37a', skin: '#e8b48a', fg: '#5c2a10' },
-  { bg: '#8fb2ff', skin: '#5e3a26', fg: '#17255a' },
-  { bg: '#d7a6ff', skin: '#c68b5e', fg: '#3a1a60' },
-  { bg: '#f7e07a', skin: '#f1c7a5', fg: '#4f3e0c' },
-];
-
-/** Who you're talking to, as pills over the top-left of the video: name · country, and the call clock. */
-function PartnerPills({ call }: { call: RandomCall }) {
-  const p = call.partner;
-  if (!p) return null;
-  const where = p.locationHidden ? 'Location hidden' : p.country ? `${flagEmoji(p.country)} ${countryName(p.country)}` : '';
-  const topic = p.topic ? TOPICS.find((x) => x.id === p.topic) : null;
-  const line = p.sharedInterests.length
-    ? `You both like ${p.sharedInterests.join(', ')}`
-    : topic
-      ? `You're both in ${topic.emoji} ${topic.label}`
-      : p.bio
-        ? `“${p.bio}”`
-        : null;
-  const pill = 'flex h-9 items-center gap-1.5 rounded-full bg-black/45 px-3 text-[13px] text-white backdrop-blur';
-  return (
-    <>
-      <span className={`${pill} min-w-0 max-w-full font-semibold`}>
-        {p.avatar && <span aria-hidden>{p.avatar}</span>}
-        <span className="truncate">
-          {p.name || (
-            <span title={GENDER_LABEL[p.gender]} aria-label={GENDER_LABEL[p.gender]}>
-              {GENDER_ICON[p.gender]} Stranger
-            </span>
-          )}
-          {p.age && <span className="font-normal text-white/75"> · {ageLabel(p.age)}</span>}
-          {where && <span className="font-normal text-white/75"> · {where}</span>}
-        </span>
-        {p.verified && <VerifiedBadge />}
-        {p.plus && (
-          <span title="Plus member" aria-label="Plus member">
-            👑
-          </span>
-        )}
-        {p.isNew && <span className="rounded bg-gold px-1.5 text-[10px] font-bold text-[#1a1608]">NEW</span>}
-      </span>
-      <span className={`${pill} font-medium`}>
-        <i className="rc-blink h-[7px] w-[7px] rounded-full bg-lime" aria-hidden />
-        <CallTimer since={call.matchStartedAt} />
-      </span>
-      {line && <span className={`${pill} max-w-[22rem] truncate text-lime max-md:hidden`}>{line}</span>}
-    </>
-  );
-}
-
-/** mm:ss since the match started (00:00 between matches). */
-function CallTimer({ since }: { since: number | null }) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!since) return;
-    const t = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(t);
-  }, [since]);
-  const s = since ? Math.max(0, Math.floor((now - since) / 1000)) : 0;
-  const h = Math.floor(s / 3600);
-  const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
-  const ss = String(s % 60).padStart(2, '0');
-  return (
-    <span className="tabular-nums" aria-label="Call length">
-      {h ? `${h}:` : ''}
-      {mm}:{ss}
-    </span>
-  );
-}
-
-/** Matching (final design): ripples around a gradient camera, "Finding someone…", and the Plus filters. */
-function MatchPanel({ call, onPlus }: { call: RandomCall; onPlus: () => void }) {
-  const { user, saveSettings } = useAuth();
-  const isPlus = !!user?.plus.active;
-  const [filters, setFilters] = useState(() => loadSettings().filters ?? NO_FILTERS);
-  const [menu, setMenu] = useState<'g' | 'c' | null>(null);
-  const pick = (patch: Partial<typeof filters>) => {
-    const next = { ...filters, ...patch };
-    setFilters(next);
-    setMenu(null);
-    void saveSettings({ ...loadSettings(), filters: next }).catch(() => undefined);
-  };
-  const open = (which: 'g' | 'c') => (isPlus ? setMenu(menu === which ? null : which) : onPlus());
-  if (call.status === 'browsing') {
-    return (
-      <p className="max-w-xs px-4 text-center text-sm text-mute sm:text-base">
-        Pick someone from <span className="font-semibold text-white">Online</span> or <span className="font-semibold text-white">Friends</span> to call, or press{' '}
-        <span className="font-semibold text-white">Next</span> for a random stranger.
-      </p>
-    );
-  }
-  return (
-    <div className="flex flex-col items-center gap-2.5 px-4 text-center sm:gap-3.5">
-      <div className="relative h-[110px] w-full sm:h-[220px]" aria-hidden>
-        {[0, 1, 2].map((i) => (
-          <span key={i} className="rc-ripple-sm absolute inset-0 m-auto h-[120px] w-[120px] rounded-full border-2 border-lime sm:h-[140px] sm:w-[140px]" style={{ animationDelay: `${i}s` }} />
-        ))}
-        <span className="absolute inset-0 m-auto grid h-16 w-16 place-items-center rounded-full bg-lime sm:h-[88px] sm:w-[88px]">
-          <svg viewBox="0 0 24 24" className="h-7 w-7 sm:h-9 sm:w-9" fill="none" stroke="#0b0d10" strokeWidth={2.2} aria-hidden>
-            <rect x="2" y="6" width="14" height="12" rx="2" />
-            <path d="M16 10l6-3v10l-6-3" />
-          </svg>
-        </span>
-      </div>
-      <h1 className="m-0 font-display text-2xl font-bold sm:text-[34px]" role="status">
-        {call.status === 'connecting' ? 'Connecting…' : 'Finding someone…'}
-      </h1>
-      <p className="m-0 text-sm text-mute sm:text-[15px]">
-        {call.status === 'searching' && call.lastLeftReason ? 'They left — finding someone new · ' : ''}
-        {call.online !== null ? <span className="max-sm:hidden">{Math.max(call.online - 1, 0).toLocaleString()} online · </span> : null}
-        <span className="sm:hidden">Usually</span>
-        <span className="max-sm:hidden">usually</span> under 5 seconds
-      </p>
-      <div className="mt-1.5 flex items-center gap-2 text-left max-sm:hidden">
-        <FilterChip label="Gender" value={filters.gender} options={GENDER_OPTS} locked={!isPlus} open={menu === 'g'} onOpen={() => open('g')} onPick={(v) => pick({ gender: v })} />
-        <FilterChip label="Country" value={filters.country} options={COUNTRY_OPTS} locked={!isPlus} open={menu === 'c'} onOpen={() => open('c')} onPick={(v) => pick({ country: v })} />
-      </div>
-      {!isPlus && <p className="m-0 text-[13px] text-[#cdb766] max-sm:hidden">Filters are a Plus feature</p>}
-      {call.searchingLong && <WidenSearch />}
-      {call.status === 'searching' && <PriorityButton call={call} />}
-    </div>
-  );
-}
-
-/** Your own camera as a tile ("You"), with mic / camera buttons on phones while matching. */
-function SelfTile({ call, className = '', controls = false }: { call: RandomCall; className?: string; controls?: boolean }) {
-  return (
-    <div className={`relative overflow-hidden rounded-3xl bg-[linear-gradient(165deg,#3a4a6e,#1a2033)] ${className}`}>
-      <VideoTile stream={call.localStream} muted mirrored className="pointer-events-none absolute inset-0 h-full w-full rounded-none !bg-transparent" videoClassName="absolute inset-0" />
-      {(!call.localStream || !call.cameraOn) && (
-        <div className="absolute inset-0 grid place-items-center bg-[linear-gradient(165deg,#3a4a6e,#1a2033)] text-xs uppercase tracking-[0.08em] text-[#c9cdd4]">Camera off</div>
-      )}
-      <span className="absolute left-3 top-3 flex h-[30px] items-center rounded-full bg-black/50 px-2.5 text-xs font-semibold text-white sm:left-4 sm:top-4 sm:h-9 sm:px-3 sm:text-[13px] sm:font-medium">
-        You
-      </span>
-      {controls && (
-        <div className="absolute right-3 top-3 flex gap-2 sm:hidden">
-          <button
-            type="button"
-            onClick={call.toggleMic}
-            aria-label={call.micOn ? 'Mute microphone' : 'Unmute microphone'}
-            aria-pressed={!call.micOn}
-            className={`grid h-11 w-11 place-items-center rounded-full ${call.micOn ? 'bg-black/50 text-white' : 'bg-[#f4f5f7] text-night'}`}
-          >
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-              <rect x="9" y="2" width="6" height="12" rx="3" />
-              <path d="M5 11a7 7 0 0 0 14 0M12 18v4" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            onClick={call.toggleCamera}
-            aria-label={call.cameraOn ? 'Turn camera off' : 'Turn camera on'}
-            aria-pressed={!call.cameraOn}
-            className={`grid h-11 w-11 place-items-center rounded-full ${call.cameraOn ? 'bg-black/50 text-white' : 'bg-[#f4f5f7] text-night'}`}
-          >
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-              <rect x="2" y="6" width="14" height="12" rx="2" />
-              <path d="M16 10l6-3v10l-6-3" />
-            </svg>
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
+import { MatchPanel } from './chat/MatchPanel';
+import { PartnerBadge, PartnerPills } from './chat/PartnerInfo';
+import { ConnectionLost, Searching } from './chat/SearchStates';
+import { SelfTile } from './chat/SelfTile';
 
 export function ChatScreen({ call }: { call: RandomCall }) {
   const { t } = useI18n();
@@ -558,9 +163,9 @@ export function ChatScreen({ call }: { call: RandomCall }) {
             onClick={toggleFriends}
             aria-pressed={showFriends}
             title="Friends"
-            className={`flex h-10 items-center gap-2 rounded-[10px] border px-3 text-sm transition sm:px-3.5 ${showFriends ? 'border-[#ff7aa8] bg-[#2a1520] text-[#ffd0e0]' : 'border-line bg-card text-[#e8ebf2] hover:border-line-2'}`}
+            className={`flex h-11 items-center gap-2 rounded-[10px] border px-3 text-sm transition sm:px-3.5 ${showFriends ? 'border-lime bg-pick text-[#f4f5f7]' : 'border-line bg-card text-[#e8ebf2] hover:border-line-2'}`}
           >
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="#ff7aa8" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <svg viewBox="0 0 24 24" className="h-4 w-4 text-lime" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />
             </svg>
             <span className="hidden sm:inline">Friends</span>
@@ -569,7 +174,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
           <button
             onClick={() => (isPlus ? (showOnline ? closeOnline() : openOnline()) : setOnlineUpsell(true))}
             aria-pressed={showOnline}
-            className={`flex h-10 items-center gap-2 rounded-[10px] border px-3 text-sm transition sm:px-3.5 ${showOnline ? 'border-lime text-[#e8ebf2]' : 'border-line bg-card text-[#b7becc] hover:border-line-2'}`}
+            className={`flex h-11 items-center gap-2 rounded-[10px] border px-3 text-sm transition sm:px-3.5 ${showOnline ? 'border-lime text-[#e8ebf2]' : 'border-line bg-card text-[#b7becc] hover:border-line-2'}`}
             title={isPlus ? 'See who is online and call them' : 'See who is online (Plus)'}
           >
             <span className="h-2 w-2 rounded-full bg-[#3ddc84]" aria-hidden />
@@ -623,6 +228,7 @@ export function ChatScreen({ call }: { call: RandomCall }) {
         )}
 
         <LimitModal call={call} />
+        <ConnectionLost call={call} />
         <IncomingCallModal call={call} />
         {/* Text chat has no side column, so the list floats on the right there. */}
         {showOnline && isText && <OnlineUsersPanel call={call} onClose={closeOnline} className="fixed inset-y-2 right-2 z-40 w-[min(24rem,95vw)] shadow-2xl" />}

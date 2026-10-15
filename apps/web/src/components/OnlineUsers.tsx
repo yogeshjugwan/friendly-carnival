@@ -5,6 +5,7 @@ import type { ActiveUser, CallRequestResult } from '@rc/shared';
 import { countryName, flagEmoji, GENDER_ICON, GENDER_LABEL } from '@/lib/format';
 import type { RandomCall } from '@/lib/useRandomCall';
 import { VerifiedBadge } from './VerifiedBadge';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 
 const REFRESH_MS = 5_000;
 
@@ -147,12 +148,13 @@ export function OnlineUsersPanel({ call, onClose, className = '' }: { call: Rand
 
 /** "A Plus member wants to chat with you" with Accept / Decline. */
 export function IncomingCallModal({ call }: { call: RandomCall }) {
+  const trap = useFocusTrap();
   const { incomingCall, answerCall } = call;
   const left = useSecondsLeft(incomingCall?.expiresAt ?? null);
   if (!incomingCall) return null;
   const { from } = incomingCall;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="alertdialog" aria-modal="true" aria-labelledby="incoming-title">
+    <div ref={trap} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="alertdialog" aria-modal="true" aria-labelledby="incoming-title">
       <div className="w-full max-w-sm rounded-3xl bg-card p-6 text-center text-[#f4f5f7] shadow-2xl">
         <p className="text-5xl" aria-hidden>
           📞

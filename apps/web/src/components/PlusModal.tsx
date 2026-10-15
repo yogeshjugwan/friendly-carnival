@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import type { PlanPrice, PlusPlan } from '@rc/shared';
 import { api, useAuth } from '@/lib/auth';
 import { errorText } from './forms/fields';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 
 /** Plan names and tags as the design shows them; prices come from Stripe. */
 const PLANS: { plan: PlusPlan; name: string; tag: string; per: string }[] = [
@@ -28,6 +29,7 @@ const Check = () => (
  * sheet on phones. Pick a plan → Stripe Checkout (logged out → log in first).
  */
 export function PlusModal({ onClose }: { onClose: () => void }) {
+  const trap = useFocusTrap();
   const { user, token } = useAuth();
   const [prices, setPrices] = useState<PlanPrice[]>([]);
   const [enabled, setEnabled] = useState(true);
@@ -49,7 +51,7 @@ export function PlusModal({ onClose }: { onClose: () => void }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const chosen = PLANS.find((p) => p.plan === sel)!;
+  const chosen = PLANS.find((p) => p.plan === sel) ?? PLANS[0];
   const go = async () => {
     if (!user || !token) return setStep('login');
     setBusy(true);
@@ -66,7 +68,7 @@ export function PlusModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-[70] font-sans text-[#f4f5f7]">
       <div aria-hidden className="absolute inset-0 bg-[rgba(11,8,17,.78)] backdrop-blur-md" onClick={onClose} />
-      <section
+      <section ref={trap}
         role="dialog"
         aria-modal="true"
         aria-label="Get randomCall Plus"

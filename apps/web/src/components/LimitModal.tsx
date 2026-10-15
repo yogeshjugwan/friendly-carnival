@@ -8,6 +8,7 @@ import { AdSlot } from './AdSlot';
 import { spendError, useWallet } from './Coins';
 import { PlusModal } from './PlusModal';
 import { StateActions, StateCard } from './StateCard';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 
 const hours = (ms: number) => `${Math.round(ms / 3_600_000)} ${Math.round(ms / 3_600_000) === 1 ? 'hour' : 'hours'}`;
 
@@ -153,6 +154,7 @@ export function LimitModal({ call }: { call: RandomCall }) {
 
 /** Full-screen ad with a countdown; matches unlock when it ends. */
 function RewardVideo({ endsAt, totalMs }: { endsAt: number; totalMs: number }) {
+  const trap = useFocusTrap();
   const [left, setLeft] = useState(() => Math.ceil((endsAt - Date.now()) / 1000));
   useEffect(() => {
     const t = window.setInterval(() => setLeft(Math.max(0, Math.ceil((endsAt - Date.now()) / 1000))), 250);
@@ -160,7 +162,7 @@ function RewardVideo({ endsAt, totalMs }: { endsAt: number; totalMs: number }) {
   }, [endsAt]);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-black" role="dialog" aria-modal="true" aria-label="Video ad">
+    <div ref={trap} className="fixed inset-0 z-50 flex flex-col bg-black" role="dialog" aria-modal="true" aria-label="Video ad">
       <div className="flex items-center justify-between px-4 py-3 text-sm text-white">
         <span className="rounded bg-white/15 px-2 py-0.5 text-xs font-semibold">AD</span>
         <span aria-live="polite">{left > 0 ? `Reward in ${left}s` : 'Unlocking matches…'}</span>

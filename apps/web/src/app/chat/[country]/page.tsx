@@ -14,7 +14,7 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ country: string }> }): Promise<Metadata> {
   const c = countryPage((await params).country);
   if (!c) return {};
-  const title = `Random Video Chat ${c.name.replace(/^the /, '')} — Talk to Strangers Free | randomCall`;
+  const title = `Random Video Chat ${c.name.replace(/^the /, '')} — Talk to Strangers Free`;
   const description = `Meet new people in ${c.name} instantly. Free random video, voice and text chat with strangers — no download, no sign-up. Safe, moderated and private.`;
   return {
     title,

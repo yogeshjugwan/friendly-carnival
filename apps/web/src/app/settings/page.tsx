@@ -12,6 +12,7 @@ import { loadSettings } from '@/lib/settings';
 import { BlockedList } from '@/components/BlockedList';
 import { NotificationsToggle, useInstall } from '@/components/Pwa';
 import { ProfileAvatar, ProfileEditor, profilePreview } from '@/components/ProfileEditor';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 
 /** Phones show one view at a time (the "Me" tab and its sub-pages); desktop shows every card in two columns. */
 type View = 'main' | 'profile' | 'account' | 'privacy';
@@ -387,7 +388,7 @@ export default function SettingsPage() {
                   <span className="block text-[13px] text-mute">{plusText(signedIn.user)}</span>
                 </span>
                 <Link href="/plus" className={`${ghost} border-[#4a3f17] text-gold hover:border-gold`}>
-                  {signedIn.user.plus.active ? 'Manage' : 'Get Plus'}
+                  {signedIn.user.plus.active ? 'Manage or cancel' : 'Get Plus'}
                 </Link>
               </div>
               <div className={row}>
@@ -528,7 +529,7 @@ function AccountCard({ user, token, onLogout, onDelete }: { user: PublicUser; to
           <span className="text-xs text-mute">{plusText(user)}</span>
         </span>
         <Link href="/plus" className={`${ghost} border-[#4a3f17] text-gold`}>
-          {user.plus.active ? 'Manage' : 'Get Plus'}
+          {user.plus.active ? 'Manage or cancel' : 'Get Plus'}
         </Link>
       </div>
 
@@ -626,6 +627,7 @@ function ChangePassword({ token }: { token: string }) {
 
 /** "Delete your account?" dialog; the server needs the password to confirm. */
 function DeleteDialog({ token, onClose, onDeleted }: { token: string; onClose: () => void; onDeleted: () => void }) {
+  const trap = useFocusTrap();
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -639,7 +641,7 @@ function DeleteDialog({ token, onClose, onDeleted }: { token: string; onClose: (
   return (
     <div className="fixed inset-0 z-50 grid place-items-center p-4">
       <div aria-hidden className="absolute inset-0 bg-[rgba(11,8,17,.72)]" onClick={onClose} />
-      <form
+      <form ref={trap}
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-h"

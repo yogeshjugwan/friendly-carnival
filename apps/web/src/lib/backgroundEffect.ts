@@ -154,7 +154,8 @@ export class BackgroundEffect {
   private frame() {
     const { video, out } = this;
     if (video.readyState < 2 || !out.width) return;
-    const ctx = out.getContext('2d')!;
+    const ctx = out.getContext('2d');
+    if (!ctx) return;
     const now = performance.now();
     this.drawBackground(ctx, now);
     if (this.faceMask !== 'none' && this.landmarker) {
@@ -196,11 +197,12 @@ export class BackgroundEffect {
     }
     const px = this.maskData.data;
     for (let i = 0; i < values.length; i++) px[i * 4 + 3] = values[i] * 255;
-    mask.getContext('2d')!.putImageData(this.maskData, 0, 0);
+    mask.getContext('2d')?.putImageData(this.maskData, 0, 0);
     result.close();
 
     // Person layer: the camera, kept only where the mask says "person".
-    const p = person.getContext('2d')!;
+    const p = person.getContext('2d');
+    if (!p) return;
     p.globalCompositeOperation = 'copy';
     p.filter = 'none';
     p.drawImage(video, 0, 0, w, h);

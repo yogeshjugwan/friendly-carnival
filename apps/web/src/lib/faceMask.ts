@@ -92,8 +92,9 @@ export function poseFrom(landmarks: P[], shapes: { categoryName: string; score: 
     if (p.y > maxY) maxY = p.y;
   }
   // Outer eye corners (33 = one side, 263 = the other) give the head tilt.
-  const a = landmarks[33]!;
-  const b = landmarks[263]!;
+  // A partial landmark set falls back to a level line across the face box.
+  const a = landmarks[33] ?? { x: minX, y: (minY + maxY) / 2 };
+  const b = landmarks[263] ?? { x: maxX, y: (minY + maxY) / 2 };
   const s = (name: string) => shapes?.find((c) => c.categoryName === name)?.score ?? 0;
   return {
     x: ((minX + maxX) / 2) * w,

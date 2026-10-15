@@ -73,7 +73,9 @@ async function translateOnDevice(text: string, target: string): Promise<Translat
       if (availability === 'unavailable') return null;
       translators.set(key, a.Translator.create({ sourceLanguage: from, targetLanguage: target }));
     }
-    const t = await translators.get(key)!;
+    const pending = translators.get(key);
+    if (!pending) return null;
+    const t = await pending;
     return { text: await t.translate(text), from };
   } catch {
     return null;

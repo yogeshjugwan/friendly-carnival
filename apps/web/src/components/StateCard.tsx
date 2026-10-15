@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 
 /** Icon paths from the state-screen design (24×24, stroke). */
 export const STATE_ICONS = {
@@ -36,6 +37,7 @@ export const STATE_ICONS = {
     </>
   ),
   camOff: <path d="M2 2l20 20M16 16H4a2 2 0 01-2-2V8a2 2 0 012-2h2M10 6h4a2 2 0 012 2v4l6-3v10" />,
+  wifiOff: <path d="M2 2l20 20M8.5 16.4a5 5 0 017 0M5 12.9a10 10 0 015.2-2.8M19 12.9a10 10 0 00-2.4-1.7M2 8.8a15 15 0 014.2-2.7M22 8.8A15 15 0 0010.7 5M12 20h.01" />,
   crown: <path d="M3 8l4 4 5-7 5 7 4-4-2 11H5z" />,
 } as const;
 
@@ -68,10 +70,11 @@ export function StateCard({
   /** Fixed over the page (dialog) instead of filling its container. */
   overlay?: boolean;
 }) {
+  const trap = useFocusTrap();
   return (
     <div
       className={`${overlay ? 'fixed inset-0 z-50' : 'relative h-full min-h-full'} flex flex-col overflow-y-auto bg-night bg-[radial-gradient(ellipse_60%_50%_at_50%_30%,#1E0F2A_0%,#0B0811_70%)] px-5 pb-7 pt-24 text-[#f4f5f7] sm:items-center sm:justify-center sm:p-6`}
-      {...(overlay ? { role: 'dialog', 'aria-modal': true, 'aria-labelledby': titleId } : {})}
+      {...(overlay ? { ref: trap, role: 'dialog', 'aria-modal': true, 'aria-labelledby': titleId } : {})}
     >
       <section className="mt-auto flex w-full flex-col gap-3.5 sm:my-auto sm:max-w-[500px] sm:gap-4 sm:rounded-[26px] sm:border sm:border-divider sm:bg-[rgba(23,18,31,.94)] sm:p-8 sm:shadow-[0_30px_80px_rgba(0,0,0,.55)]">
         <span aria-hidden className={`flex h-[72px] w-[72px] items-center justify-center self-center rounded-full ${TONES[tone]}`}>

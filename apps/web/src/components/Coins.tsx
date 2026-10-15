@@ -99,6 +99,7 @@ export function GiftButton({ call, up, iconClass, menuPos, withLabel = false }: 
                     else setOpen(false);
                   }}
                   title={`${g.name} · ${g.coins} coins${g.season ? ` · ${g.season.label} special` : ''}`}
+                  aria-label={`Send ${g.name}, ${g.coins} coins`}
                   className="flex flex-col items-center rounded-lg py-1.5 transition hover:bg-white/10 disabled:opacity-40"
                 >
                   <span className="relative text-2xl">

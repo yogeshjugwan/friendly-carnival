@@ -125,8 +125,10 @@ export class RelayReceiver {
   private flush() {
     const sb = this.sb;
     if (!sb || sb.updating || !this.queue.length || this.ms?.readyState !== 'open') return;
+    const chunk = this.queue.shift();
+    if (!chunk) return;
     try {
-      sb.appendBuffer(this.queue.shift()!);
+      sb.appendBuffer(chunk);
     } catch (e) {
       // QuotaExceeded: drop old media and retry later.
       if ((e as DOMException).name === 'QuotaExceededError' && sb.buffered.length) {

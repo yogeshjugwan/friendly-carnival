@@ -106,7 +106,8 @@ export async function checkCamera(stream: MediaStream): Promise<CameraProblem | 
     if (!found[i]) return 'ok';
     if (i < 2) await new Promise((r) => setTimeout(r, 400));
   }
-  return found.every((p) => p === found[0]) ? found[0]! : found[found.length - 1]!;
+  const first = found[0] ?? null;
+  return found.every((p) => p === first) ? first : (found[found.length - 1] ?? null);
 }
 
 /** Why the camera can't be used, and how to fix it. */

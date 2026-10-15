@@ -5,6 +5,7 @@ import { MAX_APPEAL_LENGTH } from '@rc/shared';
 import { useAuth } from '@/lib/auth';
 import type { RandomCall } from '@/lib/useRandomCall';
 import { StateActions, StateCard } from './StateCard';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 
 const APPEAL_MAX = Math.min(500, MAX_APPEAL_LENGTH);
 const APPEAL_MIN = 20;
@@ -22,6 +23,7 @@ const CloseIcon = () => (
 
 /** "Appeal suspension": a full-screen dialog with the reason, a 20–500 character note, then "Appeal sent". */
 function AppealDialog({ call, reason, onClose }: { call: RandomCall; reason: string; onClose: () => void }) {
+  const trap = useFocusTrap();
   const [message, setMessage] = useState('');
   const [sent, setSent] = useState(false);
   const ok = message.trim().length >= APPEAL_MIN;
@@ -32,7 +34,7 @@ function AppealDialog({ call, reason, onClose }: { call: RandomCall; reason: str
   }, [onClose]);
 
   return (
-    <section
+    <section ref={trap}
       role="dialog"
       aria-modal="true"
       aria-label="Appeal your suspension"

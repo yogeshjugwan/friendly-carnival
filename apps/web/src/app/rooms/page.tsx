@@ -85,6 +85,11 @@ function RoomChatPanel({ room }: { room: RoomCall }) {
         ))}
         <div ref={endRef} />
       </div>
+      {room.chatNotice && (
+        <p role="alert" className="mx-2 mb-1 rounded-xl bg-amber-500/15 px-3 py-2 text-center text-xs text-amber-200">
+          {room.chatNotice}
+        </p>
+      )}
       <form
         onSubmit={(e) => {
           e.preventDefault();

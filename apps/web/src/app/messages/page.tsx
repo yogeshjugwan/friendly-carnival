@@ -177,6 +177,11 @@ export default function MessagesPage() {
               load();
             }}
             backClassName="lg:hidden"
+            onRemoved={() => {
+              setOpen(null);
+              window.history.replaceState(null, '', '/messages');
+              load();
+            }}
             className="min-w-0 flex-1 max-lg:fixed max-lg:inset-0 max-lg:z-40"
           />
         ) : (

@@ -43,7 +43,7 @@ export function FilterBar() {
     options: { value: string; label: string }[],
     wide = false,
   ) => (
-    <label className={`relative flex h-9 items-center gap-2 rounded-lg pl-3 pr-2 text-sm text-[#e8ebf2] hover:bg-card-2 ${wide ? 'min-w-0' : 'shrink-0'}`}>
+    <label className={`relative flex h-11 items-center gap-2 rounded-lg pl-3 pr-2 text-sm text-[#e8ebf2] hover:bg-card-2 ${wide ? 'min-w-0' : 'shrink-0'}`}>
       <span className="shrink-0 text-xs text-dim max-sm:hidden" aria-hidden>
         {short}
       </span>

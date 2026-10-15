@@ -85,17 +85,19 @@ export async function applyPaidOrder(
   if (!price || order.amount !== price) return null;
   const user = await accounts.userById(userId);
   if (!user) return null;
-  if (!(await accounts.recordPayment(`razorpay:${order.id}`, userId, product, order.amount))) return null;
-
+  const ref = `razorpay:${order.id}`;
+  const payment = { ref, userId, product, amount: order.amount };
   const [kind, id] = product.split(':');
   if (kind === 'coins') {
-    const pack = COIN_PACKS.find((p) => p.id === id)!;
-    await accounts.changeCoins(userId, pack.coins, 'purchase', `razorpay:${order.id}`);
-  } else {
-    const pass = PLUS_PASSES.find((p) => p.plan === id)!;
-    // Passes stack on an existing pass / gift; a paid subscription is left alone.
-    const from = isPlusActive(user.plus) && (user.plus.status === 'pass' || user.plus.status === 'admin') && user.plus.until ? user.plus.until : Date.now();
-    await accounts.setPlus(userId, { ...NO_PLUS, status: 'pass', plan: pass.plan, until: from + pass.days * 86_400_000 });
+    const pack = COIN_PACKS.find((p) => p.id === id);
+    if (!pack) return null;
+    // Record + credit in one step: a failed credit records nothing, so the webhook retry delivers.
+    return (await accounts.applyPayment(payment, { coins: pack.coins })) ? userId : null;
   }
-  return userId;
+  const pass = PLUS_PASSES.find((p) => p.plan === id);
+  if (!pass) return null;
+  // Passes stack on an existing pass / gift; a paid subscription is left alone.
+  const from = isPlusActive(user.plus) && (user.plus.status === 'pass' || user.plus.status === 'admin') && user.plus.until ? user.plus.until : Date.now();
+  const plus = { ...NO_PLUS, status: 'pass' as const, plan: pass.plan, until: from + pass.days * 86_400_000 };
+  return (await accounts.applyPayment(payment, { plus })) ? userId : null;
 }

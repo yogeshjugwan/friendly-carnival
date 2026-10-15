@@ -87,6 +87,12 @@ export function createAuthHandler(deps: AuthDeps) {
   // Verification: the gesture is picked here, so an old photo can't be reused.
   const challenges = new Map<string, { gesture: VerifyGestureId; expiresAt: number }>();
   const CHALLENGE_MS = 10 * 60_000;
+  const MAX_CHALLENGES = 50_000;
+  // Periodic sweep so expired challenges never pile up between requests.
+  setInterval(() => {
+    const now = Date.now();
+    for (const [id, c] of challenges) if (c.expiresAt < now) challenges.delete(id);
+  }, 60_000).unref();
   const selfieLimit = new RateLimiter(5, 60 * 60_000);
 
   const sendVerification = async (user: User) => {
@@ -318,7 +324,7 @@ export function createAuthHandler(deps: AuthDeps) {
       if (route === 'POST /auth/verification/challenge') {
         if (user.verifiedAt) return fail(409, 'You are already verified');
         const now = Date.now();
-        for (const [id, c] of challenges) if (c.expiresAt < now) challenges.delete(id);
+        if (challenges.size >= MAX_CHALLENGES && !challenges.has(user.id)) return fail(503, 'Busy, try again in a minute');
         const g = VERIFY_GESTURES[randomInt(VERIFY_GESTURES.length)];
         challenges.set(user.id, { gesture: g.id, expiresAt: now + CHALLENGE_MS });
         return sendJson(res, 200, { gesture: g.id, expiresAt: now + CHALLENGE_MS }), true;

@@ -47,6 +47,21 @@ export class MatchLimits {
     private readonly now: () => number = Date.now,
   ) {}
 
+  /** Drops stale days and idle call-time entries (call periodically); hard-caps both maps. */
+  sweep() {
+    const now = this.now();
+    this.prune(dayOf(now));
+    for (const [k, v] of this.time) {
+      if (v.breakUntil !== null ? v.breakUntil <= now : v.usedMs === 0) this.time.delete(k);
+    }
+    if (this.entries.size > 200_000) this.entries.clear();
+    if (this.time.size > 200_000) this.time.clear();
+  }
+
+  get size() {
+    return this.entries.size + this.time.size;
+  }
+
   private entry(key: string): Entry {
     const day = dayOf(this.now());
     let e = this.entries.get(key);

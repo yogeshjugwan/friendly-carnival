@@ -11,9 +11,23 @@ export interface Mailer {
   send(mail: Mail): Promise<void>;
 }
 
-/** Development fallback: prints the email (and its links) to the server log. */
+/**
+ * Fallback when no email provider is configured. In development it prints the
+ * email (and its links) to the server log. In production it never logs the
+ * recipient, body or links (they hold sign-in / reset tokens): emails are disabled.
+ */
 export class ConsoleMailer implements Mailer {
+  constructor(private readonly production = process.env.NODE_ENV === 'production') {
+    if (this.production) {
+      console.error('[rc-server] WARNING: NODE_ENV=production but no email provider (RESEND_API_KEY) is set — account emails are DISABLED and will not be sent.');
+    }
+  }
+
   async send(mail: Mail) {
+    if (this.production) {
+      console.warn('[mail] email disabled (no provider configured); message dropped');
+      return;
+    }
     console.log(`[mail] to=${mail.to} subject="${mail.subject}"\n${mail.text}`);
   }
 }

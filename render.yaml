@@ -37,6 +37,11 @@ services:
         generateValue: true
       - key: IP_SALT
         generateValue: true
+      # Client IP = Nth X-Forwarded-For entry from the right (proxies we trust).
+      # Render's load balancer appends one entry, so 1. Set BEHIND_CLOUDFLARE=1
+      # only if Cloudflare proxies the server (then cf-connecting-ip is trusted).
+      - key: TRUST_PROXY_HOPS
+        value: "1"
       # Postgres for reports/bans/blocks/appeals (e.g. a free Neon database).
       # Without it, safety data lives in memory and is lost on every restart.
       - key: DATABASE_URL

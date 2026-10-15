@@ -107,6 +107,9 @@ type IO = Server<ClientToServerEvents, ServerToClientEvents, Record<string, neve
 /** Per-socket report limit: 10 reports per 10 minutes. */
 const REPORT_BURST = 10;
 const REPORT_WINDOW_MS = 10 * 60_000;
+/** WebRTC signals (offers, answers, ICE candidates) per socket in rooms. */
+export const ROOM_SIGNAL_BURST = 200;
+export const ROOM_SIGNAL_WINDOW_MS = 10_000;
 
 export interface CallMetrics {
   reports: number;
@@ -772,8 +775,18 @@ export function createApp(opts: AppOptions = {}): App {
     }
   };
 
+  const socketsByDevice = new Map<string, Set<string>>();
   io.on('connection', (socket) => {
     const { deviceId, ipHash, blocked, userId, plus, verified } = socket.data;
+    // deviceId -> sockets index, so lookups by device are O(1) instead of a scan of every socket.
+    let mine = socketsByDevice.get(deviceId);
+    if (!mine) socketsByDevice.set(deviceId, (mine = new Set()));
+    mine.add(socket.id);
+    socket.on('disconnect', () => {
+      const set = socketsByDevice.get(deviceId);
+      set?.delete(socket.id);
+      if (set && !set.size) socketsByDevice.delete(deviceId);
+    });
     matchmaker.connect(socket.id, countryFromHeaders(socket.handshake.headers), {
       deviceId,
       ipHash,
@@ -872,6 +885,16 @@ export function createApp(opts: AppOptions = {}): App {
     if (socket.data.ban) socket.emit('banned', socket.data.ban);
     const sentAt: number[] = [];
     const recentTexts: string[] = [];
+    const roomChatAt: number[] = [];
+    const roomSignalAt: number[] = [];
+    /** Sliding-window burst limit: true (and records the event) when under `limit` per `windowMs`. */
+    const underBurst = (times: number[], limit: number, windowMs: number) => {
+      const now = Date.now();
+      while (times.length && now - times[0]! > windowMs) times.shift();
+      if (times.length >= limit) return false;
+      times.push(now);
+      return true;
+    };
 
     /** True (and tells the client) while a ban is in force; clears expired bans. */
     const stillBanned = () => {
@@ -960,15 +983,15 @@ export function createApp(opts: AppOptions = {}): App {
       const partner = matchmaker.partnerOf(socket.id);
       if (!partner) return done({ ok: false, reason: 'no-partner' });
       try {
-        const r = await spend(gift.coins, `gift:${gift.id}`);
-        if (!r.ok) return done(r);
-        // The receiver earns a share if they have an account.
-        const theirId = io.sockets.sockets.get(partner.id)?.data.userId;
+        const me = socket.data.userId;
+        if (!me) return done({ ok: false, reason: 'login' });
+        // The receiver earns a share if they have an account; both legs move in one transaction.
+        const theirId = io.sockets.sockets.get(partner.id)?.data.userId ?? null;
         const earned = theirId ? Math.floor(gift.coins * GIFT_SHARE) : 0;
-        if (theirId && earned) {
-          await accounts.changeCoins(theirId, earned, `gift-received:${gift.id}`);
-          void pushWallet(theirId);
-        }
+        const balance = await accounts.transferCoins(me, theirId, gift.coins, earned, `gift:${gift.id}`, `gift-received:${gift.id}`);
+        if (balance === null) return done({ ok: false, reason: 'coins' });
+        const r: SpendResult = { ok: true, wallet: (await pushWallet(me)) ?? { coins: balance, boostUntil: null } };
+        if (theirId && earned) void pushWallet(theirId);
         socket.emit('gift', { giftId: gift.id, from: 'me', earned });
         io.to(partner.id).emit('gift', { giftId: gift.id, from: 'them', earned });
         analytics.count('gifts');
@@ -1083,8 +1106,9 @@ export function createApp(opts: AppOptions = {}): App {
       const myDevice = socket.data.deviceId;
       const blockedPair = (a: string, b: string) => {
         const other = a === myDevice ? b : a;
-        const otherSocket = [...io.sockets.sockets.values()].find((x) => x.data.deviceId === other);
-        return socket.data.blocked.has(other) || !!otherSocket?.data.blocked.has(myDevice);
+        if (socket.data.blocked.has(other)) return true;
+        for (const id of socketsByDevice.get(other) ?? []) if (io.sockets.sockets.get(id)?.data.blocked.has(myDevice)) return true;
+        return false;
       };
       const { room, seat } = rooms.join(
         {
@@ -1110,15 +1134,18 @@ export function createApp(opts: AppOptions = {}): App {
       const me = rooms.seatOf(socket.id);
       const target = roomPeers(socket.id).find((x) => x.id === to);
       const msg = parseSignal(payload);
-      if (me && target && msg) io.to(target.socketId).emit('room:signal', { from: me.id, msg });
+      if (!me || !target || !msg) return;
+      if (!underBurst(roomSignalAt, ROOM_SIGNAL_BURST, ROOM_SIGNAL_WINDOW_MS)) return;
+      io.to(target.socketId).emit('room:signal', { from: me.id, msg });
     });
     socket.on('room:chat', (payload) => {
       const me = rooms.seatOf(socket.id);
       const text = parseChatText(payload);
       if (!me || !text) return;
+      if (!underBurst(roomChatAt, CHAT_BURST, CHAT_WINDOW_MS)) return void socket.emit('chat:rejected', 'rate-limited');
       if (looksLikeLink(text)) return void socket.emit('chat:rejected', 'link');
       const chat = { from: me.id, text, at: Date.now() };
-      for (const x of rooms.roomOf(socket.id)!.seats) io.to(x.socketId).emit('room:chat', chat);
+      for (const x of rooms.roomOf(socket.id)?.seats ?? []) io.to(x.socketId).emit('room:chat', chat);
     });
     socket.on('room:report', async (memberId, reason) => {
       const target = roomPeers(socket.id).find((x) => x.id === memberId);
@@ -1772,6 +1799,12 @@ export function createApp(opts: AppOptions = {}): App {
   );
   // With few people online, recent partners must eventually meet again (see Matchmaker.sweep).
   const sweepTimer = setInterval(() => matchmaker.sweep().forEach(announce), 2_000);
+  // Expired rate-limit / allowance entries in memory.
+  const memorySweep = setInterval(() => {
+    guard.sweep();
+    limits?.sweep();
+  }, 60_000);
+  memorySweep.unref();
   const purgeTimer = setInterval(
     () => void store.purgeSnapshots(Date.now() - SNAPSHOT_RETENTION_MS).catch((e) => console.error('[purge]', e)),
     60 * 60_000,
@@ -1794,6 +1827,7 @@ export function createApp(opts: AppOptions = {}): App {
       for (const t of priorityTimers.values()) clearTimeout(t);
       if (winbackTimer) clearInterval(winbackTimer);
       clearInterval(purgeTimer);
+      clearInterval(memorySweep);
       await analytics.stop();
       await io.close();
     },

@@ -62,6 +62,8 @@ const CALL_COOLDOWN_MS = 3 * 60_000;
 /** At most this many incoming requests per person per 10 minutes. */
 const MAX_INCOMING = 10;
 
+const GUARD_MAP_CAP = 100_000;
+
 export type EventVerdict = 'ok' | 'drop' | 'kick';
 
 export class Guard {
@@ -91,6 +93,29 @@ export class Guard {
     else map.delete(key);
     if (map.size > 100_000) map.clear(); // memory guard under attack
     return list;
+  }
+
+  /** Drops expired entries from every map (call periodically); hard-caps them too. */
+  sweep() {
+    const now = this.now();
+    const windows: [Map<string, number[]>, number][] = [
+      [this.connects, CONNECT_WINDOW_MS],
+      [this.matches, SKIP_WINDOW_MS],
+      [this.incoming, CONNECT_WINDOW_MS],
+    ];
+    for (const [map, ms] of windows) {
+      for (const [k, list] of map) if (!list.some((t) => now - t < ms)) map.delete(k);
+    }
+    for (const [c, t] of this.used) if (now - t > CHALLENGE_TTL_MS) this.used.delete(c);
+    for (const map of [this.blocked, this.paused, this.callCooldown]) for (const [k, until] of map) if (until <= now) map.delete(k);
+    for (const map of [this.used, this.connects, this.blocked, this.matches, this.paused, this.callCooldown, this.incoming] as Map<string, unknown>[]) {
+      if (map.size > GUARD_MAP_CAP) map.clear(); // memory guard under attack
+    }
+  }
+
+  /** Total entries across all maps (for tests / metrics). */
+  get size() {
+    return this.used.size + this.connects.size + this.blocked.size + this.matches.size + this.paused.size + this.callCooldown.size + this.incoming.size;
   }
 
   // ---- connections ----

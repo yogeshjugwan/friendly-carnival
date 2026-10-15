@@ -21,7 +21,7 @@ const app = createApp({
 if (!billing) console.warn('[rc-server] Stripe not configured: Plus checkout is disabled');
 
 if (!config.adminToken) console.warn('[rc-server] ADMIN_TOKEN not set: the admin dashboard API is disabled');
-if (!config.resendApiKey) console.warn('[rc-server] RESEND_API_KEY not set: account emails are printed to this log');
+if (!config.resendApiKey && process.env.NODE_ENV !== 'production') console.warn('[rc-server] RESEND_API_KEY not set: account emails are printed to this log');
 if (config.ipSalt === 'dev-only-salt' && process.env.NODE_ENV === 'production') {
   console.warn('[rc-server] IP_SALT not set: using the development salt');
 }

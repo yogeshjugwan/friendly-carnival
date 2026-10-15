@@ -111,6 +111,14 @@ const newRefCode = () => [...randomBytes(8)].map((b) => REF_ALPHABET[b % REF_ALP
 
 export const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
+export interface PaymentRecord {
+  ref: string;
+  userId: string;
+  product: string;
+  amount: number;
+}
+export type PaymentCredit = { coins: number } | { plus: StoredPlus };
+
 export interface AccountStore {
   init(): Promise<void>;
   createUser(email: string, passwordHash: string): Promise<User | 'exists'>;
@@ -162,6 +170,16 @@ export interface AccountStore {
   unreadCounts(to: string): Promise<Map<string, number>>;
   /** Records a payment once; false if this reference was already recorded. */
   recordPayment(ref: string, userId: string, product: string, amount: number): Promise<boolean>;
+  /**
+   * Records a payment and delivers it (coins or a Plus value) atomically: if the
+   * credit fails nothing is recorded, so a retry delivers. False if already applied.
+   */
+  applyPayment(payment: PaymentRecord, credit: PaymentCredit): Promise<boolean>;
+  /**
+   * Moves coins atomically: debits `amount` from `from` and credits `earned` to `to`
+   * (if given). Returns the sender's new balance, or null when they can't afford it.
+   */
+  transferCoins(from: string, to: string | null, amount: number, earned: number, reason: string, receivedReason: string): Promise<number | null>;
   touchLastSeen(userId: string, at: number): Promise<void>;
   setEmailOptOut(userId: string, optOut: boolean): Promise<void>;
   /** Users to send a win-back email to: confirmed email, not opted out, away since `awaySince`, none sent since `lastSentBefore`. */
@@ -482,6 +500,30 @@ export class MemoryAccountStore implements AccountStore {
     return true;
   }
 
+  async applyPayment(p: PaymentRecord, credit: PaymentCredit) {
+    if (this.payments.has(p.ref)) return false;
+    // Credit first; the payment is recorded only once it was delivered.
+    if ('coins' in credit) {
+      if ((await this.changeCoins(p.userId, credit.coins, 'purchase', p.ref)) === null) throw new Error('credit failed');
+    } else {
+      await this.setPlus(p.userId, credit.plus);
+    }
+    this.payments.add(p.ref);
+    return true;
+  }
+
+  async transferCoins(from: string, to: string | null, amount: number, earned: number, reason: string, receivedReason: string) {
+    const sender = this.users.get(from);
+    if (!sender || sender.coins - amount < 0) return null;
+    const receiver = to && earned > 0 ? this.users.get(to) : undefined;
+    // Both legs in one synchronous step: nothing can fail half-way.
+    sender.coins -= amount;
+    if (receiver) receiver.coins += earned;
+    void reason;
+    void receivedReason;
+    return sender.coins;
+  }
+
   async useTrial(userId: string) {
     const u = this.users.get(userId);
     if (!u || u.trialUsed) return false;
@@ -772,6 +814,9 @@ const toUser = (r: Record<string, unknown>): User => ({
   lastWinbackAt: r.last_winback_at == null ? null : Number(r.last_winback_at),
 });
 
+type Queryable = Pick<Pool, 'query'>;
+class NotEnough extends Error {}
+
 export class PostgresAccountStore implements AccountStore {
   constructor(private readonly pool: Pool) {}
 
@@ -874,40 +919,84 @@ export class PostgresAccountStore implements AccountStore {
     await this.pool.query('UPDATE users SET plus = $2 WHERE id = $1', [userId, JSON.stringify(plus)]);
   }
 
-  async changeCoins(userId: string, delta: number, reason: string, ref?: string) {
-    if (ref) {
-      // The unique ref makes a repeated Stripe event a no-op.
-      try {
-        await this.pool.query('INSERT INTO coin_ledger (id, user_id, delta, reason, ref, created_at) VALUES ($1,$2,$3,$4,$5,$6)', [
-          randomUUID(),
-          userId,
-          delta,
-          reason,
-          ref,
-          Date.now(),
-        ]);
-      } catch (e) {
-        const err = e as { code?: string; message?: string };
-        if (err.code === '23505' || /duplicate|unique/i.test(err.message ?? '')) {
-          const { rows } = await this.pool.query('SELECT coins FROM users WHERE id = $1', [userId]);
-          return rows[0] ? Number(rows[0].coins) : null;
-        }
-        throw e;
-      }
+  /** Runs `fn` in one transaction on a dedicated client. */
+  private async tx<T>(fn: (q: Queryable) => Promise<T>): Promise<T> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const out = await fn(client);
+      await client.query('COMMIT');
+      return out;
+    } catch (e) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw e;
+    } finally {
+      client.release();
     }
-    // Atomic: never goes below zero.
-    const { rows } = await this.pool.query('UPDATE users SET coins = coins + $2 WHERE id = $1 AND coins + $2 >= 0 RETURNING coins', [userId, delta]);
-    if (!rows[0]) return null;
-    if (!ref) {
-      await this.pool.query('INSERT INTO coin_ledger (id, user_id, delta, reason, ref, created_at) VALUES ($1,$2,$3,$4,NULL,$5)', [
+  }
+
+  /** Ledger row + balance change on `q` (inside a transaction). Null if it would go negative. */
+  private async coinsOn(q: Queryable, userId: string, delta: number, reason: string, ref: string | null) {
+    if (ref) {
+      // The unique ref makes a repeated event a no-op.
+      const ins = await q.query('INSERT INTO coin_ledger (id, user_id, delta, reason, ref, created_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING', [
         randomUUID(),
         userId,
         delta,
         reason,
+        ref,
         Date.now(),
       ]);
+      if (!ins.rowCount) {
+        const { rows } = await q.query('SELECT coins FROM users WHERE id = $1', [userId]);
+        return rows[0] ? Number(rows[0].coins) : null;
+      }
+    }
+    // Never goes below zero.
+    const { rows } = await q.query('UPDATE users SET coins = coins + $2 WHERE id = $1 AND coins + $2 >= 0 RETURNING coins', [userId, delta]);
+    if (!rows[0]) throw new NotEnough();
+    if (!ref) {
+      await q.query('INSERT INTO coin_ledger (id, user_id, delta, reason, ref, created_at) VALUES ($1,$2,$3,$4,NULL,$5)', [randomUUID(), userId, delta, reason, Date.now()]);
     }
     return Number(rows[0].coins);
+  }
+
+  async changeCoins(userId: string, delta: number, reason: string, ref?: string) {
+    try {
+      return await this.tx((q) => this.coinsOn(q, userId, delta, reason, ref ?? null));
+    } catch (e) {
+      if (e instanceof NotEnough) return null;
+      throw e;
+    }
+  }
+
+  async applyPayment(p: PaymentRecord, credit: PaymentCredit) {
+    return this.tx(async (q) => {
+      const ins = await q.query('INSERT INTO payments (ref, user_id, product, amount, created_at) VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING', [
+        p.ref,
+        p.userId,
+        p.product,
+        p.amount,
+        Date.now(),
+      ]);
+      if (!ins.rowCount) return false;
+      if ('coins' in credit) await this.coinsOn(q, p.userId, credit.coins, 'purchase', p.ref);
+      else await q.query('UPDATE users SET plus = $2 WHERE id = $1', [p.userId, JSON.stringify(credit.plus)]);
+      return true;
+    });
+  }
+
+  async transferCoins(from: string, to: string | null, amount: number, earned: number, reason: string, receivedReason: string) {
+    try {
+      return await this.tx(async (q) => {
+        const balance = await this.coinsOn(q, from, -amount, reason, null);
+        if (to && earned > 0) await this.coinsOn(q, to, earned, receivedReason, null);
+        return balance;
+      });
+    } catch (e) {
+      if (e instanceof NotEnough) return null;
+      throw e;
+    }
   }
 
   async setBoost(userId: string, until: number | null) {

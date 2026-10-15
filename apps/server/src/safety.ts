@@ -39,11 +39,32 @@ export function hashIp(ip: string | null | undefined, salt: string): string | nu
   return createHash('sha256').update(`${salt}:${ip}`).digest('hex').slice(0, 32);
 }
 
-/** Client IP behind Render/Vercel/Cloudflare proxies, else the socket address. */
-export function clientIp(headers: Record<string, string | string[] | undefined>, address: string | undefined): string | null {
-  const pick = (h: string | string[] | undefined) => (Array.isArray(h) ? h[0] : h);
-  const forwarded = pick(headers['cf-connecting-ip']) ?? pick(headers['x-forwarded-for'])?.split(',')[0];
-  return forwarded?.trim() || address || null;
+/**
+ * Client IP behind trusted proxies, else the socket address.
+ *
+ * X-Forwarded-For is client-controlled except for the entries our own proxies
+ * append on the right, so we take the Nth entry from the right where N is
+ * TRUST_PROXY_HOPS (default 1: Render's load balancer). cf-connecting-ip is
+ * only trusted when BEHIND_CLOUDFLARE=1 (otherwise anyone can send it).
+ */
+export function clientIp(
+  headers: Record<string, string | string[] | undefined>,
+  address: string | undefined,
+  env: { TRUST_PROXY_HOPS?: string; BEHIND_CLOUDFLARE?: string } = process.env,
+): string | null {
+  const all = (h: string | string[] | undefined) => (Array.isArray(h) ? h.join(',') : h);
+  if (env.BEHIND_CLOUDFLARE === '1') {
+    const cf = all(headers['cf-connecting-ip'])?.split(',')[0]?.trim();
+    if (cf) return cf;
+  }
+  const hops = Math.max(1, Math.floor(Number(env.TRUST_PROXY_HOPS ?? '1')) || 1);
+  const list = (all(headers['x-forwarded-for']) ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  // Fewer entries than hops: the request did not pass through all our proxies; take the leftmost we have.
+  const ip = list.length ? list[Math.max(0, list.length - hops)] : undefined;
+  return ip || address || null;
 }
 
 const DEVICE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

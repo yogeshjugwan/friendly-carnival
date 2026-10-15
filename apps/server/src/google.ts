@@ -40,6 +40,10 @@ export function createGoogleHandler(deps: GoogleDeps) {
   const callbackUrl = `${deps.serverUrl}/auth/google/callback`;
   /** state → where to go afterwards; one use, short-lived. */
   const pending = new Map<string, { next: string; expires: number }>();
+  setInterval(() => {
+    const now = Date.now();
+    for (const [k, v] of pending) if (v.expires < now) pending.delete(k);
+  }, 60_000).unref();
 
   const redirect = (res: ServerResponse, location: string) => {
     res.writeHead(302, { location, 'cache-control': 'no-store' });
